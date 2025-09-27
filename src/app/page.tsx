@@ -212,7 +212,7 @@ interface ClarificationCardProps {
 }
 
 function ClarificationCard({ clarification, state, onStateChange }: ClarificationCardProps) {
-  const matchedProduct = clarification.ean_matched?.[0]
+  const matchedProduct = clarification.ean_matched?.[0] as { external_id?: string } | undefined
 
   const cardClassName = state 
     ? state === 'yes' 
@@ -245,7 +245,7 @@ function ClarificationCard({ clarification, state, onStateChange }: Clarificatio
 
           {/* Доступные продукты (компактные карточки) */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
-            {clarification.d.details.map((product) => (
+            {clarification.d.details.map((product: { price: number; description: string; external_id: string }) => (
               <Card 
                 key={product.external_id}
                 className={`!px-2 !py-1 !gap-0 text-[10px] md:text-xs rounded-md ${
