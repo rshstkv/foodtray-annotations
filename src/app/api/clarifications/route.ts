@@ -6,6 +6,18 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     
+    // Подготовим информацию о фильтре состояний до построения SELECT,
+    // чтобы динамически выбрать тип джойна для clarification_states
+    const stateFilterRaw = searchParams.get('state')
+    const stateFilterValues = stateFilterRaw ? stateFilterRaw.split(',') : []
+    const hasEmptyState = stateFilterValues.includes('не задано')
+    const actualStateValues = stateFilterValues.filter(s => s !== 'не задано')
+    // Если фильтруем только по конкретным состояниям (yes/no) без "не задано",
+    // используем INNER JOIN для ускорения и корректной фильтрации
+    const clarificationStatesSelect = (!hasEmptyState && actualStateValues.length > 0)
+      ? 'clarification_states!inner(\n          state,\n          created_at,\n          updated_at\n        )'
+      : 'clarification_states(\n          state,\n          created_at,\n          updated_at\n        )'
+    
     // Параметры пагинации
     const page = parseInt(searchParams.get('page') || '0')
     const limit = parseInt(searchParams.get('limit') || '25')
@@ -36,11 +48,8 @@ export async function GET(request: NextRequest) {
           image_url_qualifying,
           sign
         ),
-        clarification_states(
-          state,
-          created_at,
-          updated_at
-        )
+        ${clarificationStatesSelect}
+        
       `, { count: 'exact' })
 
     // Применяем фильтры для заказов
@@ -69,23 +78,17 @@ export async function GET(request: NextRequest) {
       query = query.or(`ean_matched.cs.${eanSearch},available_products.cs.${eanSearch}`)
     }
 
-    // Фильтры по состояниям (работа с LEFT JOIN)
-    if (searchParams.get('state')) {
-      const states = searchParams.get('state')!.split(',')
-      
-      // Проверяем есть ли 'не задано' в фильтре
-      const hasEmpty = states.includes('не задано')
-      const actualStates = states.filter(s => s !== 'не задано')
-      
-      if (hasEmpty && actualStates.length > 0) {
-        // Если нужны и пустые и конкретные состояния
-        query = query.or(`clarification_states.state.in.(${actualStates.join(',')}),clarification_states.state.is.null`)
-      } else if (hasEmpty) {
+    // Фильтры по состояниям (работа с LEFT/INNER JOIN в зависимости от фильтра)
+    if (stateFilterValues.length > 0) {
+      if (hasEmptyState && actualStateValues.length > 0) {
+        // Нужны и пустые и конкретные состояния
+        query = query.or(`clarification_states.state.in.(${actualStateValues.join(',')}),clarification_states.state.is.null`)
+      } else if (hasEmptyState) {
         // Только пустые состояния
         query = query.is('clarification_states.state', null)
       } else {
         // Только конкретные состояния
-        query = query.in('clarification_states.state', actualStates)
+        query = query.in('clarification_states.state', actualStateValues)
       }
     }
 
