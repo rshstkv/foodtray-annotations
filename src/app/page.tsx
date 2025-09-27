@@ -239,7 +239,7 @@ function ClarificationCard({ clarification, state, onStateChange }: Clarificatio
           {/* Детали (компактный столбец) */}
           <div className="flex flex-col gap-1 mb-3 text-xs md:text-sm text-gray-600">
             <div><span className="font-medium">Локация:</span> {clarification.device_canteen_name}</div>
-            <div><span className="font-medium">Дата:</span> {clarification.start_dtts.split(' ')[0]}</div>
+            <div><span className="font-medium">Дата:</span> {clarification.start_dtts?.split(' ')[0] ?? ''}</div>
             <div><span className="font-medium">Тип:</span> {clarification.clarification_type}</div>
           </div>
 
