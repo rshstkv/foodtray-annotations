@@ -18,7 +18,11 @@ export interface ClarificationData {
   image_found?: boolean
   ean_matched_count?: number
   d: {
-    details: unknown[]
+    details: Array<{
+      price: number
+      description: string
+      external_id: string
+    }>
   }
   // Информация о состоянии
   state?: 'yes' | 'no'
