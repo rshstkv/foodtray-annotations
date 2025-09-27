@@ -204,6 +204,7 @@ export function FilterPanel({
                 onFromChange={(value) => onUpdateFilter('start_dtts_from', value)}
                 onToChange={(value) => onUpdateFilter('start_dtts_to', value)}
                 availableDates={availableDates || undefined}
+                loadingAvailableDates={isLoadingDates}
               />
 
               <div className="space-y-2">

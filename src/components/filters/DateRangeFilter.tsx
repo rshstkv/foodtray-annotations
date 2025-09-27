@@ -14,6 +14,7 @@ interface DateRangeFilterProps {
   onFromChange: (value: string) => void
   onToChange: (value: string) => void
   availableDates?: string[]
+  loadingAvailableDates?: boolean
 }
 
 type DateMode = 'single' | 'range'
@@ -24,7 +25,8 @@ export function DateRangeFilter({
   toValue,
   onFromChange,
   onToChange,
-  availableDates
+  availableDates,
+  loadingAvailableDates
 }: DateRangeFilterProps) {
   const initialMode: DateMode = useMemo(() => {
     if (fromValue && toValue && fromValue === toValue) return 'single'
@@ -166,10 +168,11 @@ export function DateRangeFilter({
               </div>
             )}
 
-            {availableDates && availableDates.length > 0 && (
-              <div className="pt-2 text-[10px] text-gray-500">
-                Доступные периоды: {(() => {
-                  // Сгруппируем в непрерывные отрезки
+            <div className="pt-2 text-[10px] text-gray-500">
+              {loadingAvailableDates ? (
+                <>Загрузка доступных периодов…</>
+              ) : availableDates && availableDates.length > 0 ? (
+                <>Доступные периоды: {(() => {
                   const dates = [...availableDates].sort()
                   const ranges: Array<{ start: string; end: string }> = []
                   let start = dates[0]
@@ -199,8 +202,11 @@ export function DateRangeFilter({
                     .map(r => r.start === r.end ? format(r.start) : `${format(r.start)} — ${format(r.end)}`)
                     .join(', ')
                 })()}
-              </div>
-            )}
+                </>
+              ) : (
+                <>Доступные периоды: нет данных</>
+              )}
+            </div>
 
             <div className="flex items-center justify-between pt-1">
               <Button
