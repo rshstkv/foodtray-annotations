@@ -13,6 +13,7 @@ interface DateRangeFilterProps {
   toValue: string
   onFromChange: (value: string) => void
   onToChange: (value: string) => void
+  availableDates?: string[]
 }
 
 type DateMode = 'single' | 'range'
@@ -22,7 +23,8 @@ export function DateRangeFilter({
   fromValue,
   toValue,
   onFromChange,
-  onToChange
+  onToChange,
+  availableDates
 }: DateRangeFilterProps) {
   const initialMode: DateMode = useMemo(() => {
     if (fromValue && toValue && fromValue === toValue) return 'single'
@@ -160,6 +162,31 @@ export function DateRangeFilter({
                     onChange={(e) => setTempTo(e.target.value)}
                     className="w-full"
                   />
+                </div>
+              </div>
+            )}
+
+            {availableDates && availableDates.length > 0 && (
+              <div className="pt-1">
+                <div className="text-[10px] text-gray-500 mb-1">Доступные даты</div>
+                <div className="flex flex-wrap gap-1 max-h-24 overflow-auto">
+                  {availableDates.map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => {
+                        setTempFrom(d)
+                        if (mode === 'single') setTempTo(d)
+                      }}
+                      className={`px-2 py-1 rounded border text-xs ${
+                        (mode === 'single' && tempFrom === d) || (mode === 'range' && (tempFrom === d || tempTo === d))
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background hover:bg-accent'
+                      }`}
+                    >
+                      {formatDate(d)}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
