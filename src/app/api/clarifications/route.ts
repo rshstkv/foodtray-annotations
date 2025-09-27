@@ -72,10 +72,11 @@ export async function GET(request: NextRequest) {
     }
 
 
-    // Поиск по EAN
+    // Поиск по EAN: ищем только среди уже сопоставленных товаров (ean_matched)
     if (searchParams.get('ean_search')) {
       const eanSearch = searchParams.get('ean_search')!
-      query = query.or(`ean_matched.cs.${eanSearch},available_products.cs.${eanSearch}`)
+      // available_products исключаем, чтобы результат соответствовал подсвеченным карточкам
+      query = query.contains('ean_matched', [{ external_id: eanSearch } as unknown as Record<string, unknown>])
     }
 
     // Фильтры по состояниям (работа с LEFT/INNER JOIN в зависимости от фильтра)

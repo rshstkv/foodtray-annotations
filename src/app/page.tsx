@@ -254,26 +254,32 @@ function ClarificationCard({ clarification, state, onStateChange }: Clarificatio
 
           {/* Доступные продукты (компактные карточки) */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
-            {clarification.d.details.map((product: { price: number; description: string; external_id: string }) => (
-              <Card 
-                key={product.external_id}
-                className={`!px-2 !py-1 !gap-0 text-[10px] md:text-xs rounded-md ${
-                  product.external_id === matchedProduct?.external_id
-                    ? 'bg-green-50 border-green-200'
-                    : 'bg-gray-50 border-gray-200'
-                }`}
-              >
-                <div className="font-semibold text-gray-800 text-[11px] md:text-sm leading-tight line-clamp-2">
-                  {product.description}
-                </div>
-                <div className="text-green-600 font-semibold text-[11px] md:text-sm">
-                  €{product.price}
-                </div>
-                <div className="text-gray-500 font-mono text-[10px] md:text-[11px] overflow-hidden text-ellipsis whitespace-nowrap" title={`EAN: ${product.external_id}`}>
-                  EAN: {product.external_id}
-                </div>
-              </Card>
-            ))}
+            {clarification.d.details.map((product: { price: number; description: string; external_id: string }) => {
+              const isSelected = product.external_id === matchedProduct?.external_id
+              return (
+                <Card 
+                  key={product.external_id}
+                  className={`!px-2 !py-1 !gap-0 text-[10px] md:text-xs rounded-md ${
+                    isSelected
+                      ? 'bg-black border-black text-white'
+                      : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <div className={`font-semibold text-[11px] md:text-sm leading-tight line-clamp-2 ${isSelected ? 'text-white' : 'text-gray-800'}`}>
+                    {product.description}
+                  </div>
+                  <div className={`font-semibold text-[11px] md:text-sm ${isSelected ? 'text-white' : 'text-green-600'}`}>
+                    €{product.price}
+                  </div>
+                  <div
+                    className={`${isSelected ? 'text-white' : 'text-gray-500'} font-mono text-[10px] md:text-[11px] overflow-hidden text-ellipsis whitespace-nowrap`}
+                    title={`EAN: ${product.external_id}`}
+                  >
+                    EAN: {product.external_id}
+                  </div>
+                </Card>
+              )
+            })}
           </div>
         </div>
 
