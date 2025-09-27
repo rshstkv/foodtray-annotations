@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Calendar, ChevronDown, X } from 'lucide-react'
-import { SimpleCalendar } from '@/components/ui/simple-calendar'
 
 interface DateRangeFilterProps {
   label: string
@@ -121,60 +121,85 @@ export function DateRangeFilter({
               </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs text-gray-500">{mode === 'single' ? 'Дата' : 'Период'}</Label>
-              <div className={mode === 'range' ? 'grid grid-cols-2 gap-3' : ''}>
-                <SimpleCalendar
-                  month={tempFrom ? new Date(`${tempFrom}T00:00:00Z`) : new Date()}
-                  mode={mode}
-                  selectedFrom={tempFrom}
-                  selectedTo={tempTo}
-                  availableDates={availableDates}
-                  onSelect={(iso) => {
-                    if (mode === 'single') {
-                      setTempFrom(iso)
-                      setTempTo(iso)
-                    } else {
-                      if (!tempFrom || (tempFrom && tempTo)) {
-                        setTempFrom(iso)
-                        setTempTo('')
-                      } else if (iso < tempFrom) {
-                        setTempTo(tempFrom)
-                        setTempFrom(iso)
-                      } else {
-                        setTempTo(iso)
-                      }
-                    }
+            {mode === 'single' ? (
+              <div className="space-y-2">
+                <Label htmlFor="date-single" className="text-xs text-gray-500">
+                  Дата
+                </Label>
+                <Input
+                  id="date-single"
+                  type="date"
+                  value={tempFrom}
+                  onChange={(e) => {
+                    setTempFrom(e.target.value)
+                    setTempTo(e.target.value)
                   }}
+                  className="w-full"
                 />
-                {mode === 'range' && (
-                  <SimpleCalendar
-                    month={(() => {
-                      const base = tempFrom ? new Date(`${tempFrom}T00:00:00Z`) : new Date()
-                      return new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 1))
-                    })()}
-                    mode={mode}
-                    selectedFrom={tempFrom}
-                    selectedTo={tempTo}
-                    availableDates={availableDates}
-                    onSelect={(iso) => {
-                      if (!tempFrom || (tempFrom && tempTo)) {
-                        setTempFrom(iso)
-                        setTempTo('')
-                      } else if (iso < tempFrom) {
-                        setTempTo(tempFrom)
-                        setTempFrom(iso)
-                      } else {
-                        setTempTo(iso)
-                      }
-                    }}
-                  />
-                )}
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="date-from" className="text-xs text-gray-500">
+                    От
+                  </Label>
+                  <Input
+                    id="date-from"
+                    type="date"
+                    value={tempFrom}
+                    onChange={(e) => setTempFrom(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="date-to" className="text-xs text-gray-500">
+                    До
+                  </Label>
+                  <Input
+                    id="date-to"
+                    type="date"
+                    value={tempTo}
+                    onChange={(e) => setTempTo(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            )}
 
             {availableDates && availableDates.length > 0 && (
-              <div className="pt-1 text-[10px] text-gray-500">Подсветка на календаре показывает доступные даты</div>
+              <div className="pt-2 text-[10px] text-gray-500">
+                Доступные периоды: {(() => {
+                  // Сгруппируем в непрерывные отрезки
+                  const dates = [...availableDates].sort()
+                  const ranges: Array<{ start: string; end: string }> = []
+                  let start = dates[0]
+                  let prev = dates[0]
+                  const inc = (iso: string) => {
+                    const d = new Date(`${iso}T00:00:00Z`)
+                    d.setUTCDate(d.getUTCDate() + 1)
+                    const yyyy = d.getUTCFullYear()
+                    const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+                    const dd = String(d.getUTCDate()).padStart(2, '0')
+                    return `${yyyy}-${mm}-${dd}`
+                  }
+                  for (let i = 1; i < dates.length; i++) {
+                    const cur = dates[i]
+                    if (inc(prev) !== cur) {
+                      ranges.push({ start, end: prev })
+                      start = cur
+                    }
+                    prev = cur
+                  }
+                  if (start) ranges.push({ start, end: prev })
+                  const format = (iso: string) => {
+                    const [y, m, d] = iso.split('-')
+                    return `${d}.${m}.${y}`
+                  }
+                  return ranges
+                    .map(r => r.start === r.end ? format(r.start) : `${format(r.start)} — ${format(r.end)}`)
+                    .join(', ')
+                })()}
+              </div>
             )}
 
             <div className="flex items-center justify-between pt-1">
