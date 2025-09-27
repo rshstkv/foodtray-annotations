@@ -343,15 +343,15 @@ async function main() {
   // 5) Upsert пачками
   let updated = 0
   for (const ch of chunkArray(finalUpserts, 1000)) {
-    const { error, count } = await supabase
+    const { error, data } = await supabase
       .from('clarification_states')
       .upsert(ch, { onConflict: 'clarification_id' })
-      .select('clarification_id', { count: 'exact' })
+      .select('clarification_id')
     if (error) {
       console.error('Ошибка upsert clarification_states:', error)
       continue
     }
-    updated += count || ch.length
+    updated += data?.length || ch.length
   }
 
   const foundOrders = orderMatches.size
