@@ -387,8 +387,6 @@ function ImageContainer({ src, alt, label, type, isSmall }: ImageContainerProps 
           src={src}
           alt={alt}
           className="w-full h-full object-contain"
-          referrerPolicy="no-referrer"
-          crossOrigin="anonymous"
           loading="lazy"
           onError={(e) => {
             // Hide broken image to avoid layout jumps
