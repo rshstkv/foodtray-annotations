@@ -1,20 +1,11 @@
-import 'server-only'
 import { createClient } from '@supabase/supabase-js'
 
-// Normalize Supabase URL: Studio (54323) -> API (54321); localhost -> 127.0.0.1
-const rawUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
-const supabaseUrl = rawUrl.replace(':54323', ':54321').replace('localhost', '127.0.0.1')
+// Normalize Supabase URL: if user accidentally sets Studio port (54323), use API port (54321)
+const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321'
+const supabaseUrl = rawUrl.replace(':54323', ':54321')
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTYwMzk2ODgzNCwiZXhwIjoyNTUwNjUzNjM0LCJyb2xlIjoiYW5vbiJ9.36fUebxgx1mcBo4s19v0SzqmzunP--hm_hep0uLX0ew'
 
-// Prefer Service Role on server; fall back to anon only for local/dev
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.SUPABASE_ANON_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  ''
-
-export const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false }
-})
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export type Database = {
   public: {
