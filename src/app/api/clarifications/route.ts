@@ -101,7 +101,40 @@ export async function GET(request: NextRequest) {
     }
 
     // Преобразуем данные в формат, ожидаемый фронтендом
-    const transformedData = data?.map((item: any) => {
+    type Row = {
+      clarification_id: string
+      rectangle: string
+      clarification_type: string
+      ean_matched: unknown
+      product_name: string
+      superclass?: string
+      hyperclass?: string
+      image_found?: boolean
+      ean_matched_count?: number
+      available_products: Array<{ price: number; description: string; external_id: string }>
+      orders:
+        | {
+            device_canteen_name: string
+            pos_transaction_id: string
+            start_dtts: string
+            has_assistant_events: boolean
+            image_url_main?: string
+            image_url_qualifying?: string
+            sign?: string
+          }
+        | Array<{
+            device_canteen_name: string
+            pos_transaction_id: string
+            start_dtts: string
+            has_assistant_events: boolean
+            image_url_main?: string
+            image_url_qualifying?: string
+            sign?: string
+          }>
+      clarification_states?: Array<{ state: 'yes' | 'no'; created_at: string; updated_at: string }>
+    }
+
+    const transformedData = (data as Row[] | undefined)?.map((item) => {
       const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
       return {
         clarification_id: item.clarification_id,
