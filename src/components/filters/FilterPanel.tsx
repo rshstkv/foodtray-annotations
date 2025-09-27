@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,6 +36,8 @@ export function FilterPanel({
   const [isExpanded, setIsExpanded] = useState(false)
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null)
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
+  const [availableDates, setAvailableDates] = useState<string[] | null>(null)
+  const [isLoadingDates, setIsLoadingDates] = useState(false)
 
   // Debounced поиск по EAN
   const debouncedEanSearch = useDebouncedValue(filters.ean_search, 300)
@@ -65,6 +67,47 @@ export function FilterPanel({
 
     loadFilterOptions()
   }, [])
+
+  // Построение query-параметров для available-dates
+  const availableDatesQuery = useMemo(() => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value === null || value === undefined) return
+      if (Array.isArray(value)) {
+        if (value.length > 0) params.set(key, value.join(','))
+      } else if (typeof value === 'boolean') {
+        params.set(key, String(value))
+      } else if (typeof value === 'string' && value !== '') {
+        params.set(key, value)
+      }
+    })
+    return params.toString()
+  }, [filters])
+
+  // Загрузка доступных дат при изменении фильтров
+  useEffect(() => {
+    let cancelled = false
+    const loadDates = async () => {
+      setIsLoadingDates(true)
+      try {
+        const url = availableDatesQuery
+          ? `/api/available-dates?${availableDatesQuery}`
+          : '/api/available-dates'
+        const response = await fetch(url)
+        if (!response.ok) return
+        const json = await response.json()
+        if (!cancelled) setAvailableDates(Array.isArray(json.dates) ? json.dates : [])
+      } catch (e) {
+        if (!cancelled) setAvailableDates([])
+      } finally {
+        if (!cancelled) setIsLoadingDates(false)
+      }
+    }
+    loadDates()
+    return () => {
+      cancelled = true
+    }
+  }, [availableDatesQuery])
 
   const getActiveFiltersCount = () => {
     let count = 0
@@ -160,6 +203,8 @@ export function FilterPanel({
                 toValue={filters.start_dtts_to}
                 onFromChange={(value) => onUpdateFilter('start_dtts_from', value)}
                 onToChange={(value) => onUpdateFilter('start_dtts_to', value)}
+                availableDates={availableDates || undefined}
+                loadingAvailableDates={isLoadingDates}
               />
 
               <div className="space-y-2">
