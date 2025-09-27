@@ -1,0 +1,1 @@
+drop policy if exists "Allow all operations on orders" on orders;\ndrop policy if exists "Allow all operations on clarifications" on clarifications;\ndrop policy if exists "Allow all operations on clarification_states" on clarification_states;\n
