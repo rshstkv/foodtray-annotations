@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +14,14 @@ import { LoadingIndicator, EmptyState } from '@/components/LoadingIndicator'
 type RowStates = Record<string, 'yes' | 'no'>
 
 export default function Home() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}> 
+      <HomeContent />
+    </Suspense>
+  )
+}
+
+function HomeContent() {
   const [rowStates, setRowStates] = useState<RowStates>({})
   const { filters, updateFilter, resetFilters, hasActiveFilters, isInitialized } = useFilters()
   
