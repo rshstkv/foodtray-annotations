@@ -168,45 +168,7 @@ export function DateRangeFilter({
               </div>
             )}
 
-            <div className="pt-2 text-[10px] text-gray-500">
-              {loadingAvailableDates ? (
-                <>Загрузка доступных периодов…</>
-              ) : availableDates && availableDates.length > 0 ? (
-                <>Доступные периоды: {(() => {
-                  const dates = [...availableDates].sort()
-                  const ranges: Array<{ start: string; end: string }> = []
-                  let start = dates[0]
-                  let prev = dates[0]
-                  const inc = (iso: string) => {
-                    const d = new Date(`${iso}T00:00:00Z`)
-                    d.setUTCDate(d.getUTCDate() + 1)
-                    const yyyy = d.getUTCFullYear()
-                    const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
-                    const dd = String(d.getUTCDate()).padStart(2, '0')
-                    return `${yyyy}-${mm}-${dd}`
-                  }
-                  for (let i = 1; i < dates.length; i++) {
-                    const cur = dates[i]
-                    if (inc(prev) !== cur) {
-                      ranges.push({ start, end: prev })
-                      start = cur
-                    }
-                    prev = cur
-                  }
-                  if (start) ranges.push({ start, end: prev })
-                  const format = (iso: string) => {
-                    const [y, m, d] = iso.split('-')
-                    return `${d}.${m}.${y}`
-                  }
-                  return ranges
-                    .map(r => r.start === r.end ? format(r.start) : `${format(r.start)} — ${format(r.end)}`)
-                    .join(', ')
-                })()}
-                </>
-              ) : (
-                <>Доступные периоды: нет данных</>
-              )}
-            </div>
+            {/* footer with available periods removed per request */}
 
             <div className="flex items-center justify-between pt-1">
               <Button
