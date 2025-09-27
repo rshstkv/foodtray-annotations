@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Calendar, ChevronDown, X } from 'lucide-react'
+import { SimpleCalendar } from '@/components/ui/simple-calendar'
 
 interface DateRangeFilterProps {
   label: string
@@ -121,74 +121,60 @@ export function DateRangeFilter({
               </Button>
             </div>
 
-            {mode === 'single' ? (
-              <div className="space-y-2">
-                <Label htmlFor="date-single" className="text-xs text-gray-500">
-                  Дата
-                </Label>
-                <Input
-                  id="date-single"
-                  type="date"
-                  value={tempFrom}
-                  onChange={(e) => {
-                    setTempFrom(e.target.value)
-                    setTempTo(e.target.value)
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500">{mode === 'single' ? 'Дата' : 'Период'}</Label>
+              <div className={mode === 'range' ? 'grid grid-cols-2 gap-3' : ''}>
+                <SimpleCalendar
+                  month={tempFrom ? new Date(`${tempFrom}T00:00:00Z`) : new Date()}
+                  mode={mode}
+                  selectedFrom={tempFrom}
+                  selectedTo={tempTo}
+                  availableDates={availableDates}
+                  onSelect={(iso) => {
+                    if (mode === 'single') {
+                      setTempFrom(iso)
+                      setTempTo(iso)
+                    } else {
+                      if (!tempFrom || (tempFrom && tempTo)) {
+                        setTempFrom(iso)
+                        setTempTo('')
+                      } else if (iso < tempFrom) {
+                        setTempTo(tempFrom)
+                        setTempFrom(iso)
+                      } else {
+                        setTempTo(iso)
+                      }
+                    }
                   }}
-                  className="w-full"
                 />
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label htmlFor="date-from" className="text-xs text-gray-500">
-                    От
-                  </Label>
-                  <Input
-                    id="date-from"
-                    type="date"
-                    value={tempFrom}
-                    onChange={(e) => setTempFrom(e.target.value)}
-                    className="w-full"
+                {mode === 'range' && (
+                  <SimpleCalendar
+                    month={(() => {
+                      const base = tempFrom ? new Date(`${tempFrom}T00:00:00Z`) : new Date()
+                      return new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 1))
+                    })()}
+                    mode={mode}
+                    selectedFrom={tempFrom}
+                    selectedTo={tempTo}
+                    availableDates={availableDates}
+                    onSelect={(iso) => {
+                      if (!tempFrom || (tempFrom && tempTo)) {
+                        setTempFrom(iso)
+                        setTempTo('')
+                      } else if (iso < tempFrom) {
+                        setTempTo(tempFrom)
+                        setTempFrom(iso)
+                      } else {
+                        setTempTo(iso)
+                      }
+                    }}
                   />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="date-to" className="text-xs text-gray-500">
-                    До
-                  </Label>
-                  <Input
-                    id="date-to"
-                    type="date"
-                    value={tempTo}
-                    onChange={(e) => setTempTo(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
+                )}
               </div>
-            )}
+            </div>
 
             {availableDates && availableDates.length > 0 && (
-              <div className="pt-1">
-                <div className="text-[10px] text-gray-500 mb-1">Доступные даты</div>
-                <div className="flex flex-wrap gap-1 max-h-24 overflow-auto">
-                  {availableDates.map(d => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => {
-                        setTempFrom(d)
-                        if (mode === 'single') setTempTo(d)
-                      }}
-                      className={`px-2 py-1 rounded border text-xs ${
-                        (mode === 'single' && tempFrom === d) || (mode === 'range' && (tempFrom === d || tempTo === d))
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-background hover:bg-accent'
-                      }`}
-                    >
-                      {formatDate(d)}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <div className="pt-1 text-[10px] text-gray-500">Подсветка на календаре показывает доступные даты</div>
             )}
 
             <div className="flex items-center justify-between pt-1">
