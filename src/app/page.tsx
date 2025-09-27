@@ -384,9 +384,17 @@ function ImageContainer({ src, alt, label, type, isSmall }: ImageContainerProps 
         onClick={() => setIsModalOpen(true)}
       >
         <img 
-          src={src} 
+          src={src}
           alt={alt}
           className="w-full h-full object-contain"
+          referrerPolicy="no-referrer"
+          crossOrigin="anonymous"
+          loading="lazy"
+          onError={(e) => {
+            // Hide broken image to avoid layout jumps
+            const target = e.currentTarget as HTMLImageElement
+            target.style.visibility = 'hidden'
+          }}
         />
         
         <div className={`absolute top-1 left-1 bg-blue-600 text-white rounded font-bold ${isSmall ? 'px-1 py-0.5 text-[10px]' : 'px-2 py-1 text-xs'}`}>
