@@ -101,30 +101,33 @@ export async function GET(request: NextRequest) {
     }
 
     // Преобразуем данные в формат, ожидаемый фронтендом
-    const transformedData = data?.map(item => ({
-      clarification_id: item.clarification_id,
-      device_canteen_name: item.orders.device_canteen_name,
-      pos_transaction_id: item.orders.pos_transaction_id,
-      start_dtts: item.orders.start_dtts,
-      rectangle: item.rectangle,
-      clarification_type: item.clarification_type,
-      image_url_main: item.orders.image_url_main,
-      image_url_qualifying: item.orders.image_url_qualifying,
-      ean_matched: item.ean_matched,
-      product_name: item.product_name,
-      sign: item.orders.sign,
-      superclass: item.superclass,
-      hyperclass: item.hyperclass,
-      image_found: item.image_found,
-      ean_matched_count: item.ean_matched_count,
-      d: {
-        details: item.available_products
-      },
-      // Добавляем информацию о состоянии
-      state: item.clarification_states?.[0]?.state || undefined,
-      state_created_at: item.clarification_states?.[0]?.created_at || undefined,
-      state_updated_at: item.clarification_states?.[0]?.updated_at || undefined
-    }))
+    const transformedData = data?.map((item: any) => {
+      const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
+      return {
+        clarification_id: item.clarification_id,
+        device_canteen_name: order?.device_canteen_name,
+        pos_transaction_id: order?.pos_transaction_id,
+        start_dtts: order?.start_dtts,
+        rectangle: item.rectangle,
+        clarification_type: item.clarification_type,
+        image_url_main: order?.image_url_main,
+        image_url_qualifying: order?.image_url_qualifying,
+        ean_matched: item.ean_matched,
+        product_name: item.product_name,
+        sign: order?.sign,
+        superclass: item.superclass,
+        hyperclass: item.hyperclass,
+        image_found: item.image_found,
+        ean_matched_count: item.ean_matched_count,
+        d: {
+          details: item.available_products
+        },
+        // Добавляем информацию о состоянии
+        state: item.clarification_states?.[0]?.state || undefined,
+        state_created_at: item.clarification_states?.[0]?.created_at || undefined,
+        state_updated_at: item.clarification_states?.[0]?.updated_at || undefined
+      }
+    })
 
     return NextResponse.json({
       data: transformedData || [],
