@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "supabase db reset",
-    "import:clarifications": "tsx scripts/import-clarifications.ts"
+    "import:clarifications": "tsx scripts/import-clarifications.ts",
+    "import:clarification-states": "tsx scripts/import-clarification-states.ts"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.3",

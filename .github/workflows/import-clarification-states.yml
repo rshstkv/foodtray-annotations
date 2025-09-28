@@ -1,0 +1,66 @@
+name: Import clarification states (prod)
+
+on:
+  workflow_dispatch:
+    inputs:
+      file_url:
+        description: 'HTTPS URL до CSV (2 колонки: clarification_id,label)'
+        required: false
+        default: ''
+      repo_path:
+        description: 'Путь к CSV внутри репозитория (например, data/results-2025-09-28.csv)'
+        required: false
+        default: ''
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL != '' && secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' && secrets.SUPABASE_SERVICE_ROLE_KEY || vars.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Validate env
+        run: |
+          test -n "$SUPABASE_URL" || { echo "SUPABASE_URL is missing"; exit 1; }
+          test -n "$SUPABASE_SERVICE_ROLE_KEY" || { echo "SUPABASE_SERVICE_ROLE_KEY is missing"; exit 1; }
+
+      - name: Resolve input file
+        run: |
+          set -e
+          if [ -n "${{ github.event.inputs.repo_path }}" ]; then
+            test -f "${{ github.event.inputs.repo_path }}" || { echo "repo_path not found: ${{ github.event.inputs.repo_path }}"; exit 1; }
+            cp "${{ github.event.inputs.repo_path }}" data.csv
+            echo "Using repository file: ${{ github.event.inputs.repo_path }}"
+          elif [ -n "${{ github.event.inputs.file_url }}" ]; then
+            curl --fail --show-error --location \
+                 --connect-timeout 3 --max-time 60 \
+                 -o data.csv "${{ github.event.inputs.file_url }}"
+            echo "Downloaded from URL"
+          else
+            echo "Either repo_path or file_url must be provided"; exit 1;
+          fi
+
+      - name: Import states
+        run: |
+          npx tsx scripts/import-clarification-states.ts "$(pwd)/data.csv"
+
+      - name: Upload report (if any)
+        if: ${{ hashFiles('import-states-report.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-states-report
+          path: import-states-report.json
+
+
