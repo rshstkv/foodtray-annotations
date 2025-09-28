@@ -10,7 +10,7 @@ import { FilterValues } from '@/hooks/useFilters'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { MultiSelectFilter } from './filters/MultiSelectFilter'
 import { DateRangeFilter } from './filters/DateRangeFilter'
-import { Filter, X, Download } from 'lucide-react'
+import { Filter, X } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface FilterOptions {
@@ -24,7 +24,6 @@ interface FilterHeaderProps {
   onResetFilters: () => void
   hasActiveFilters: boolean
   totalCount: number
-  onExport?: () => void
 }
 
 export function FilterHeader({
@@ -32,8 +31,7 @@ export function FilterHeader({
   onUpdateFilter,
   onResetFilters,
   hasActiveFilters,
-  totalCount,
-  onExport
+  totalCount
 }: FilterHeaderProps) {
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null)
 
@@ -183,26 +181,16 @@ export function FilterHeader({
               </div>
 
               {/* Правая часть: действия */}
-              <div className="flex items-center gap-2">
-                {hasActiveFilters && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onResetFilters}
-                    className="text-red-600 hover:bg-red-50 h-8 px-2"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
+              {hasActiveFilters && (
                 <Button
-                  className="bg-green-600 hover:bg-green-700 h-8 px-3 text-sm"
-                  disabled={totalCount === 0}
-                  onClick={onExport}
-                  title="Download"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onResetFilters}
+                  className="text-red-600 hover:bg-red-50 h-8 px-2"
                 >
-                  <Download className="w-4 h-4" />
+                  <X className="w-4 h-4" />
                 </Button>
-              </div>
+              )}
             </div>
           </div>
         </div>

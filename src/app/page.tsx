@@ -93,25 +93,7 @@ function HomeContent() {
     }
   }
 
-  // Экспорт результатов
-  const exportResults = () => {
-    const csvContent = clarificationsData
-      .filter(item => rowStates[item.clarification_id])
-      .map(item => {
-        const state = rowStates[item.clarification_id]
-        const result = state === 'yes' ? 'Right' : 'Wrong'
-        return `${item.clarification_id},${result}`
-      })
-      .join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `clarifications_results_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
+  // Экспорт удалён. Логика была в exportResults
 
   // Показываем начальный лоадер только при первой загрузке
   if (isLoading && clarificationsData.length === 0) {
@@ -123,7 +105,6 @@ function HomeContent() {
           onResetFilters={resetFilters}
           hasActiveFilters={hasActiveFilters}
           totalCount={0}
-          onExport={exportResults}
         />
         <div className="pt-20 px-5">
           <div className="max-w-7xl mx-auto">
@@ -143,7 +124,6 @@ function HomeContent() {
           onResetFilters={resetFilters}
           hasActiveFilters={hasActiveFilters}
           totalCount={0}
-          onExport={exportResults}
         />
         <div className="pt-20 px-5 flex items-center justify-center">
           <div className="text-red-600 text-xl">Ошибка: {error}</div>
@@ -162,7 +142,6 @@ function HomeContent() {
           onResetFilters={resetFilters}
           hasActiveFilters={hasActiveFilters}
           totalCount={count}
-          onExport={exportResults}
         />
       )}
 
