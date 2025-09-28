@@ -18,6 +18,9 @@ export async function GET(request: NextRequest) {
       ? 'clarification_states!inner(\n          state,\n          created_at,\n          updated_at\n        )'
       : 'clarification_states(\n          state,\n          created_at,\n          updated_at\n        )'
     
+    // Поиск по EAN (используем для постфильтрации ниже)
+    const eanSearchParam = (searchParams.get('ean_search') || '').trim()
+
     // Параметры пагинации
     const page = parseInt(searchParams.get('page') || '0')
     const limit = parseInt(searchParams.get('limit') || '25')
@@ -71,12 +74,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('orders.has_assistant_events', value)
     }
 
-
-    // Поиск по EAN
-    if (searchParams.get('ean_search')) {
-      const eanSearch = searchParams.get('ean_search')!
-      query = query.or(`ean_matched.cs.${eanSearch},available_products.cs.${eanSearch}`)
-    }
+    // Не применяем SQL-фильтры по ean_matched/available_products, чтобы избежать 22P02 и несовместимости операторов
 
     // Фильтры по состояниям (работа с LEFT/INNER JOIN в зависимости от фильтра)
     if (stateFilterValues.length > 0) {
@@ -93,10 +91,19 @@ export async function GET(request: NextRequest) {
     }
 
 
-    // Применяем пагинацию и сортировку
-    const { data, count, error } = await query
-      .order('orders(start_dtts)', { ascending: false })
-      .range(from, to)
+    // Применяем сортировку. Если есть ean_search — забираем побольше строк и фильтруем в JS
+    let fetchResult
+    if (eanSearchParam) {
+      fetchResult = await query
+        .order('orders(start_dtts)', { ascending: false })
+        .limit(10000)
+    } else {
+      fetchResult = await query
+        .order('orders(start_dtts)', { ascending: false })
+        .range(from, to)
+    }
+
+    const { data, count, error } = fetchResult
 
     if (error) {
       console.error('Database error:', error)
@@ -137,7 +144,7 @@ export async function GET(request: NextRequest) {
       clarification_states?: Array<{ state: 'yes' | 'no'; created_at: string; updated_at: string }>
     }
 
-    const transformedData = (data as Row[] | undefined)?.map((item) => {
+    let transformedData = (data as Row[] | undefined)?.map((item) => {
       const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
       return {
         clarification_id: item.clarification_id,
@@ -163,14 +170,24 @@ export async function GET(request: NextRequest) {
         state_created_at: item.clarification_states?.[0]?.created_at || undefined,
         state_updated_at: item.clarification_states?.[0]?.updated_at || undefined
       }
-    })
+    }) || []
+
+    // Точная фильтрация по ean_matched: оставляем только те,
+    // где среди сопоставленных товаров есть нужный external_id
+    if (eanSearchParam) {
+      const needle = eanSearchParam
+      transformedData = transformedData.filter((row) => {
+        const list = Array.isArray(row.ean_matched) ? (row.ean_matched as Array<any>) : []
+        return list.some((x) => x && typeof x === 'object' && String(x.external_id) === needle)
+      })
+    }
 
     return NextResponse.json({
-      data: transformedData || [],
-      count: count || 0,
+      data: transformedData,
+      count: eanSearchParam ? transformedData.length : (count || 0),
       page,
       limit,
-      hasMore: (count || 0) > to + 1
+      hasMore: eanSearchParam ? false : ((count || 0) > to + 1)
     })
   } catch (error) {
     console.error('Server error:', error)

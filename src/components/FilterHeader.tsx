@@ -36,14 +36,17 @@ export function FilterHeader({
 }: FilterHeaderProps) {
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null)
 
-  // Debounced поиск по EAN
-  const debouncedEanSearch = useDebouncedValue(filters.ean_search, 300)
-
+  // Локальное состояние поля EAN + дебаунс для обновления фильтра
+  const [eanInput, setEanInput] = useState(filters.ean_search)
   useEffect(() => {
-    if (debouncedEanSearch !== filters.ean_search) {
-      onUpdateFilter('ean_search', debouncedEanSearch)
+    setEanInput(filters.ean_search)
+  }, [filters.ean_search])
+  const debouncedEanInput = useDebouncedValue(eanInput, 300)
+  useEffect(() => {
+    if (debouncedEanInput !== filters.ean_search) {
+      onUpdateFilter('ean_search', debouncedEanInput)
     }
-  }, [debouncedEanSearch, filters.ean_search, onUpdateFilter])
+  }, [debouncedEanInput, filters.ean_search, onUpdateFilter])
 
   // Загрузка опций для фильтров
   useEffect(() => {
@@ -143,8 +146,8 @@ export function FilterHeader({
 
             <div className="w-40">
               <Input
-                value={filters.ean_search}
-                onChange={(e) => onUpdateFilter('ean_search', e.target.value)}
+                value={eanInput}
+                onChange={(e) => setEanInput(e.target.value)}
                 placeholder="Поиск по EAN"
                 className="h-8 text-sm"
               />

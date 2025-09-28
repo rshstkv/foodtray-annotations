@@ -39,14 +39,17 @@ export function FilterPanel({
   const [availableDates, setAvailableDates] = useState<string[] | null>(null)
   const [isLoadingDates, setIsLoadingDates] = useState(false)
 
-  // Debounced поиск по EAN
-  const debouncedEanSearch = useDebouncedValue(filters.ean_search, 300)
-
+  // Локальное поле EAN с дебаунсом
+  const [eanInput, setEanInput] = useState(filters.ean_search)
   useEffect(() => {
-    if (debouncedEanSearch !== filters.ean_search) {
-      onUpdateFilter('ean_search', debouncedEanSearch)
+    setEanInput(filters.ean_search)
+  }, [filters.ean_search])
+  const debouncedEanInput = useDebouncedValue(eanInput, 300)
+  useEffect(() => {
+    if (debouncedEanInput !== filters.ean_search) {
+      onUpdateFilter('ean_search', debouncedEanInput)
     }
-  }, [debouncedEanSearch, filters.ean_search, onUpdateFilter])
+  }, [debouncedEanInput, filters.ean_search, onUpdateFilter])
 
   // Загрузка опций для фильтров
   useEffect(() => {
