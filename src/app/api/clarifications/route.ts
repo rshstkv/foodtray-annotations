@@ -72,11 +72,11 @@ export async function GET(request: NextRequest) {
     }
 
 
-    // Поиск по EAN: только среди сопоставленных товаров (ean_matched)
-    if (searchParams.get('ean_search')) {
-      const eanSearch = searchParams.get('ean_search')!
-      // Используем or с оператором cs для jsonb, но только по ean_matched
-      query = query.or(`ean_matched.cs.${eanSearch}`)
+    // Черновой отбор по наличию EAN в available_products (шире),
+    // а точную фильтрацию по совпадению в ean_matched сделаем ниже по результату
+    const eanSearchParam = searchParams.get('ean_search')?.trim() || ''
+    if (eanSearchParam) {
+      query = query.or(`available_products.cs.${eanSearchParam}`)
     }
 
     // Фильтры по состояниям (работа с LEFT/INNER JOIN в зависимости от фильтра)
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
       clarification_states?: Array<{ state: 'yes' | 'no'; created_at: string; updated_at: string }>
     }
 
-    const transformedData = (data as Row[] | undefined)?.map((item) => {
+    let transformedData = (data as Row[] | undefined)?.map((item) => {
       const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
       return {
         clarification_id: item.clarification_id,
@@ -164,14 +164,23 @@ export async function GET(request: NextRequest) {
         state_created_at: item.clarification_states?.[0]?.created_at || undefined,
         state_updated_at: item.clarification_states?.[0]?.updated_at || undefined
       }
-    })
+    }) || []
+
+    // Точная фильтрация по ean_matched: оставляем только те,
+    // где среди сопоставленных товаров есть нужный external_id
+    if (eanSearchParam) {
+      transformedData = transformedData.filter((row) => {
+        const list = Array.isArray(row.ean_matched) ? (row.ean_matched as Array<any>) : []
+        return list.some((x) => x && typeof x === 'object' && String(x.external_id) === eanSearchParam)
+      })
+    }
 
     return NextResponse.json({
-      data: transformedData || [],
-      count: count || 0,
+      data: transformedData,
+      count: eanSearchParam ? transformedData.length : (count || 0),
       page,
       limit,
-      hasMore: (count || 0) > to + 1
+      hasMore: eanSearchParam ? false : ((count || 0) > to + 1)
     })
   } catch (error) {
     console.error('Server error:', error)
