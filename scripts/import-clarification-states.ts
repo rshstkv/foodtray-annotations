@@ -88,13 +88,43 @@ async function importStates() {
   // Дедупликация: последнее значение выигрывает
   const map = new Map<string, Row>()
   for (const r of rows) map.set(r.clarification_id, r)
-  const finalUpserts = Array.from(map.values()).map(r => ({
+  const deduped = Array.from(map.values()).map(r => ({
     clarification_id: r.clarification_id,
     state: r.state,
     updated_at: new Date().toISOString()
   }))
 
-  console.log(`📊 Parsed rows: ${rows.length}, unique: ${finalUpserts.length}, skipped: ${skipped}`)
+  console.log(`📊 Parsed rows: ${rows.length}, unique: ${deduped.length}, skipped: ${skipped}`)
+
+  // Проверяем наличие в clarifications, чтобы не нарушать FK
+  const uniqueIds = Array.from(new Set(deduped.map(r => r.clarification_id)))
+  const exists = new Set<string>()
+  const missing = new Set<string>()
+  const chunk = <T,>(arr: T[], size: number): T[][] => {
+    const res: T[][] = []
+    for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size))
+    return res
+  }
+  for (const ch of chunk(uniqueIds, 1000)) {
+    const { data, error } = await supabase
+      .from('clarifications')
+      .select('clarification_id')
+      .in('clarification_id', ch)
+    if (error) {
+      console.error('⚠️ Failed to fetch clarifications for existence check:', error)
+      // В случае ошибки не останавливаемся: считаем все как missing, чтобы не падать на FK
+      ch.forEach(id => missing.add(id))
+      continue
+    }
+    const got = new Set((data || []).map(r => String((r as any).clarification_id)))
+    ch.forEach(id => (got.has(id) ? exists.add(id) : missing.add(id)))
+  }
+
+  const finalUpserts = deduped.filter(r => exists.has(r.clarification_id))
+  const missingIds = Array.from(missing)
+  if (missingIds.length) {
+    console.warn(`⚠️ ${missingIds.length} clarification_id not found in clarifications; they will be skipped.`)
+  }
 
   let updated = 0
   for (const ch of chunkArray(finalUpserts, 1000)) {
@@ -113,9 +143,11 @@ async function importStates() {
   // Итоговые метрики
   const report = {
     parsed: rows.length,
-    unique: finalUpserts.length,
+    unique: deduped.length,
     skipped,
-    updated
+    updated,
+    missing_count: missingIds.length,
+    missing_sample: missingIds.slice(0, 20)
   }
   const reportPath = path.join(__dirname, '..', 'import-states-report.json')
   try {
