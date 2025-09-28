@@ -152,17 +152,86 @@ async function importClarifications() {
       })
     }
 
-    // Убираем дубликаты clarification_id (берём последний)
-    const uniqueData = clarificationsData.reduce((acc, item) => {
-      acc[item.clarification_id] = item
-      return acc
-    }, {} as Record<string, ClarificationData>)
-    
-    const uniqueClarifications = Object.values(uniqueData)
-    console.log(`🔄 Removed clarification duplicates: ${clarificationsData.length} → ${uniqueClarifications.length}`)
+    // Обрабатываем дубликаты:
+    // - Если все записи с одинаковым clarification_id идентичны — оставляем ПОСЛЕДНЮЮ и логируем уведомление
+    // - Если записи различаются — не можем вставить все из-за UNIQUE(clarification_id) в БД,
+    //   поэтому берём ПОСЛЕДНЮЮ версию и формируем отчёт о конфликте
+
+    function stableStringify(value: any): string {
+      if (value === null || value === undefined) return String(value)
+      const t = typeof value
+      if (t !== 'object') return JSON.stringify(value)
+      if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']'
+      const keys = Object.keys(value).sort()
+      return '{' + keys.map(k => JSON.stringify(k) + ':' + stableStringify((value as any)[k])).join(',') + '}'
+    }
+
+    type ConflictReportItem = {
+      clarification_id: string
+      total_count: number
+      unique_variants: number
+      kept_variant: 'last'
+    }
+
+    const groups = new Map<string, { items: ClarificationData[], idx: number[] }>()
+    clarificationsData.forEach((item, index) => {
+      const id = item.clarification_id
+      if (!groups.has(id)) groups.set(id, { items: [], idx: [] })
+      const g = groups.get(id)!
+      g.items.push(item)
+      g.idx.push(index)
+    })
+
+    const clarificationsResolved: ClarificationData[] = []
+    const identicalDupIds: Array<{ clarification_id: string, count: number }> = []
+    const conflictReport: ConflictReportItem[] = []
+
+    for (const [id, group] of groups.entries()) {
+      if (group.items.length === 1) {
+        clarificationsResolved.push(group.items[0])
+        continue
+      }
+
+      const normalized = group.items.map(stableStringify)
+      const uniqueNorm = new Set(normalized)
+      if (uniqueNorm.size === 1) {
+        // Все идентичны — оставляем ПОСЛЕДНЮЮ
+        identicalDupIds.push({ clarification_id: id, count: group.items.length })
+        clarificationsResolved.push(group.items[group.items.length - 1])
+      } else {
+        // Конфликтующие дубли — из-за UNIQUE(clarification_id) берём ПОСЛЕДНЮЮ,
+        // остальное фиксируем в отчёте для пользователя
+        conflictReport.push({
+          clarification_id: id,
+          total_count: group.items.length,
+          unique_variants: uniqueNorm.size,
+          kept_variant: 'last'
+        })
+        clarificationsResolved.push(group.items[group.items.length - 1])
+      }
+    }
+
+    if (identicalDupIds.length) {
+      const totalRemoved = identicalDupIds.reduce((acc, x) => acc + (x.count - 1), 0)
+      console.log(`ℹ️ Identical duplicates detected for ${identicalDupIds.length} clarification_id; kept last, removed ${totalRemoved}.`)
+    }
+    if (conflictReport.length) {
+      try {
+        const reportPath = path.join(__dirname, '..', 'import-conflicts.json')
+        fs.writeFileSync(reportPath, JSON.stringify({
+          generated_at: new Date().toISOString(),
+          note: 'Due to UNIQUE(clarification_id) in DB, kept the last variant for each conflicting group.',
+          conflicts: conflictReport
+        }, null, 2))
+        console.warn(`⚠️ Conflicting duplicates detected for ${conflictReport.length} clarification_id; kept last variants. Detailed report: ${reportPath}`)
+      } catch (e) {
+        console.warn('⚠️ Failed to write conflict report file:', e)
+      }
+    }
+    console.log(`🔄 Clarifications after duplicate handling: ${clarificationsResolved.length} (from ${clarificationsData.length})`)
 
     // Подготавливаем данные clarifications
-    const clarificationsToInsert = uniqueClarifications.map(item => {
+    const clarificationsToInsert = clarificationsResolved.map(item => {
       const orderId = orderIdMap.get(item.pos_transaction_id)
       if (!orderId) {
         throw new Error(`Order ID not found for transaction ${item.pos_transaction_id}`)
