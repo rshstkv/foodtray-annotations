@@ -1,7 +1,9 @@
-'use client'
+ 'use client'
 export const dynamic = 'force-dynamic'
 
 import { Suspense, useState, useEffect } from 'react'
+import Image from 'next/image'
+import RecognitionImageWithBBox from '@/components/RecognitionImageWithBBox'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useFilters } from '@/hooks/useFilters'
@@ -353,7 +355,7 @@ interface ImageContainerProps {
   rectangle?: string
 }
 
-function ImageContainer({ src, alt, label, type, isSmall }: ImageContainerProps & { isSmall?: boolean }) {
+function ImageContainer({ src, alt, label, type, rectangle, isSmall }: ImageContainerProps & { isSmall?: boolean }) {
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   const containerClass = type === 'recognition'
@@ -378,17 +380,23 @@ function ImageContainer({ src, alt, label, type, isSmall }: ImageContainerProps 
         className={`${containerClass} w-full aspect-[1810/1080] rounded-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow relative`}
         onClick={() => setIsModalOpen(true)}
       >
-        <img 
-          src={src}
-          alt={alt}
-          className="w-full h-full object-contain"
-          loading="lazy"
-          onError={(e) => {
-            // Hide broken image to avoid layout jumps
-            const target = e.currentTarget as HTMLImageElement
-            target.style.visibility = 'hidden'
-          }}
-        />
+        {type === 'recognition' ? (
+          <RecognitionImageWithBBox
+            src={src}
+            alt={alt}
+            rectangle={rectangle ?? ''}
+            mirrored={true}
+            className="w-full h-full"
+          />
+        ) : (
+          <Image
+            src={src}
+            alt={alt}
+            fill
+            sizes="100vw"
+            className="object-contain"
+          />
+        )}
         
         <div className={`absolute top-1 left-1 bg-blue-600 text-white rounded font-bold ${isSmall ? 'px-1 py-0.5 text-[10px]' : 'px-2 py-1 text-xs'}`}>
           {label}
@@ -406,18 +414,30 @@ function ImageContainer({ src, alt, label, type, isSmall }: ImageContainerProps 
           className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 cursor-zoom-out"
           onClick={() => setIsModalOpen(false)}
         >
-          <div className="relative max-w-[90%] max-h-[90%]">
+          <div className="relative w-[90vw] h-[80vh]">
             <button 
               className="absolute -top-10 right-0 text-white text-2xl font-bold bg-black bg-opacity-50 px-3 py-1 rounded"
               onClick={() => setIsModalOpen(false)}
             >
               ×
             </button>
-            <img 
-              src={src} 
-              alt={alt}
-              className="max-w-full max-h-[80vh] object-contain"
-            />
+            {type === 'recognition' ? (
+              <RecognitionImageWithBBox
+                src={src}
+                alt={alt}
+                rectangle={rectangle ?? ''}
+                mirrored={true}
+                className="w-full h-full"
+              />
+            ) : (
+              <Image
+                src={src}
+                alt={alt}
+                fill
+                sizes="90vw"
+                className="object-contain"
+              />
+            )}
           </div>
         </div>
       )}
