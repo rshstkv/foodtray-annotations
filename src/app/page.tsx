@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic'
 import { Suspense, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { useFilters } from '@/hooks/useFilters'
 import { useInfiniteClarifications, ClarificationData } from '@/hooks/useInfiniteClarifications'
 import { FilterHeader } from '@/components/FilterHeader'
@@ -214,14 +213,16 @@ function ClarificationCard({ clarification, state, onStateChange }: Clarificatio
       <div className="flex flex-col md:flex-row gap-4 items-stretch">
         {/* Основная информация */}
         <div className="flex-[2] min-w-0">
-          {/* Заголовок продукта */}
-          <div className="flex items-center gap-3 mb-3">
-            <h3 className="text-base md:text-lg font-semibold text-gray-800">
+          {/* POS_TXN сверху и название в одну строку */}
+          <div className="mb-2">
+            <div className="text-[11px] md:text-xs font-mono bg-gray-100 rounded px-2 py-1 text-gray-700 break-all">
+              POS_TXN: {clarification.pos_transaction_id}
+            </div>
+          </div>
+          <div className="mb-3">
+            <h3 className="text-base md:text-lg font-semibold text-gray-800 truncate whitespace-nowrap">
               {clarification.product_name}
             </h3>
-            <Badge variant="secondary" className="text-xs">
-              POS_TXN: {clarification.pos_transaction_id}
-            </Badge>
           </div>
 
           {/* Детали (компактный столбец) */}
