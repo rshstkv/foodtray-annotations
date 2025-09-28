@@ -10,7 +10,8 @@ import { FilterValues } from '@/hooks/useFilters'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { MultiSelectFilter } from './filters/MultiSelectFilter'
 import { DateRangeFilter } from './filters/DateRangeFilter'
-import { X, Filter } from 'lucide-react'
+import { X, Filter, Download } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface FilterOptions {
   device_canteen_names: string[]
@@ -77,15 +78,26 @@ export function FilterHeader({
   }
 
   return (
-    <div className="sticky top-0 z-50 bg-white border-b shadow-sm">
-      <div className="max-w-7xl mx-auto px-5 py-3">
-        <div className="flex items-center justify-between gap-4">
-          {/* Левая часть - заголовок */}
-          <div className="flex items-center gap-4 min-w-0">
-            <h1 className="text-xl font-semibold text-gray-900 whitespace-nowrap">
-              RRS Clarifications
-            </h1>
-            <div className="flex items-center gap-2">
+    <div className="sticky top-0 z-50">
+      {/* Верхняя полоса: тёмный фон, тайтл и вкладки */}
+      <div className="bg-black text-white">
+        <div className="max-w-7xl mx-auto px-5 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <h1 className="text-xl font-semibold whitespace-nowrap">RRS data labeling</h1>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium border-b-2 border-white pb-0.5">Clarifications</span>
+              <span className="text-sm opacity-50 cursor-not-allowed select-none">Orders</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Вторая полоса: фильтры на светлом фоне */}
+      <div className="bg-white border-b shadow-sm">
+        <div className="max-w-7xl mx-auto px-5 py-3">
+          <div className="flex items-center justify-between gap-4">
+            {/* Левая часть - счетчик и фильтр-иконка */}
+            <div className="flex items-center gap-2 min-w-0">
               <Filter className="w-4 h-4 text-gray-500" />
               {getActiveFiltersCount() > 0 && (
                 <Badge variant="secondary" className="text-xs">
@@ -96,10 +108,9 @@ export function FilterHeader({
                 {totalCount.toLocaleString()} записей
               </span>
             </div>
-          </div>
 
-          {/* Средняя часть - компактные фильтры */}
-          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {/* Средняя часть - компактные фильтры */}
+            <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="w-48">
               <MultiSelectFilter
                 label=""
@@ -144,13 +155,23 @@ export function FilterHeader({
               </div>
             </div>
 
-            <div className="w-40">
+            {/* Поиск + режим */}
+            <div className="flex items-center gap-2 w-[420px] max-w-full">
               <Input
                 value={eanInput}
                 onChange={(e) => setEanInput(e.target.value)}
                 placeholder="Поиск по EAN"
-                className="h-8 text-sm"
+                className="h-9 text-sm flex-1"
               />
+              <Select defaultValue="ean" disabled>
+                <SelectTrigger size="sm" className="h-9">
+                  <SelectValue aria-label="search-mode">EAN</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ean">EAN</SelectItem>
+                  <SelectItem value="pos" disabled>POS</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="w-32">
@@ -163,28 +184,28 @@ export function FilterHeader({
                 maxDisplayItems={1}
               />
             </div>
-          </div>
-
-          {/* Правая часть - действия */}
-          <div className="flex items-center gap-2">
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onResetFilters}
-                className="text-red-600 hover:bg-red-50 h-8 px-2"
+            {/* Правая часть - действия */}
+            <div className="flex items-center gap-2">
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onResetFilters}
+                  className="text-red-600 hover:bg-red-50 h-8 px-2"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+              
+              <Button 
+                className="bg-green-600 hover:bg-green-700 h-8 px-3 text-sm"
+                disabled={totalCount === 0}
+                onClick={onExport}
+                title="Download"
               >
-                <X className="w-4 h-4" />
+                <Download className="w-4 h-4" />
               </Button>
-            )}
-            
-            <Button 
-              className="bg-green-600 hover:bg-green-700 h-8 px-3 text-sm"
-              disabled={totalCount === 0}
-              onClick={onExport}
-            >
-              💾 Экспорт
-            </Button>
+            </div>
           </div>
         </div>
       </div>
