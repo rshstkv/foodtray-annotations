@@ -123,7 +123,11 @@ async function importClarifications() {
         pos_transaction_id: txnId,
         device_canteen_name: firstItem.device_canteen_name,
         start_dtts: firstItem.start_dtts,
-        has_assistant_events: firstItem.has_assistant_events,
+        // Только true/false: null/undefined → false, иначе оставляем исходное значение
+        has_assistant_events: ((): any => {
+          const v = (firstItem as any).has_assistant_events
+          return (v === null || v === undefined) ? false : v
+        })(),
         image_url_main: firstItem.image_url_main,
         image_url_qualifying: firstItem.image_url_qualifying,
         sign: firstItem.sign
