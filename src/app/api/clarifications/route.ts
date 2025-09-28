@@ -176,8 +176,9 @@ export async function GET(request: NextRequest) {
     // где среди сопоставленных товаров есть нужный external_id
     if (eanSearchParam) {
       const needle = eanSearchParam
+      type EanMatch = { external_id?: string }
       transformedData = transformedData.filter((row) => {
-        const list = Array.isArray(row.ean_matched) ? (row.ean_matched as Array<any>) : []
+        const list = Array.isArray(row.ean_matched) ? (row.ean_matched as EanMatch[]) : []
         return list.some((x) => x && typeof x === 'object' && String(x.external_id) === needle)
       })
     }
