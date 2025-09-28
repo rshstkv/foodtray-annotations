@@ -11,7 +11,16 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { MultiSelectFilter } from './filters/MultiSelectFilter'
 import { DateRangeFilter } from './filters/DateRangeFilter'
 import { Filter, X } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader as UIDialogHeader,
+  DialogTitle,
+  DialogFooter
+} from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 interface FilterOptions {
   device_canteen_names: string[]
@@ -34,6 +43,8 @@ export function FilterHeader({
   totalCount
 }: FilterHeaderProps) {
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null)
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+  const pathname = usePathname()
 
   // Локальное состояние для EAN поиска (дебаунс обновляет фильтр)
   const [eanInput, setEanInput] = useState(filters.ean_search)
@@ -81,21 +92,77 @@ export function FilterHeader({
     <div className="sticky top-0 z-50">
       {/* Верхняя полоса */}
       <div className="bg-black text-white">
-        <div className="max-w-7xl mx-auto px-5 py-3">
+        <div className="max-w-7xl mx-auto px-5 py-2 md:py-3">
           <div className="flex items-center justify-between gap-4">
-            <h1 className="text-xl font-semibold whitespace-nowrap">RRS data labeling</h1>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium border-b-2 border-white pb-0.5">Clarifications</span>
-              <span className="text-sm opacity-50 cursor-not-allowed select-none">Orders</span>
-            </div>
+            <h1 className="text-base md:text-xl font-semibold whitespace-nowrap">RRS data labeling</h1>
+            <nav className="flex items-center gap-3">
+              <Link
+                href="/"
+                className={`text-xs md:text-sm font-medium pb-0.5 border-b-2 transition-colors ${
+                  pathname === '/' ? 'border-white text-white' : 'border-transparent opacity-80 hover:opacity-100'
+                }`}
+              >
+                Clarifications
+              </Link>
+              <span
+                className="text-xs md:text-sm opacity-50 cursor-not-allowed select-none"
+                aria-disabled
+              >
+                Orders
+              </span>
+            </nav>
           </div>
         </div>
       </div>
 
       {/* Вторая полоса (фильтры) */}
       <div className="bg-white border-b shadow-sm">
-        <div className="max-w-7xl mx-auto px-5 py-3">
-          <div className="flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-5 py-2 md:py-3">
+          {/* Мобильная компактная панель */}
+          <div className="md:hidden flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Filter className="w-4 h-4 text-gray-500" />
+              {getActiveFiltersCount() > 0 && (
+                <Badge variant="secondary" className="text-[11px]">
+                  {getActiveFiltersCount()}
+                </Badge>
+              )}
+            </div>
+
+            <div className="text-xs text-gray-600 whitespace-nowrap">
+              {totalCount.toLocaleString()} записей
+            </div>
+
+            <div className="flex items-center gap-2">
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onResetFilters}
+                  className="text-red-600 hover:bg-red-50 h-8 px-2"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsFilterModalOpen(true)}
+                className="h-8 px-3"
+              >
+                <Filter className="w-4 h-4 mr-1" />
+                Фильтры
+                {getActiveFiltersCount() > 0 && (
+                  <Badge variant="secondary" className="ml-2 text-[10px]">
+                    {getActiveFiltersCount()}
+                  </Badge>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Десктопная панель с детальными фильтрами */}
+          <div className="hidden md:flex items-center justify-between gap-4">
             {/* Левая часть: счетчик */}
             <div className="flex items-center gap-2 min-w-0">
               <Filter className="w-4 h-4 text-gray-500" />
@@ -195,6 +262,110 @@ export function FilterHeader({
           </div>
         </div>
       </div>
+
+      {/* Полноэкранный попап фильтров (мобильный) */}
+      <Dialog open={isFilterModalOpen} onOpenChange={setIsFilterModalOpen}>
+        <DialogContent className="p-0 w-screen h-[100dvh] max-w-none rounded-none">
+          <div className="flex flex-col h-full">
+            <UIDialogHeader className="px-4 py-3 border-b">
+              <DialogTitle className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-gray-600" />
+                  <span>Фильтры</span>
+                  {getActiveFiltersCount() > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {getActiveFiltersCount()}
+                    </Badge>
+                  )}
+                </div>
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onResetFilters}
+                    className="text-red-600 hover:bg-red-50 h-8 px-2"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </DialogTitle>
+            </UIDialogHeader>
+
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              <MultiSelectFilter
+                label="Столовая"
+                value={filters.device_canteen_name}
+                options={filterOptions?.device_canteen_names || []}
+                onChange={(value) => onUpdateFilter('device_canteen_name', value)}
+                placeholder="Выберите столовые"
+              />
+
+              <DateRangeFilter
+                label="Дата заказа"
+                fromValue={filters.start_dtts_from}
+                toValue={filters.start_dtts_to}
+                onFromChange={(value) => onUpdateFilter('start_dtts_from', value)}
+                onToChange={(value) => onUpdateFilter('start_dtts_to', value)}
+              />
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Есть события ассистента</Label>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="assistant_yes_modal"
+                      checked={filters.has_assistant_events === true}
+                      onCheckedChange={(checked) => onUpdateFilter('has_assistant_events', checked ? true : null)}
+                    />
+                    <Label htmlFor="assistant_yes_modal" className="text-sm">Да</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="assistant_no_modal"
+                      checked={filters.has_assistant_events === false}
+                      onCheckedChange={(checked) => onUpdateFilter('has_assistant_events', checked ? false : null)}
+                    />
+                    <Label htmlFor="assistant_no_modal" className="text-sm">Нет</Label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Поиск</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={eanInput}
+                    onChange={(e) => setEanInput(e.target.value)}
+                    placeholder={mode === 'ean' ? 'Поиск по EAN' : 'Поиск по POS_TXN'}
+                    className="h-10 text-sm flex-1"
+                  />
+                  <Select value={mode} onValueChange={(v) => setMode(v as 'ean' | 'pos')}>
+                    <SelectTrigger className="h-10 min-w-24">
+                      <SelectValue aria-label="search-mode">{mode.toUpperCase()}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ean">EAN</SelectItem>
+                      <SelectItem value="pos">POS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <MultiSelectFilter
+                label="Состояние"
+                value={filters.state}
+                options={filterOptions?.states || []}
+                onChange={(value) => onUpdateFilter('state', value)}
+                placeholder="Выберите состояния"
+              />
+            </div>
+
+            <DialogFooter className="px-4 py-3 border-t">
+              <Button onClick={() => setIsFilterModalOpen(false)} className="w-full">Готово</Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
