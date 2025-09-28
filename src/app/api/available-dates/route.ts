@@ -44,10 +44,10 @@ export async function GET(request: NextRequest) {
       query = query.eq('orders.has_assistant_events', value)
     }
 
-    // Поиск по EAN: только среди сопоставленных товаров
+    // Поиск по EAN: предфильтруем по available_products (чтобы собрать даты)
     if (searchParams.get('ean_search')) {
       const eanSearch = searchParams.get('ean_search')!
-      query = query.contains('ean_matched', [{ external_id: eanSearch }])
+      query = query.contains('available_products', [{ external_id: eanSearch }])
     }
 
     // Фильтры по состояниям

@@ -76,7 +76,8 @@ export async function GET(request: NextRequest) {
     // а точную фильтрацию по совпадению в ean_matched сделаем ниже по результату
     const eanSearchParam = searchParams.get('ean_search')?.trim() || ''
     if (eanSearchParam) {
-      query = query.or(`available_products.cs.${eanSearchParam}`)
+      // Предфильтруем по наличию товара с таким external_id в available_products
+      query = query.contains('available_products', [{ external_id: eanSearchParam }])
     }
 
     // Фильтры по состояниям (работа с LEFT/INNER JOIN в зависимости от фильтра)
