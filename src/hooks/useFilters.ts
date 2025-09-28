@@ -11,6 +11,9 @@ export interface FilterValues {
   // Поиск по EAN
   ean_search: string
 
+  // Поиск по POS_TXN
+  pos_search: string
+
   // Состояния
   state: string[]
 }
@@ -21,6 +24,7 @@ const defaultFilters: FilterValues = {
   start_dtts_to: '',
   has_assistant_events: null,
   ean_search: '',
+  pos_search: '',
   state: []
 }
 
@@ -88,7 +92,7 @@ function parseFiltersFromUrl(searchParams: URLSearchParams): FilterValues {
   })
 
   // Парсинг строк
-  const stringKeys: (keyof FilterValues)[] = ['start_dtts_from', 'start_dtts_to', 'ean_search']
+  const stringKeys: (keyof FilterValues)[] = ['start_dtts_from', 'start_dtts_to', 'ean_search', 'pos_search']
   
   stringKeys.forEach(key => {
     const value = searchParams.get(key as string)

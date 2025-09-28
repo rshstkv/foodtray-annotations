@@ -75,6 +75,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Не применяем SQL-фильтры по ean_matched/available_products, чтобы избежать 22P02 и несовместимости операторов
+    // Поиск по POS_TXN — лёгкий, можно фильтровать на SQL
+    const posSearchParam = (searchParams.get('pos_search') || '').trim()
+    if (posSearchParam) {
+      // Точное совпадение по POS_TXN
+      query = query.eq('orders.pos_transaction_id', posSearchParam)
+    }
 
     // Фильтры по состояниям (работа с LEFT/INNER JOIN в зависимости от фильтра)
     if (stateFilterValues.length > 0) {

@@ -39,15 +39,18 @@ export function FilterHeader({
 
   // Локальное состояние для EAN поиска (дебаунс обновляет фильтр)
   const [eanInput, setEanInput] = useState(filters.ean_search)
+  const [mode, setMode] = useState<'ean' | 'pos'>('ean')
   useEffect(() => {
-    setEanInput(filters.ean_search)
-  }, [filters.ean_search])
-  const debouncedEanInput = useDebouncedValue(eanInput, 300)
+    setEanInput(mode === 'ean' ? filters.ean_search : filters.pos_search)
+  }, [filters.ean_search, filters.pos_search, mode])
+  const debouncedInput = useDebouncedValue(eanInput, 300)
   useEffect(() => {
-    if (debouncedEanInput !== filters.ean_search) {
-      onUpdateFilter('ean_search', debouncedEanInput)
+    if (mode === 'ean') {
+      if (debouncedInput !== filters.ean_search) onUpdateFilter('ean_search', debouncedInput)
+    } else {
+      if (debouncedInput !== filters.pos_search) onUpdateFilter('pos_search', debouncedInput)
     }
-  }, [debouncedEanInput, filters.ean_search, onUpdateFilter])
+  }, [debouncedInput, mode, filters.ean_search, filters.pos_search, onUpdateFilter])
 
   // Загрузка опций
   useEffect(() => {
@@ -150,20 +153,20 @@ export function FilterHeader({
               </div>
 
               {/* Поиск + режим */}
-              <div className="flex items-center gap-2 w-[420px] max-w-full">
+              <div className="flex items-center gap-2 w-[520px] max-w-full">
                 <Input
                   value={eanInput}
                   onChange={(e) => setEanInput(e.target.value)}
-                  placeholder="Поиск по EAN"
+                  placeholder={mode === 'ean' ? 'Поиск по EAN' : 'Поиск по POS_TXN'}
                   className="h-9 text-sm flex-1"
                 />
-                <Select defaultValue="ean" disabled>
-                  <SelectTrigger size="sm" className="h-9">
-                    <SelectValue aria-label="search-mode">EAN</SelectValue>
+                <Select value={mode} onValueChange={(v) => setMode(v as 'ean' | 'pos')}>
+                  <SelectTrigger size="sm" className="h-9 min-w-24">
+                    <SelectValue aria-label="search-mode">{mode.toUpperCase()}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ean">EAN</SelectItem>
-                    <SelectItem value="pos" disabled>POS</SelectItem>
+                    <SelectItem value="pos">POS</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
