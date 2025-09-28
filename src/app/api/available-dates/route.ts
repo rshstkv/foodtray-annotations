@@ -50,6 +50,12 @@ export async function GET(request: NextRequest) {
       query = query.contains('available_products', [{ external_id: eanSearch }])
     }
 
+    // Поиск по POS_TXN: можно делать на SQL
+    if (searchParams.get('pos_search')) {
+      const posSearch = searchParams.get('pos_search')!
+      query = query.eq('orders.pos_transaction_id', posSearch)
+    }
+
     // Фильтры по состояниям
     if (stateFilterValues.length > 0) {
       if (hasEmptyState && actualStateValues.length > 0) {
