@@ -61,12 +61,23 @@ export async function GET(request: NextRequest) {
       query = query.in('orders.device_canteen_name', names)
     }
 
-    if (searchParams.get('start_dtts_from')) {
-      query = query.gte('orders.start_dtts', searchParams.get('start_dtts_from'))
-    }
+    const startFrom = searchParams.get('start_dtts_from')
+    const startTo = searchParams.get('start_dtts_to')
 
-    if (searchParams.get('start_dtts_to')) {
-      query = query.lte('orders.start_dtts', searchParams.get('start_dtts_to'))
+    if (startFrom && startTo && startFrom === startTo) {
+      // Одиночный день: [date, date + 1 day)
+      const nextDay = new Date(`${startTo}T00:00:00Z`)
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1)
+      query = query
+        .gte('orders.start_dtts', startFrom)
+        .lt('orders.start_dtts', nextDay.toISOString())
+    } else {
+      if (startFrom) {
+        query = query.gte('orders.start_dtts', startFrom)
+      }
+      if (startTo) {
+        query = query.lte('orders.start_dtts', startTo)
+      }
     }
 
     if (searchParams.get('has_assistant_events') !== null) {
