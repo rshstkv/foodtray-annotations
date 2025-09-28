@@ -5,7 +5,7 @@ on:
     inputs:
       file_url:
         description: 'HTTPS URL до JSON файла (assisted_clarifications.json)'
-        required: true
+        required: false
         default: ''
       repo_path:
         description: 'Путь к JSON внутри репозитория (например, data/dataset-2025-09-28.json)'
