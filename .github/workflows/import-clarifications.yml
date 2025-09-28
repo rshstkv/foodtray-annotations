@@ -1,0 +1,46 @@
+name: Import clarifications (prod)
+
+on:
+  workflow_dispatch:
+    inputs:
+      file_url:
+        description: 'HTTPS URL до JSON файла (assisted_clarifications.json)'
+        required: true
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.PROD_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PROD_SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Download JSON
+        run: |
+          curl --fail --show-error --location \
+               --connect-timeout 3 --max-time 60 \
+               -o data.json "${{ github.event.inputs.file_url }}"
+
+      - name: Import
+        run: |
+          npm run import:clarifications -- "$(pwd)/data.json"
+
+      - name: Upload conflict report (if any)
+        if: ${{ hashFiles('import-conflicts.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-conflicts
+          path: import-conflicts.json
+
+
