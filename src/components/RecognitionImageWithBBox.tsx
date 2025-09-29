@@ -31,50 +31,76 @@ function parseRectangle(rectangle: RectangleString | undefined | null): ParsedRe
 
 export function RecognitionImageWithBBox({ src, alt, rectangle, className, mirrored = false }: RecognitionImageWithBBoxProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const imageRef = useRef<HTMLImageElement | null>(null)
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null)
-  const [displaySize, setDisplaySize] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
+  const [layout, setLayout] = useState<{
+    container: { w: number; h: number }
+    image: { w: number; h: number; offsetX: number; offsetY: number } | null
+  }>({
+    container: { w: 0, h: 0 },
+    image: null,
+  })
 
   const parsed = useMemo(() => parseRectangle(rectangle), [rectangle])
 
-  const updateDisplaySize = useCallback(() => {
-    const el = containerRef.current
-    if (!el) return
-    const w = el.clientWidth
-    const h = el.clientHeight
-    if (w !== displaySize.w || h !== displaySize.h) {
-      setDisplaySize({ w, h })
-    }
-  }, [displaySize.h, displaySize.w])
+  const measureLayout = useCallback(() => {
+    const containerEl = containerRef.current
+    if (!containerEl) return
+
+    const containerRect = containerEl.getBoundingClientRect()
+    const imgEl = imageRef.current ?? (containerEl.querySelector("img") as HTMLImageElement | null)
+
+    const imageLayout = imgEl
+      ? (() => {
+          const imgRect = imgEl.getBoundingClientRect()
+          return {
+            w: imgRect.width,
+            h: imgRect.height,
+            offsetX: imgRect.left - containerRect.left,
+            offsetY: imgRect.top - containerRect.top,
+          }
+        })()
+      : null
+
+    setLayout({
+      container: { w: containerRect.width, h: containerRect.height },
+      image: imageLayout,
+    })
+  }, [])
 
   useEffect(() => {
-    updateDisplaySize()
-    const ro = new ResizeObserver(() => updateDisplaySize())
-    if (containerRef.current) ro.observe(containerRef.current)
-    const onResize = () => updateDisplaySize()
+    measureLayout()
+
+    const ro = new ResizeObserver(() => measureLayout())
+    const containerEl = containerRef.current
+    if (containerEl) ro.observe(containerEl)
+    const imgEl = containerEl?.querySelector("img") as HTMLElement | null
+    if (imgEl) ro.observe(imgEl)
+
+    const onResize = () => measureLayout()
     window.addEventListener("resize", onResize)
+    window.addEventListener("orientationchange", onResize)
+
     return () => {
       window.removeEventListener("resize", onResize)
+      window.removeEventListener("orientationchange", onResize)
       ro.disconnect()
     }
-  }, [updateDisplaySize])
-
-  const scaleX = useMemo(() => {
-    if (!naturalSize || naturalSize.w === 0) return 0
-    return displaySize.w / naturalSize.w
-  }, [displaySize.w, naturalSize])
-
-  const scaleY = useMemo(() => {
-    if (!naturalSize || naturalSize.h === 0) return 0
-    return displaySize.h / naturalSize.h
-  }, [displaySize.h, naturalSize])
+  }, [measureLayout])
 
   const bboxStyle = useMemo(() => {
-    if (!parsed || !naturalSize) return undefined
+    if (!parsed || !naturalSize || !layout.image) return undefined
+
+    const imageLayout = layout.image
+    const scaleX = imageLayout.w / naturalSize.w
+    const scaleY = imageLayout.h / naturalSize.h
+
     const xOriginal = parsed.x
     const xMirrored = naturalSize.w - (parsed.x + parsed.w)
     const xUse = mirrored ? xMirrored : xOriginal
-    const left = xUse * scaleX
-    const top = parsed.y * scaleY
+
+    const left = imageLayout.offsetX + xUse * scaleX
+    const top = imageLayout.offsetY + parsed.y * scaleY
     const width = parsed.w * scaleX
     const height = parsed.h * scaleY
 
@@ -88,20 +114,24 @@ export function RecognitionImageWithBBox({ src, alt, rectangle, className, mirro
       boxSizing: "border-box" as const,
       pointerEvents: "none" as const,
     }
-  }, [parsed, naturalSize, scaleX, scaleY, mirrored])
+  }, [parsed, naturalSize, mirrored, layout.image])
 
   return (
     <div ref={containerRef} className={"relative w-full h-full " + (className ?? "") }>
       <Image
+        ref={imageRef}
         src={src}
         alt={alt}
         fill
         sizes="100vw"
         className="object-contain"
+        unoptimized
         onLoadingComplete={(img) => {
           setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight })
-          // sync a tick later to capture final layout size
-          requestAnimationFrame(() => updateDisplaySize())
+          requestAnimationFrame(() => {
+            imageRef.current = img
+            measureLayout()
+          })
         }}
       />
       {bboxStyle && <div style={bboxStyle} />}
