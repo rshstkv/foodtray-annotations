@@ -1,0 +1,240 @@
+{
+  "generated_at": "2025-09-28T08:07:38.208Z",
+  "note": "Due to UNIQUE(clarification_id) in DB, kept the last variant for each conflicting group.",
+  "conflicts": [
+    {
+      "clarification_id": "12eea5706ce210f14777bc1a6a4c638d",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "130ac86a4eeef8ed66ccac3834c9284c",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "18bb1483e0644384fac321130078704f",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "1d1b1f2d13fe1a0e9fb34dd5a2852932",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "21b7af5e590459e41aa4c6b3520a114a",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "29bbb679e96c4d5a6e771bd4a9ec28da",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "2c76a5e4938b6617351673c2f533efd9",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "2d29994ae59479dba5eb1cd6df07876e",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "341e5b9df549ea1a66a1ad8f0360665e",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "35a1e09fb96c3fcbf893f13215e2254a",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "35c642d925fb946150798481ced892f9",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "38c5f7b392045bec9771ac8a293eb588",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "38e728594cebdc57b1bbcc0cc556589a",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "3b4a7ebdd84af4dd7820dfb0ab550e69",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "46603fb9bfe3ec2bd94945666738afe5",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "474ada6f62d7341e694ca92d8a134fe8",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "4cba5c69d2ab95225acf16f67b4dd6ab",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "4ce079c509aee252409b55c493367f71",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "5f1b3e438437f77e89f08115a78c1f07",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "62f550e9417ceef5180116605e411413",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "6997072dab6b5b61a1fb86f243290cc6",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "6e8272ebbb78b5766d41fb64668e9fb2",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "704beaeae7f49360d2e7bb93f1042243",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "8657c045dccc1f64b5022ca5ad0cb763",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "88c22889d9b4d1f77fd59bcdce01553c",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "8b1e6dc8ae479ff6d458122abc4384ae",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "8bbfbb8c596f143af64e4d88def6fc2c",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "8c91d1a1cd557478e96f5814e384ca4d",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "962ba8ff40f1877a27ea02706025b93f",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "a0767a3f75717043087d627bc1ac230b",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "ab823a2c7d160b7135b4403c6b6a4a4b",
+      "total_count": 3,
+      "unique_variants": 3,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "b824538bc0ccc000062e3bbb35031e38",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "c020ee6fa602d8f86712ab69c9bb2046",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "d29f898359c2583ec44001e7936e3cc6",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "d635df30f26d228723e9c2d0ef02abea",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "e6732d1022efba60458808950d8160ef",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "eae0d7063dbbc93c1b095b83cc57a494",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "ee64db2b33a19d3ca3378e41868783ef",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    },
+    {
+      "clarification_id": "f9dc312d92376ef67fe3e7e0357064e8",
+      "total_count": 2,
+      "unique_variants": 2,
+      "kept_variant": "last"
+    }
+  ]
+}
