@@ -10,8 +10,10 @@ interface RecognitionImageWithBBoxProps {
   alt: string
   rectangle: RectangleString
   className?: string
-  // Enable horizontal mirroring support. When true, x is recalculated as naturalWidth - (x + w)
+  // Enable horizontal mirroring support. When true, x is recalculated as referenceWidth - (x + w)
   mirrored?: boolean
+  referenceWidth?: number
+  referenceHeight?: number
 }
 
 interface ParsedRect {
@@ -29,7 +31,15 @@ function parseRectangle(rectangle: RectangleString | undefined | null): ParsedRe
   return { x, y, w, h }
 }
 
-export function RecognitionImageWithBBox({ src, alt, rectangle, className, mirrored = false }: RecognitionImageWithBBoxProps) {
+export function RecognitionImageWithBBox({
+  src,
+  alt,
+  rectangle,
+  className,
+  mirrored = false,
+  referenceWidth,
+  referenceHeight,
+}: RecognitionImageWithBBoxProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null)
@@ -89,17 +99,22 @@ export function RecognitionImageWithBBox({ src, alt, rectangle, className, mirro
   }, [measureLayout])
 
   const bboxStyle = useMemo(() => {
-    if (!parsed || !naturalSize || !layout.image) return undefined
+    if (!parsed || !layout.image) return undefined
 
     const imageLayout = layout.image
-    const scaleX = imageLayout.w / naturalSize.w
-    const scaleY = imageLayout.h / naturalSize.h
 
-    const xOriginal = parsed.x
-    const xMirrored = naturalSize.w - (parsed.x + parsed.w)
-    const xUse = mirrored ? xMirrored : xOriginal
+    const refWidth = referenceWidth ?? naturalSize?.w ?? imageLayout.w
+    const refHeight = referenceHeight ?? naturalSize?.h ?? imageLayout.h
+    if (!refWidth || !refHeight) return undefined
 
-    const left = imageLayout.offsetX + xUse * scaleX
+    const scaleX = imageLayout.w / refWidth
+    const scaleY = imageLayout.h / refHeight
+
+    const xOriginalRef = parsed.x
+    const xMirroredRef = refWidth - (parsed.x + parsed.w)
+    const xUseRef = mirrored ? xMirroredRef : xOriginalRef
+
+    const left = imageLayout.offsetX + xUseRef * scaleX
     const top = imageLayout.offsetY + parsed.y * scaleY
     const width = parsed.w * scaleX
     const height = parsed.h * scaleY
@@ -114,7 +129,7 @@ export function RecognitionImageWithBBox({ src, alt, rectangle, className, mirro
       boxSizing: "border-box" as const,
       pointerEvents: "none" as const,
     }
-  }, [parsed, naturalSize, mirrored, layout.image])
+  }, [parsed, layout.image, mirrored, naturalSize?.w, naturalSize?.h, referenceWidth, referenceHeight])
 
   return (
     <div ref={containerRef} className={"relative w-full h-full " + (className ?? "") }>

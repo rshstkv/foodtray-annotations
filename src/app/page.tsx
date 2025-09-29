@@ -1,7 +1,7 @@
  'use client'
 export const dynamic = 'force-dynamic'
 
-import { Suspense, useState, useEffect } from 'react'
+import { Suspense, useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
 import RecognitionImageWithBBox from '@/components/RecognitionImageWithBBox'
 import { Button } from '@/components/ui/button'
@@ -362,6 +362,18 @@ function ImageContainer({ src, alt, label, type, rectangle, isSmall }: ImageCont
     ? 'border-3 border-red-500 bg-white shadow-lg'
     : 'border-2 border-gray-300 bg-white shadow-md'
   
+  const referenceSize = useMemo(() => {
+    if (type !== 'recognition') return null
+    const normalizedLabel = label.toUpperCase()
+    if (normalizedLabel === 'MAIN') {
+      return { width: 1810, height: 1080 }
+    }
+    if (normalizedLabel === 'QUALIFYING') {
+      return { width: 1410, height: 1080 }
+    }
+    return null
+  }, [type, label])
+
 
   if (!src) {
     return (
@@ -387,6 +399,8 @@ function ImageContainer({ src, alt, label, type, rectangle, isSmall }: ImageCont
             rectangle={rectangle ?? ''}
             mirrored={true}
             className="w-full h-full"
+            referenceWidth={referenceSize?.width}
+            referenceHeight={referenceSize?.height}
           />
         ) : (
           <Image
@@ -428,6 +442,8 @@ function ImageContainer({ src, alt, label, type, rectangle, isSmall }: ImageCont
                 rectangle={rectangle ?? ''}
                 mirrored={true}
                 className="w-full h-full"
+                referenceWidth={referenceSize?.width}
+                referenceHeight={referenceSize?.height}
               />
             ) : (
               <Image
