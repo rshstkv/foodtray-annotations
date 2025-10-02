@@ -157,7 +157,7 @@ function HomeContent() {
             <div className="space-y-3">
               {clarificationsData.map((clarification) => (
                 <ClarificationCard
-                  key={clarification.clarification_id}
+                  key={clarification.db_id ?? `${clarification.clarification_id}-${clarification.start_dtts}`}
                   clarification={clarification}
                   state={rowStates[clarification.clarification_id]}
                   onStateChange={(state) => saveState(clarification.clarification_id, state)}
@@ -401,13 +401,15 @@ function ImageContainer({ src, alt, label, type, rectangle, isSmall }: ImageCont
             className="w-full h-full"
             referenceWidth={referenceSize?.width}
             referenceHeight={referenceSize?.height}
+            sizes={isSmall ? "(max-width: 768px) 120px, 120px" : "(max-width: 768px) 100vw, (max-width: 1280px) 70vw, 60vw"}
+            priority={!isSmall}
           />
         ) : (
           <Image
             src={src}
             alt={alt}
             fill
-            sizes="100vw"
+            sizes={isSmall ? "(max-width: 768px) 120px, 120px" : "(max-width: 768px) 100vw, (max-width: 1280px) 70vw, 60vw"}
             className="object-contain"
           />
         )}

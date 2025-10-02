@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { FilterValues } from './useFilters'
 
 export interface ClarificationData {
+  db_id?: number
   clarification_id: string
   device_canteen_name: string
   pos_transaction_id: string

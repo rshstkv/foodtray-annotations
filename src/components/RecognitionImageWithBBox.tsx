@@ -14,6 +14,8 @@ interface RecognitionImageWithBBoxProps {
   mirrored?: boolean
   referenceWidth?: number
   referenceHeight?: number
+  sizes?: string
+  priority?: boolean
 }
 
 interface ParsedRect {
@@ -39,85 +41,75 @@ export function RecognitionImageWithBBox({
   mirrored = false,
   referenceWidth,
   referenceHeight,
+  sizes,
+  priority,
 }: RecognitionImageWithBBoxProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const imageRef = useRef<HTMLImageElement | null>(null)
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null)
-  const [layout, setLayout] = useState<{
-    container: { w: number; h: number }
-    image: { w: number; h: number; offsetX: number; offsetY: number } | null
-  }>({
-    container: { w: 0, h: 0 },
-    image: null,
-  })
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null)
 
   const parsed = useMemo(() => parseRectangle(rectangle), [rectangle])
 
-  const measureLayout = useCallback(() => {
-    const containerEl = containerRef.current
-    if (!containerEl) return
-
-    const containerRect = containerEl.getBoundingClientRect()
-    const imgEl = imageRef.current ?? (containerEl.querySelector("img") as HTMLImageElement | null)
-
-    const imageLayout = imgEl
-      ? (() => {
-          const imgRect = imgEl.getBoundingClientRect()
-          return {
-            w: imgRect.width,
-            h: imgRect.height,
-            offsetX: imgRect.left - containerRect.left,
-            offsetY: imgRect.top - containerRect.top,
-          }
-        })()
-      : null
-
-    setLayout({
-      container: { w: containerRect.width, h: containerRect.height },
-      image: imageLayout,
-    })
+  const measureContainer = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return
+    const { width, height } = el.getBoundingClientRect()
+    setContainerSize((prev) =>
+      prev && prev.w === width && prev.h === height ? prev : { w: width, h: height },
+    )
   }, [])
 
   useEffect(() => {
-    measureLayout()
+    measureContainer()
+    const el = containerRef.current
+    if (!el) return
 
-    const ro = new ResizeObserver(() => measureLayout())
-    const containerEl = containerRef.current
-    if (containerEl) ro.observe(containerEl)
-    const imgEl = containerEl?.querySelector("img") as HTMLElement | null
-    if (imgEl) ro.observe(imgEl)
+    const observer = new ResizeObserver(() => measureContainer())
+    observer.observe(el)
 
-    const onResize = () => measureLayout()
-    window.addEventListener("resize", onResize)
-    window.addEventListener("orientationchange", onResize)
+    window.addEventListener("orientationchange", measureContainer)
 
     return () => {
-      window.removeEventListener("resize", onResize)
-      window.removeEventListener("orientationchange", onResize)
-      ro.disconnect()
+      observer.disconnect()
+      window.removeEventListener("orientationchange", measureContainer)
     }
-  }, [measureLayout])
+  }, [measureContainer])
+
+  const renderMetrics = useMemo(() => {
+    if (!naturalSize || !containerSize) return null
+
+    const scale = Math.min(containerSize.w / naturalSize.w, containerSize.h / naturalSize.h)
+    const renderedWidth = naturalSize.w * scale
+    const renderedHeight = naturalSize.h * scale
+    return {
+      scale,
+      offsetX: (containerSize.w - renderedWidth) / 2,
+      offsetY: (containerSize.h - renderedHeight) / 2,
+    }
+  }, [naturalSize, containerSize])
 
   const bboxStyle = useMemo(() => {
-    if (!parsed || !layout.image) return undefined
+    if (!parsed || !naturalSize || !renderMetrics) return undefined
 
-    const imageLayout = layout.image
-
-    const refWidth = referenceWidth ?? naturalSize?.w ?? imageLayout.w
-    const refHeight = referenceHeight ?? naturalSize?.h ?? imageLayout.h
+    const refWidth = referenceWidth ?? naturalSize.w
+    const refHeight = referenceHeight ?? naturalSize.h
     if (!refWidth || !refHeight) return undefined
 
-    const scaleX = imageLayout.w / refWidth
-    const scaleY = imageLayout.h / refHeight
+    const scaleRefToNaturalX = naturalSize.w / refWidth
+    const scaleRefToNaturalY = naturalSize.h / refHeight
 
-    const xOriginalRef = parsed.x
-    const xMirroredRef = refWidth - (parsed.x + parsed.w)
-    const xUseRef = mirrored ? xMirroredRef : xOriginalRef
+    const mirroredXRef = refWidth - (parsed.x + parsed.w)
+    const xRef = mirrored ? mirroredXRef : parsed.x
 
-    const left = imageLayout.offsetX + xUseRef * scaleX
-    const top = imageLayout.offsetY + parsed.y * scaleY
-    const width = parsed.w * scaleX
-    const height = parsed.h * scaleY
+    const bboxNaturalX = xRef * scaleRefToNaturalX
+    const bboxNaturalY = parsed.y * scaleRefToNaturalY
+    const bboxNaturalW = parsed.w * scaleRefToNaturalX
+    const bboxNaturalH = parsed.h * scaleRefToNaturalY
+
+    const left = renderMetrics.offsetX + bboxNaturalX * renderMetrics.scale
+    const top = renderMetrics.offsetY + bboxNaturalY * renderMetrics.scale
+    const width = bboxNaturalW * renderMetrics.scale
+    const height = bboxNaturalH * renderMetrics.scale
 
     return {
       position: "absolute" as const,
@@ -129,24 +121,21 @@ export function RecognitionImageWithBBox({
       boxSizing: "border-box" as const,
       pointerEvents: "none" as const,
     }
-  }, [parsed, layout.image, mirrored, naturalSize?.w, naturalSize?.h, referenceWidth, referenceHeight])
+  }, [parsed, naturalSize, renderMetrics, mirrored, referenceWidth, referenceHeight])
 
   return (
     <div ref={containerRef} className={"relative w-full h-full " + (className ?? "") }>
       <Image
-        ref={imageRef}
         src={src}
         alt={alt}
         fill
-        sizes="100vw"
+        sizes={sizes || "(max-width: 768px) 100vw, (max-width: 1280px) 70vw, 60vw"}
         className="object-contain"
-        unoptimized
-        onLoadingComplete={(img) => {
+        priority={priority}
+        onLoad={(e) => {
+          const img = e.currentTarget as HTMLImageElement
           setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight })
-          requestAnimationFrame(() => {
-            imageRef.current = img
-            measureLayout()
-          })
+          requestAnimationFrame(measureContainer)
         }}
       />
       {bboxStyle && <div style={bboxStyle} />}

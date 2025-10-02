@@ -5,12 +5,15 @@ export async function GET() {
   try {
     // Параллельные запросы только для нужных значений
     const [canteenNames] = await Promise.all([
-      // Уникальные названия столовых
+      // Возвращаем только те столовые, по которым реально есть кларификации
       supabase
-        .from('orders')
-        .select('device_canteen_name')
-        .not('device_canteen_name', 'is', null)
-        .order('device_canteen_name')
+        .from('clarifications')
+        .select(`
+          orders!inner(
+            device_canteen_name
+          )
+        `)
+        .limit(20000)
     ])
 
     // Проверяем ошибки
@@ -20,8 +23,12 @@ export async function GET() {
     }
 
     // Извлекаем уникальные значения
+    type Row = { orders: { device_canteen_name: string } | Array<{ device_canteen_name: string }> }
     const uniqueCanteenNames = [...new Set(
-      canteenNames.data?.map(item => item.device_canteen_name).filter(Boolean) || []
+      ((canteenNames.data || []) as Row[])
+        .map(r => Array.isArray(r.orders) ? r.orders[0]?.device_canteen_name : r.orders?.device_canteen_name)
+        .map(v => String(v || '').trim())
+        .filter(v => v.length > 0)
     )].sort()
 
     return NextResponse.json({

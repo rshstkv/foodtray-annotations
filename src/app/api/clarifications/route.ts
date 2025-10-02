@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('clarifications')
       .select(`
+        id,
         clarification_id,
         rectangle,
         clarification_type,
@@ -42,14 +43,14 @@ export async function GET(request: NextRequest) {
         ean_matched_count,
         available_products,
         metadata,
+        image_url_main,
+        image_url_qualifying,
+        sign,
         orders!inner(
           pos_transaction_id,
           device_canteen_name,
           start_dtts,
-          has_assistant_events,
-          image_url_main,
-          image_url_qualifying,
-          sign
+          has_assistant_events
         ),
         ${clarificationStatesSelect}
         
@@ -129,6 +130,7 @@ export async function GET(request: NextRequest) {
 
     // Преобразуем данные в формат, ожидаемый фронтендом
     type Row = {
+      id: number
       clarification_id: string
       rectangle: string
       clarification_type: string
@@ -139,24 +141,21 @@ export async function GET(request: NextRequest) {
       image_found?: boolean
       ean_matched_count?: number
       available_products: Array<{ price: number; description: string; external_id: string }>
+      image_url_main?: string
+      image_url_qualifying?: string
+      sign?: string
       orders:
         | {
             device_canteen_name: string
             pos_transaction_id: string
             start_dtts: string
             has_assistant_events: boolean
-            image_url_main?: string
-            image_url_qualifying?: string
-            sign?: string
           }
         | Array<{
             device_canteen_name: string
             pos_transaction_id: string
             start_dtts: string
             has_assistant_events: boolean
-            image_url_main?: string
-            image_url_qualifying?: string
-            sign?: string
           }>
       clarification_states?: Array<{ state: 'yes' | 'no'; created_at: string; updated_at: string }>
     }
@@ -164,17 +163,18 @@ export async function GET(request: NextRequest) {
     let transformedData = (data as Row[] | undefined)?.map((item) => {
       const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
       return {
+        db_id: item.id,
         clarification_id: item.clarification_id,
         device_canteen_name: order?.device_canteen_name,
         pos_transaction_id: order?.pos_transaction_id,
         start_dtts: order?.start_dtts,
         rectangle: item.rectangle,
         clarification_type: item.clarification_type,
-        image_url_main: order?.image_url_main,
-        image_url_qualifying: order?.image_url_qualifying,
+        image_url_main: item.image_url_main,
+        image_url_qualifying: item.image_url_qualifying,
         ean_matched: item.ean_matched,
         product_name: item.product_name,
-        sign: order?.sign,
+        sign: item.sign,
         superclass: item.superclass,
         hyperclass: item.hyperclass,
         image_found: item.image_found,
