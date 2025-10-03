@@ -16,6 +16,7 @@ import { ChevronDown, ChevronUp, X, Filter } from 'lucide-react'
 interface FilterOptions {
   device_canteen_names: string[]
   states: string[]
+  freq_buckets?: string[]
 }
 
 interface FilterPanelProps {
@@ -270,6 +271,21 @@ export function FilterPanel({
                 onChange={(value) => onUpdateFilter('state', value)}
                 placeholder="Выберите состояния"
               />
+
+              {/* Частотный бакет */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Частота</Label>
+                <select
+                  className="w-full h-9 border rounded px-2 text-sm"
+                  value={filters.freq_bucket}
+                  onChange={(e) => onUpdateFilter('freq_bucket', e.target.value)}
+                >
+                  <option value="">Все частоты</option>
+                  {(filterOptions?.freq_buckets || ['очень частые','частые','средние','редкие']).map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
         </div>

@@ -29,7 +29,7 @@ export async function GET() {
 // POST /api/states - сохранить состояние
 export async function POST(request: NextRequest) {
   try {
-    const { clarification_id, state } = await request.json()
+    const { clarification_id, state, db_id } = await request.json()
 
     if (!clarification_id || !state) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -39,10 +39,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid state value' }, { status: 400 })
     }
 
+    // Если db_id не передан, найдем его по clarification_id
+    let clarification_db_id = db_id
+    if (!clarification_db_id) {
+      const { data: clarification, error: findError } = await supabase
+        .from('clarifications')
+        .select('id')
+        .eq('clarification_id', clarification_id)
+        .single()
+
+      if (findError || !clarification) {
+        console.error('Cannot find clarification:', findError)
+        return NextResponse.json({ error: 'Clarification not found' }, { status: 404 })
+      }
+
+      clarification_db_id = clarification.id
+    }
+
     const { error } = await supabase
       .from('clarification_states')
       .upsert({
         clarification_id,
+        clarification_db_id,
         state,
         updated_at: new Date().toISOString()
       })

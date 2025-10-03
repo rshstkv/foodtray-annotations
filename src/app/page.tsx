@@ -33,7 +33,8 @@ function HomeContent() {
     isFetching,
     error,
     hasMore,
-    fetchNextPage
+    fetchNextPage,
+    stats
   } = useInfiniteClarifications(filters, isInitialized)
 
   // Загрузка сохраненных состояний при инициализации
@@ -56,6 +57,10 @@ function HomeContent() {
   // Сохранение состояния
   const saveState = async (clarificationId: string, state: 'yes' | 'no' | 'clear') => {
     try {
+      // Найдем db_id для данной кларификации
+      const clarificationItem = clarificationsData.find(item => item.clarification_id === clarificationId)
+      const db_id = clarificationItem?.db_id
+
       if (state === 'clear') {
         // Удаляем состояние
         const response = await fetch('/api/states', {
@@ -78,7 +83,8 @@ function HomeContent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             clarification_id: clarificationId, 
-            state 
+            state,
+            db_id // Передаем внутренний ID
           })
         })
 
@@ -177,6 +183,9 @@ function HomeContent() {
               <div className="text-center py-6">
                 <div className="bg-white rounded-lg p-4 text-gray-600 shadow-sm">
                   Все записи загружены ({clarificationsData.length} из {count})
+                  {stats && (
+                    <span className="ml-2">• проверено {stats.checked} из {stats.total}</span>
+                  )}
                 </div>
               </div>
             )}

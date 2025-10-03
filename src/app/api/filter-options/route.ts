@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 export async function GET() {
   try {
     // Параллельные запросы только для нужных значений
-    const [canteenNames] = await Promise.all([
+    const [canteenNames, buckets] = await Promise.all([
       // Возвращаем только те столовые, по которым реально есть кларификации
       supabase
         .from('clarifications')
@@ -13,12 +13,17 @@ export async function GET() {
             device_canteen_name
           )
         `)
-        .limit(20000)
+        .limit(20000),
+      // Частотные бакеты из вьюхи
+      supabase
+        .from('v_ean_freq_bucket')
+        .select('bucket')
+        .limit(1000)
     ])
 
     // Проверяем ошибки
-    if (canteenNames.error) {
-      console.error('Database error:', canteenNames.error)
+    if (canteenNames.error || buckets.error) {
+      console.error('Database error:', canteenNames.error || buckets.error)
       return NextResponse.json({ error: 'Failed to load filter options' }, { status: 500 })
     }
 
@@ -33,7 +38,8 @@ export async function GET() {
 
     return NextResponse.json({
       device_canteen_names: uniqueCanteenNames,
-      states: ['yes', 'no', 'не задано'] // Фиксированные значения для состояний
+      states: ['yes', 'no', 'не задано'], // Фиксированные значения для состояний
+      freq_buckets: Array.from(new Set((buckets.data || []).map((r: any) => r.bucket))).filter(Boolean)
     })
   } catch (error) {
     console.error('Server error:', error)

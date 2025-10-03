@@ -25,6 +25,7 @@ import { usePathname } from 'next/navigation'
 interface FilterOptions {
   device_canteen_names: string[]
   states: string[]
+  freq_buckets?: string[]
 }
 
 interface FilterHeaderProps {
@@ -50,6 +51,9 @@ export function FilterHeader({
   const [eanInput, setEanInput] = useState(filters.ean_search)
   const [mode, setMode] = useState<'ean' | 'pos'>('ean')
   const isResettingRef = useRef(false)
+  // Специальное значение для "Все частоты"
+  const ALL_FREQ_VALUE = '__all__'
+  const freqSelectValue = filters.freq_bucket && filters.freq_bucket.length > 0 ? filters.freq_bucket : ALL_FREQ_VALUE
   useEffect(() => {
     setEanInput(mode === 'ean' ? filters.ean_search : filters.pos_search)
   }, [filters.ean_search, filters.pos_search, mode])
@@ -107,11 +111,12 @@ export function FilterHeader({
   }
 
   return (
-    <div className="sticky top-0 z-50">
-      {/* Верхняя полоса */}
-      <div className="bg-black text-white">
-        <div className="max-w-7xl mx-auto px-5 py-2 md:py-3">
-          <div className="flex items-center justify-between gap-4">
+    <div className="sticky top-0 z-40">
+      {/* Первая полоса (хедер) */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-5 py-3 flex items-center justify-between">
+          {/* Левая часть: логотип/название */}
+          <div className="flex items-center gap-3 min-w-0">
             <h1 className="text-base md:text-xl font-semibold whitespace-nowrap">RRS data labeling</h1>
             <nav className="flex items-center gap-3">
               <Link
@@ -130,6 +135,9 @@ export function FilterHeader({
               </span>
             </nav>
           </div>
+
+          {/* Правая часть: быстрые ссылки */}
+          <div className="flex items-center gap-3" />
         </div>
       </div>
 
@@ -265,6 +273,21 @@ export function FilterHeader({
                 />
               </div>
 
+              {/* Частотный бакет */}
+              <div className="w-40">
+                <Select value={freqSelectValue} onValueChange={(v) => onUpdateFilter('freq_bucket', v === ALL_FREQ_VALUE ? '' as any : (v as any))}>
+                  <SelectTrigger size="sm" className="h-9">
+                    <SelectValue placeholder="Частота" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_FREQ_VALUE}>Все частоты</SelectItem>
+                    {(filterOptions?.freq_buckets || ['очень частые','частые','средние','редкие']).map(b => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Правая часть: действия */}
               {hasActiveFilters && (
                 <Button
@@ -376,6 +399,25 @@ export function FilterHeader({
                 onChange={(value) => onUpdateFilter('state', value)}
                 placeholder="Выберите состояния"
               />
+
+              {/* Частота (мобильный попап) */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Частота</Label>
+                <Select
+                  value={(filters.freq_bucket && filters.freq_bucket.length > 0) ? filters.freq_bucket : '__all__'}
+                  onValueChange={(v) => onUpdateFilter('freq_bucket', v === '__all__' ? '' as any : (v as any))}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Частота" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Все частоты</SelectItem>
+                    {(filterOptions?.freq_buckets || ['очень частые','частые','средние','редкие']).map(b => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <DialogFooter className="px-4 py-3 border-t">

@@ -14,6 +14,9 @@ export interface FilterValues {
   // Поиск по POS_TXN
   pos_search: string
 
+  // Частотный бакет
+  freq_bucket: string
+
   // Состояния
   state: string[]
 }
@@ -25,6 +28,7 @@ const defaultFilters: FilterValues = {
   has_assistant_events: null,
   ean_search: '',
   pos_search: '',
+  freq_bucket: '',
   state: []
 }
 
@@ -92,7 +96,7 @@ function parseFiltersFromUrl(searchParams: URLSearchParams): FilterValues {
   })
 
   // Парсинг строк
-  const stringKeys: (keyof FilterValues)[] = ['start_dtts_from', 'start_dtts_to', 'ean_search', 'pos_search']
+  const stringKeys: (keyof FilterValues)[] = ['start_dtts_from', 'start_dtts_to', 'ean_search', 'pos_search', 'freq_bucket']
   
   stringKeys.forEach(key => {
     const value = searchParams.get(key as string)

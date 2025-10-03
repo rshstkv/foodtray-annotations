@@ -38,6 +38,7 @@ interface UseInfiniteClarificationsState {
   isFetching: boolean
   error: string | null
   hasMore: boolean
+  stats?: { checked: number; total: number; yes: number; no: number }
 }
 
 const PAGE_SIZE = 25
@@ -52,7 +53,8 @@ export function useInfiniteClarifications(
     isLoading: false,
     isFetching: false,
     error: null,
-    hasMore: true
+    hasMore: true,
+    stats: undefined
   })
 
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -135,7 +137,8 @@ export function useInfiniteClarifications(
           hasMore: newData.length < result.count,
           isLoading: false,
           isFetching: false,
-          error: null
+          error: null,
+          stats: result.stats || { checked: 0, total: result.count || 0, yes: 0, no: 0 }
         }
       })
 
