@@ -47,6 +47,7 @@ export function useFilters() {
       setFilters(urlFilters)
       setIsInitialized(true)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParamsString, isInitialized])
 
   // Обновление URL при изменении фильтров

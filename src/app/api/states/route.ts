@@ -14,10 +14,12 @@ export async function GET() {
     }
 
     // Преобразовать в формат для фронтенда
-    const states: Record<string, string> = {}
-    data?.forEach(item => {
-      const key = String((item as any).clarification_db_id)
-      states[key] = (item as any).state
+    type StateRow = { clarification_db_id: number; state: 'yes' | 'no' | 'bbox_error' | 'unknown' }
+    const rows = (data || []) as StateRow[]
+    const states: Record<string, StateRow['state']> = {}
+    rows.forEach(item => {
+      const key = String(item.clarification_db_id)
+      states[key] = item.state
     })
 
     return NextResponse.json(states)
