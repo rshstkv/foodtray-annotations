@@ -59,14 +59,25 @@ export async function POST(request: NextRequest) {
       clarification_db_id = clarification.id
     }
 
+    // Обновляем состояние для конкретного clarification_db_id атомарно: удалить предыдущее и вставить новое
+    const { error: delErr } = await supabase
+      .from('clarification_states')
+      .delete()
+      .eq('clarification_db_id', clarification_db_id)
+
+    if (delErr) {
+      console.error('Database error (delete before insert):', delErr)
+      return NextResponse.json({ error: delErr.message }, { status: 500 })
+    }
+
     const { error } = await supabase
       .from('clarification_states')
-      .upsert({
+      .insert({
         clarification_id,
         clarification_db_id,
         state,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'clarification_db_id' })
+      })
 
     if (error) {
       console.error('Database error:', error)
