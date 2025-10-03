@@ -37,8 +37,6 @@ export function FilterPanel({
   const [isExpanded, setIsExpanded] = useState(false)
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null)
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
-  const [availableDates, setAvailableDates] = useState<string[] | null>(null)
-  const [isLoadingDates, setIsLoadingDates] = useState(false)
 
   // Локальное поле EAN с дебаунсом
   const [eanInput, setEanInput] = useState(filters.ean_search)
@@ -86,46 +84,6 @@ export function FilterPanel({
     loadFilterOptions()
   }, [])
 
-  // Построение query-параметров для available-dates
-  const availableDatesQuery = useMemo(() => {
-    const params = new URLSearchParams()
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value === null || value === undefined) return
-      if (Array.isArray(value)) {
-        if (value.length > 0) params.set(key, value.join(','))
-      } else if (typeof value === 'boolean') {
-        params.set(key, String(value))
-      } else if (typeof value === 'string' && value !== '') {
-        params.set(key, value)
-      }
-    })
-    return params.toString()
-  }, [filters])
-
-  // Загрузка доступных дат при изменении фильтров
-  useEffect(() => {
-    let cancelled = false
-    const loadDates = async () => {
-      setIsLoadingDates(true)
-      try {
-        const url = availableDatesQuery
-          ? `/api/available-dates?${availableDatesQuery}`
-          : '/api/available-dates'
-        const response = await fetch(url)
-        if (!response.ok) return
-        const json = await response.json()
-        if (!cancelled) setAvailableDates(Array.isArray(json.dates) ? json.dates : [])
-      } catch (error) {
-        if (!cancelled) setAvailableDates([])
-      } finally {
-        if (!cancelled) setIsLoadingDates(false)
-      }
-    }
-    loadDates()
-    return () => {
-      cancelled = true
-    }
-  }, [availableDatesQuery])
 
   const getActiveFiltersCount = () => {
     let count = 0

@@ -13,7 +13,7 @@ import { FilterHeader } from '@/components/FilterHeader'
 import { InfiniteScroll } from '@/components/InfiniteScroll'
 import { LoadingIndicator, EmptyState } from '@/components/LoadingIndicator'
 
-type RowStates = Record<string, 'yes' | 'no'>
+type RowStates = Record<string, 'yes' | 'no' | 'bbox_error' | 'unknown'>
 
 export default function Home() {
   return (

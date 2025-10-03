@@ -81,18 +81,22 @@ export function useInfiniteClarifications(
         abortControllerRef.current.abort()
       }
       
-      fetchPage(0, filters, true)
+      // Используем стабильную версию fetchPage
+      fetchPageStable(0, filters, true)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, enabled])
 
   // Первоначальная загрузка
   useEffect(() => {
     if (enabled && state.data.length === 0 && !state.isLoading && !state.isFetching) {
-      fetchPage(0, filtersRef.current, true)
+      // Используем стабильную версию fetchPage
+      fetchPageStable(0, filtersRef.current, true)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, state.data.length, state.isLoading, state.isFetching])
 
-  const fetchPage = useCallback(async (page: number, currentFilters: FilterValues, isInitial = false) => {
+  const fetchPageStable = async (page: number, currentFilters: FilterValues, isInitial = false) => {
     // Отменяем предыдущий запрос
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -158,6 +162,10 @@ export function useInfiniteClarifications(
     }
   }, [])
 
+  const fetchPage = useCallback(async (page: number, currentFilters: FilterValues, isInitial = false) => {
+    return fetchPageStable(page, currentFilters, isInitial)
+  }, [])
+
   const fetchNextPage = useCallback(async () => {
     if (state.isFetching || !state.hasMore) return
     
@@ -173,8 +181,8 @@ export function useInfiniteClarifications(
       hasMore: true, 
       error: null 
     }))
-    fetchPage(0, filtersRef.current, true)
-  }, [fetchPage])
+    fetchPageStable(0, filtersRef.current, true)
+  }, [])
 
   // Очистка при размонтировании
   useEffect(() => {
