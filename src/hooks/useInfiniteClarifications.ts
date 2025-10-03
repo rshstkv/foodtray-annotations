@@ -88,9 +88,9 @@ export function useInfiniteClarifications(
   // Первоначальная загрузка
   useEffect(() => {
     if (enabled && state.data.length === 0 && !state.isLoading && !state.isFetching) {
-      fetchPage(0, filters, true)
+      fetchPage(0, filtersRef.current, true)
     }
-  }, [enabled, state.data.length, state.isLoading, state.isFetching, filters])
+  }, [enabled, state.data.length, state.isLoading, state.isFetching])
 
   const fetchPage = async (page: number, currentFilters: FilterValues, isInitial = false) => {
     // Отменяем предыдущий запрос

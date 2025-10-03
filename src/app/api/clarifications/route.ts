@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
+    
+    console.log('API clarifications called with params:', Object.fromEntries(searchParams.entries()))
 
     // Поиск по EAN (используем для постфильтрации ниже)
     const eanSearchParam = (searchParams.get('ean_search') || '').trim()
