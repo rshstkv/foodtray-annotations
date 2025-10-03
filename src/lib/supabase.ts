@@ -14,13 +14,13 @@ export type Database = {
         Row: {
           id: number
           clarification_id: string
-          state: 'yes' | 'no'
+          state: 'yes' | 'no' | 'bbox_error' | 'unknown'
           created_at: string
           updated_at: string
         }
         Insert: {
           clarification_id: string
-          state: 'yes' | 'no'
+          state: 'yes' | 'no' | 'bbox_error' | 'unknown'
         }
         Update: {
           clarification_id?: string

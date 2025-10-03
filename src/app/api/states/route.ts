@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    if (!['yes', 'no'].includes(state)) {
+    if (!['yes', 'no', 'bbox_error', 'unknown'].includes(state)) {
       return NextResponse.json({ error: 'Invalid state value' }, { status: 400 })
     }
 

@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
       pos_transaction_id: string
       start_dtts: string
       has_assistant_events: boolean
-      state?: 'yes' | 'no'
+      state?: 'yes' | 'no' | 'bbox_error' | 'unknown'
       state_created_at?: string
       state_updated_at?: string
       bucket?: string
@@ -175,10 +175,12 @@ export async function GET(request: NextRequest) {
       }
     }) || []
 
-    // Простая статистика для отображения
+    // Простая статистика для отображения  
     const yesCount = transformedData.filter(item => item.state === 'yes').length
     const noCount = transformedData.filter(item => item.state === 'no').length
-    const checkedCount = yesCount + noCount
+    const bboxErrorCount = transformedData.filter(item => item.state === 'bbox_error').length
+    const unknownCount = transformedData.filter(item => item.state === 'unknown').length
+    const checkedCount = yesCount + noCount + bboxErrorCount + unknownCount
 
     return NextResponse.json({
       data: transformedData,

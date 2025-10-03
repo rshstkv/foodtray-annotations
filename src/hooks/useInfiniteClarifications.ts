@@ -26,7 +26,7 @@ export interface ClarificationData {
     }>
   }
   // Информация о состоянии
-  state?: 'yes' | 'no'
+  state?: 'yes' | 'no' | 'bbox_error' | 'unknown'
   state_created_at?: string
   state_updated_at?: string
 }

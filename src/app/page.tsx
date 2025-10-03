@@ -5,6 +5,7 @@ import { Suspense, useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
 import RecognitionImageWithBBox from '@/components/RecognitionImageWithBBox'
 import { Button } from '@/components/ui/button'
+import { AdditionalStatesDropdown } from '@/components/AdditionalStatesDropdown'
 import { Card } from '@/components/ui/card'
 import { useFilters } from '@/hooks/useFilters'
 import { useInfiniteClarifications, ClarificationData } from '@/hooks/useInfiniteClarifications'
@@ -55,7 +56,7 @@ function HomeContent() {
   }, [])
 
   // Сохранение состояния
-  const saveState = async (clarificationId: string, state: 'yes' | 'no' | 'clear') => {
+  const saveState = async (clarificationId: string, state: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'clear') => {
     try {
       // Найдем db_id для данной кларификации
       const clarificationItem = clarificationsData.find(item => item.clarification_id === clarificationId)
@@ -205,8 +206,8 @@ function HomeContent() {
 
 interface ClarificationCardProps {
   clarification: ClarificationData
-  state?: 'yes' | 'no'
-  onStateChange: (state: 'yes' | 'no' | 'clear') => void
+  state?: 'yes' | 'no' | 'bbox_error' | 'unknown'
+  onStateChange: (state: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'clear') => void
 }
 
 function ClarificationCard({ clarification, state, onStateChange }: ClarificationCardProps) {
@@ -215,7 +216,13 @@ function ClarificationCard({ clarification, state, onStateChange }: Clarificatio
   const cardClassName = state 
     ? state === 'yes' 
       ? 'bg-green-100 border-l-4 border-l-green-500' 
-      : 'bg-red-100 border-l-4 border-l-red-500'
+      : state === 'no'
+      ? 'bg-red-100 border-l-4 border-l-red-500'
+      : state === 'bbox_error'
+      ? 'bg-orange-100 border-l-4 border-l-orange-500'
+      : state === 'unknown'
+      ? 'bg-gray-100 border-l-4 border-l-gray-500'
+      : 'bg-white'
     : 'bg-white'
 
 
@@ -325,7 +332,7 @@ function ClarificationCard({ clarification, state, onStateChange }: Clarificatio
       </div>
           {/* Кнопки действий внутри карточки: мобильные полноширинные, на десктопе справа, не перекрывают контент */}
           <div className="mt-4 flex">
-            <div className="flex gap-3 md:ml-auto w-full md:w-auto">
+            <div className="flex gap-3 md:ml-auto w-full md:w-auto items-center">
               {!state ? (
                 <>
                   <Button 
@@ -340,15 +347,27 @@ function ClarificationCard({ clarification, state, onStateChange }: Clarificatio
                   >
                     NO
                   </Button>
+                  {/* Dropdown с дополнительными состояниями */}
+                  <AdditionalStatesDropdown 
+                    onStateChange={(newState) => onStateChange(newState)}
+                  />
                 </>
               ) : (
-                <Button 
-                  onClick={() => onStateChange('clear')}
-                  variant="outline"
-                  className="text-sm px-6 py-3 md:w-[140px]"
-                >
-                  Clear
-                </Button>
+                <>
+                  <Button 
+                    onClick={() => onStateChange('clear')}
+                    variant="outline"
+                    className="text-sm px-6 py-3 md:w-[140px]"
+                  >
+                    Clear
+                  </Button>
+                  {/* Показываем текущее состояние для дополнительных состояний */}
+                  {(state === 'bbox_error' || state === 'unknown') && (
+                    <div className="text-sm text-gray-600 ml-2">
+                      {state === 'bbox_error' ? '⚠️ Ошибка границ' : '❓ Неизвестно'}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
