@@ -90,7 +90,7 @@ export function useInfiniteClarifications(
     if (enabled && state.data.length === 0 && !state.isLoading && !state.isFetching) {
       fetchPage(0, filters, true)
     }
-  }, [enabled])
+  }, [enabled, state.data.length, state.isLoading, state.isFetching, filters])
 
   const fetchPage = async (page: number, currentFilters: FilterValues, isInitial = false) => {
     // Отменяем предыдущий запрос

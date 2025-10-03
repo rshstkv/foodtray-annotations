@@ -36,10 +36,12 @@ export async function GET() {
         .filter(v => v.length > 0)
     )].sort()
 
+    type BucketRow = { bucket: string }
+    
     return NextResponse.json({
       device_canteen_names: uniqueCanteenNames,
       states: ['yes', 'no', 'не задано'], // Фиксированные значения для состояний
-      freq_buckets: Array.from(new Set((buckets.data || []).map((r: any) => r.bucket))).filter(Boolean)
+      freq_buckets: Array.from(new Set((buckets.data || []).map((r: BucketRow) => r.bucket))).filter(Boolean)
     })
   } catch (error) {
     console.error('Server error:', error)

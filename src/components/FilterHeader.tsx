@@ -275,7 +275,7 @@ export function FilterHeader({
 
               {/* Частотный бакет */}
               <div className="w-40">
-                <Select value={freqSelectValue} onValueChange={(v) => onUpdateFilter('freq_bucket', v === ALL_FREQ_VALUE ? '' as any : (v as any))}>
+                <Select value={freqSelectValue} onValueChange={(v) => onUpdateFilter('freq_bucket', v === ALL_FREQ_VALUE ? '' : v)}>
                   <SelectTrigger size="sm" className="h-9">
                     <SelectValue placeholder="Частота" />
                   </SelectTrigger>
@@ -405,7 +405,7 @@ export function FilterHeader({
                 <Label className="text-sm font-medium">Частота</Label>
                 <Select
                   value={(filters.freq_bucket && filters.freq_bucket.length > 0) ? filters.freq_bucket : '__all__'}
-                  onValueChange={(v) => onUpdateFilter('freq_bucket', v === '__all__' ? '' as any : (v as any))}
+                  onValueChange={(v) => onUpdateFilter('freq_bucket', v === '__all__' ? '' : v)}
                 >
                   <SelectTrigger className="h-10">
                     <SelectValue placeholder="Частота" />

@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
       bucket?: string
     }
 
-    let transformedData = (data as Row[] | undefined)?.map((item) => {
+    const transformedData = (data as Row[] | undefined)?.map((item) => {
       return {
         db_id: item.id,
         clarification_id: item.clarification_id,

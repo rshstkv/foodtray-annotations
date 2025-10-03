@@ -24,10 +24,8 @@ export function DateRangeFilter({
   fromValue,
   toValue,
   onFromChange,
-  onToChange,
-  availableDates,
-  loadingAvailableDates
-}: DateRangeFilterProps) {
+  onToChange
+}: Omit<DateRangeFilterProps, 'availableDates' | 'loadingAvailableDates'>) {
   const initialMode: DateMode = useMemo(() => {
     if (fromValue && toValue && fromValue === toValue) return 'single'
     if (fromValue && !toValue) return 'single'
