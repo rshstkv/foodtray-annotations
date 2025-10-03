@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { FilterValues } from './useFilters'
 
 export interface ClarificationData {
@@ -92,7 +92,7 @@ export function useInfiniteClarifications(
     }
   }, [enabled, state.data.length, state.isLoading, state.isFetching])
 
-  const fetchPage = async (page: number, currentFilters: FilterValues, isInitial = false) => {
+  const fetchPage = useCallback(async (page: number, currentFilters: FilterValues, isInitial = false) => {
     // Отменяем предыдущий запрос
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -156,15 +156,15 @@ export function useInfiniteClarifications(
         error: error instanceof Error ? error.message : 'Unknown error occurred'
       }))
     }
-  }
+  }, [])
 
-  const fetchNextPage = async () => {
+  const fetchNextPage = useCallback(async () => {
     if (state.isFetching || !state.hasMore) return
     
     await fetchPage(currentPageRef.current, filtersRef.current, false)
-  }
+  }, [fetchPage, state.isFetching, state.hasMore])
 
-  const refetch = () => {
+  const refetch = useCallback(() => {
     currentPageRef.current = 0
     setState(prev => ({ 
       ...prev, 
@@ -174,7 +174,7 @@ export function useInfiniteClarifications(
       error: null 
     }))
     fetchPage(0, filtersRef.current, true)
-  }
+  }, [fetchPage])
 
   // Очистка при размонтировании
   useEffect(() => {
