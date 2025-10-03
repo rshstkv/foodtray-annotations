@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { FilterValues } from './useFilters'
+import { createFilterKey } from '@/utils/filterUtils'
 
 export interface ClarificationData {
   db_id?: number
@@ -60,6 +61,7 @@ export function useInfiniteClarifications(
   const abortControllerRef = useRef<AbortController | null>(null)
   const filtersRef = useRef(filters)
   const currentPageRef = useRef(0)
+  const lastFilterKeyRef = useRef<string>('')
 
   // Объявляем fetchPageStable перед использованием
   const fetchPageStable = useCallback(async (page: number, currentFilters: FilterValues, isInitial = false) => {
@@ -128,40 +130,34 @@ export function useInfiniteClarifications(
     }
   }, [setState])
 
+  const filterKey = useMemo(() => createFilterKey(filters), [filters])
+
   // Отслеживание изменения фильтров для сброса данных
   useEffect(() => {
-    const filtersChanged = JSON.stringify(filtersRef.current) !== JSON.stringify(filters)
-    
-    if (filtersChanged && enabled) {
-      filtersRef.current = filters
-      currentPageRef.current = 0
-      setState(prev => ({ 
-        ...prev, 
-        data: [], 
-        count: 0, 
-        hasMore: true, 
-        error: null 
-      }))
-      
-      // Отменяем предыдущие запросы
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-      }
-      
-      // Используем стабильную версию fetchPage
-      fetchPageStable(0, filters, true)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, enabled])
+    if (!enabled) return
 
-  // Первоначальная загрузка
-  useEffect(() => {
-    if (enabled && state.data.length === 0 && !state.isLoading && !state.isFetching) {
-      // Используем стабильную версию fetchPage
-      fetchPageStable(0, filtersRef.current, true)
+    const filtersChanged = lastFilterKeyRef.current !== filterKey
+    if (!filtersChanged) return
+
+    lastFilterKeyRef.current = filterKey
+    filtersRef.current = filters
+    currentPageRef.current = 0
+    setState(prev => ({ 
+      ...prev, 
+      data: [], 
+      count: 0, 
+      hasMore: true, 
+      error: null 
+    }))
+    
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, state.data.length, state.isLoading, state.isFetching])
+    
+    fetchPageStable(0, filters, true)
+  }, [filterKey, enabled, fetchPageStable, filters])
+
+  // Убрали эффект первоначальной загрузки: первый запрос делает filters-эффект
 
 
   const fetchPage = useCallback(async (page: number, currentFilters: FilterValues, isInitial = false) => {

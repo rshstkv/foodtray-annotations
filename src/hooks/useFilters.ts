@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 export interface FilterValues {
@@ -37,6 +37,9 @@ export function useFilters() {
   const [filters, setFilters] = useState<FilterValues>(defaultFilters)
   const [isInitialized, setIsInitialized] = useState(false)
 
+  // Мемоизируем searchParams строку для стабильной ссылки
+  const searchParamsString = useMemo(() => searchParams.toString(), [searchParams])
+
   // Загрузка фильтров из URL при инициализации
   useEffect(() => {
     if (!isInitialized) {
@@ -44,7 +47,7 @@ export function useFilters() {
       setFilters(urlFilters)
       setIsInitialized(true)
     }
-  }, [searchParams, isInitialized])
+  }, [searchParamsString, isInitialized])
 
   // Обновление URL при изменении фильтров
   useEffect(() => {
