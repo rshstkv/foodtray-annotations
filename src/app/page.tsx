@@ -67,13 +67,15 @@ function HomeContent() {
         const response = await fetch('/api/states', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clarification_id: clarificationId })
+          body: JSON.stringify({ db_id })
         })
 
         if (response.ok) {
           setRowStates(prev => {
             const updated = { ...prev }
-            delete updated[clarificationId]
+            if (db_id !== undefined) {
+              delete updated[String(db_id)]
+            }
             return updated
           })
         }
@@ -90,10 +92,12 @@ function HomeContent() {
         })
 
         if (response.ok) {
-          setRowStates(prev => ({ 
-            ...prev, 
-            [clarificationId]: state 
-          }))
+          if (db_id !== undefined) {
+            setRowStates(prev => ({ 
+              ...prev, 
+              [String(db_id)]: state 
+            }))
+          }
         }
       }
     } catch (err) {
@@ -166,7 +170,7 @@ function HomeContent() {
                 <ClarificationCard
                   key={clarification.db_id ?? `${clarification.clarification_id}-${clarification.start_dtts}`}
                   clarification={clarification}
-                  state={rowStates[clarification.clarification_id]}
+                  state={rowStates[String(clarification.db_id ?? '')]}
                   onStateChange={(state) => saveState(clarification.clarification_id, state)}
                 />
               ))}

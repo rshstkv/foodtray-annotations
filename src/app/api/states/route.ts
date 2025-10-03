@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from('clarification_states')
-      .select('clarification_id, state')
+      .select('clarification_db_id, state')
 
     if (error) {
       console.error('Database error:', error)
@@ -16,7 +16,8 @@ export async function GET() {
     // Преобразовать в формат для фронтенда
     const states: Record<string, string> = {}
     data?.forEach(item => {
-      states[item.clarification_id] = item.state
+      const key = String((item as any).clarification_db_id)
+      states[key] = (item as any).state
     })
 
     return NextResponse.json(states)
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
         clarification_db_id,
         state,
         updated_at: new Date().toISOString()
-      })
+      }, { onConflict: 'clarification_db_id' })
 
     if (error) {
       console.error('Database error:', error)
@@ -80,16 +81,16 @@ export async function POST(request: NextRequest) {
 // DELETE /api/states/[id] - удалить состояние (для кнопки Clear)
 export async function DELETE(request: NextRequest) {
   try {
-    const { clarification_id } = await request.json()
+    const { db_id } = await request.json()
 
-    if (!clarification_id) {
-      return NextResponse.json({ error: 'Missing clarification_id' }, { status: 400 })
+    if (!db_id) {
+      return NextResponse.json({ error: 'Missing db_id' }, { status: 400 })
     }
 
     const { error } = await supabase
       .from('clarification_states')
       .delete()
-      .eq('clarification_id', clarification_id)
+      .eq('clarification_db_id', db_id)
 
     if (error) {
       console.error('Database error:', error)
