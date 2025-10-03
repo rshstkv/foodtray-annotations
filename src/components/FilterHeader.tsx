@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -49,17 +49,35 @@ export function FilterHeader({
   // Локальное состояние для EAN поиска (дебаунс обновляет фильтр)
   const [eanInput, setEanInput] = useState(filters.ean_search)
   const [mode, setMode] = useState<'ean' | 'pos'>('ean')
+  const isResettingRef = useRef(false)
   useEffect(() => {
     setEanInput(mode === 'ean' ? filters.ean_search : filters.pos_search)
   }, [filters.ean_search, filters.pos_search, mode])
   const debouncedInput = useDebouncedValue(eanInput, 300)
   useEffect(() => {
+    if (isResettingRef.current) {
+      return
+    }
     if (mode === 'ean') {
       if (debouncedInput !== filters.ean_search) onUpdateFilter('ean_search', debouncedInput)
     } else {
       if (debouncedInput !== filters.pos_search) onUpdateFilter('pos_search', debouncedInput)
     }
   }, [debouncedInput, mode, filters.ean_search, filters.pos_search, onUpdateFilter])
+
+  // Единая функция сброса, очищает локальное поле поиска
+  const handleResetFilters = () => {
+    // Явно очищаем оба параметра поиска, чтобы они ушли из URL немедленно
+    isResettingRef.current = true
+    onUpdateFilter('ean_search', '')
+    onUpdateFilter('pos_search', '')
+    setEanInput('')
+    onResetFilters()
+    // Снимаем флаг после завершения цикла рендера
+    setTimeout(() => {
+      isResettingRef.current = false
+    }, 0)
+  }
 
   // Загрузка опций
   useEffect(() => {
@@ -138,7 +156,7 @@ export function FilterHeader({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={onResetFilters}
+                  onClick={handleResetFilters}
                   className="text-red-600 hover:bg-red-50 h-8 px-2"
                 >
                   <X className="w-4 h-4" />
@@ -252,7 +270,7 @@ export function FilterHeader({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={onResetFilters}
+                  onClick={handleResetFilters}
                   className="text-red-600 hover:bg-red-50 h-8 px-2"
                 >
                   <X className="w-4 h-4" />
