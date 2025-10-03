@@ -115,7 +115,7 @@ export function FilterPanel({
         if (!response.ok) return
         const json = await response.json()
         if (!cancelled) setAvailableDates(Array.isArray(json.dates) ? json.dates : [])
-      } catch (e) {
+      } catch (error) {
         if (!cancelled) setAvailableDates([])
       } finally {
         if (!cancelled) setIsLoadingDates(false)
@@ -221,8 +221,6 @@ export function FilterPanel({
                 toValue={filters.start_dtts_to}
                 onFromChange={(value) => onUpdateFilter('start_dtts_from', value)}
                 onToChange={(value) => onUpdateFilter('start_dtts_to', value)}
-                availableDates={availableDates || undefined}
-                loadingAvailableDates={isLoadingDates}
               />
 
               <div className="space-y-2">
