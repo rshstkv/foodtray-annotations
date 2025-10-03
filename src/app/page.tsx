@@ -406,6 +406,30 @@ function ImageContainer({ src, alt, label, type, rectangle, isSmall }: ImageCont
     return null
   }, [type, label])
 
+  // Android back/edge-swipe: регистрируем хук всегда (до любых ранних return)
+  useEffect(() => {
+    if (!isModalOpen) return
+
+    let pushed = false
+    try {
+      window.history.pushState({ __imageModal__: true } as const, '')
+      pushed = true
+    } catch {}
+
+    const onPopState = () => setIsModalOpen(false)
+    window.addEventListener('popstate', onPopState)
+
+    return () => {
+      window.removeEventListener('popstate', onPopState)
+      try {
+        const state = window.history.state as unknown as { __imageModal__?: boolean } | null
+        if (pushed && state && state.__imageModal__) {
+          window.history.back()
+        }
+      } catch {}
+    }
+  }, [isModalOpen])
+
 
   if (!src) {
     return (
@@ -418,33 +442,7 @@ function ImageContainer({ src, alt, label, type, rectangle, isSmall }: ImageCont
     )
   }
 
-  // На Android жест «назад» может уводить в предыдущее приложение.
-  // Когда открываем модалку, добавляем запись в history и закрываем её на popstate.
-  useEffect(() => {
-    if (!isModalOpen) return
-
-    // push временное состояние для модалки
-    const state = { imageModal: true }
-    try {
-      window.history.pushState(state, '')
-    } catch {}
-
-    const onPopState = () => {
-      setIsModalOpen(false)
-    }
-    window.addEventListener('popstate', onPopState)
-
-    return () => {
-      window.removeEventListener('popstate', onPopState)
-      // Если пользователь закрыл модалку крестиком/тапом, откатим добавленное состояние
-      // чтобы «назад» не уводило на пустую страницу
-      try {
-        if (window.history.state && (window.history.state as any).imageModal) {
-          window.history.back()
-        }
-      } catch {}
-    }
-  }, [isModalOpen])
+  // (старый эффект перенесён выше, чтобы не нарушать порядок хуков)
 
   return (
     <>
