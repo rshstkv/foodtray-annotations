@@ -61,42 +61,8 @@ export function useInfiniteClarifications(
   const filtersRef = useRef(filters)
   const currentPageRef = useRef(0)
 
-  // Отслеживание изменения фильтров для сброса данных
-  useEffect(() => {
-    const filtersChanged = JSON.stringify(filtersRef.current) !== JSON.stringify(filters)
-    
-    if (filtersChanged && enabled) {
-      filtersRef.current = filters
-      currentPageRef.current = 0
-      setState(prev => ({ 
-        ...prev, 
-        data: [], 
-        count: 0, 
-        hasMore: true, 
-        error: null 
-      }))
-      
-      // Отменяем предыдущие запросы
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-      }
-      
-      // Используем стабильную версию fetchPage
-      fetchPageStable(0, filters, true)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, enabled])
-
-  // Первоначальная загрузка
-  useEffect(() => {
-    if (enabled && state.data.length === 0 && !state.isLoading && !state.isFetching) {
-      // Используем стабильную версию fetchPage
-      fetchPageStable(0, filtersRef.current, true)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, state.data.length, state.isLoading, state.isFetching])
-
-  const fetchPageStable = async (page: number, currentFilters: FilterValues, isInitial = false) => {
+  // Объявляем fetchPageStable перед использованием
+  const fetchPageStable = useCallback(async (page: number, currentFilters: FilterValues, isInitial = false) => {
     // Отменяем предыдущий запрос
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -160,11 +126,47 @@ export function useInfiniteClarifications(
         error: error instanceof Error ? error.message : 'Unknown error occurred'
       }))
     }
-  }, [])
+  }, [setState])
+
+  // Отслеживание изменения фильтров для сброса данных
+  useEffect(() => {
+    const filtersChanged = JSON.stringify(filtersRef.current) !== JSON.stringify(filters)
+    
+    if (filtersChanged && enabled) {
+      filtersRef.current = filters
+      currentPageRef.current = 0
+      setState(prev => ({ 
+        ...prev, 
+        data: [], 
+        count: 0, 
+        hasMore: true, 
+        error: null 
+      }))
+      
+      // Отменяем предыдущие запросы
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      
+      // Используем стабильную версию fetchPage
+      fetchPageStable(0, filters, true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, enabled])
+
+  // Первоначальная загрузка
+  useEffect(() => {
+    if (enabled && state.data.length === 0 && !state.isLoading && !state.isFetching) {
+      // Используем стабильную версию fetchPage
+      fetchPageStable(0, filtersRef.current, true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, state.data.length, state.isLoading, state.isFetching])
+
 
   const fetchPage = useCallback(async (page: number, currentFilters: FilterValues, isInitial = false) => {
     return fetchPageStable(page, currentFilters, isInitial)
-  }, [])
+  }, [fetchPageStable])
 
   const fetchNextPage = useCallback(async () => {
     if (state.isFetching || !state.hasMore) return
@@ -182,7 +184,7 @@ export function useInfiniteClarifications(
       error: null 
     }))
     fetchPageStable(0, filtersRef.current, true)
-  }, [])
+  }, [fetchPageStable])
 
   // Очистка при размонтировании
   useEffect(() => {
