@@ -319,16 +319,7 @@ export function FilterHeader({
                     </Badge>
                   )}
                 </div>
-                {hasActiveFilters && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onResetFilters}
-                    className="text-red-600 hover:bg-red-50 h-8 px-2"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
+                {/* Крестик оставляем только для закрытия (дефолтный от диалога) */}
               </DialogTitle>
             </UIDialogHeader>
 
@@ -420,7 +411,17 @@ export function FilterHeader({
               </div>
             </div>
 
-            <DialogFooter className="px-4 py-3 border-t">
+            <DialogFooter className="px-4 py-3 border-t flex gap-3">
+              {hasActiveFilters && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleResetFilters}
+                  className="text-red-600 border-red-200 hover:bg-red-50 w-full"
+                >
+                  Сбросить
+                </Button>
+              )}
               <Button onClick={() => setIsFilterModalOpen(false)} className="w-full">Готово</Button>
             </DialogFooter>
           </div>
