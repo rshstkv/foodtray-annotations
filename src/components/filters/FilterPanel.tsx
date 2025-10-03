@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,15 +41,29 @@ export function FilterPanel({
 
   // Локальное поле EAN с дебаунсом
   const [eanInput, setEanInput] = useState(filters.ean_search)
+  const isResettingRef = useRef(false)
   useEffect(() => {
     setEanInput(filters.ean_search)
   }, [filters.ean_search])
   const debouncedEanInput = useDebouncedValue(eanInput, 300)
   useEffect(() => {
+    if (isResettingRef.current) return
     if (debouncedEanInput !== filters.ean_search) {
       onUpdateFilter('ean_search', debouncedEanInput)
     }
   }, [debouncedEanInput, filters.ean_search, onUpdateFilter])
+
+  // Единая функция сброса для панели: очистить текстовые поиски, затем общий сброс
+  const handleReset = () => {
+    isResettingRef.current = true
+    onUpdateFilter('ean_search', '')
+    onUpdateFilter('pos_search', '')
+    setEanInput('')
+    onResetFilters()
+    setTimeout(() => {
+      isResettingRef.current = false
+    }, 0)
+  }
 
   // Загрузка опций для фильтров
   useEffect(() => {
@@ -148,7 +162,7 @@ export function FilterPanel({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onResetFilters}
+                onClick={handleReset}
                 className="text-red-600 border-red-200 hover:bg-red-50"
               >
                 <X className="w-4 h-4 mr-1" />
