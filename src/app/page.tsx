@@ -56,25 +56,41 @@ function HomeContent() {
   }, [])
 
   // Сохранение состояния
-  const saveState = async (clarificationId: string, state: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'clear') => {
+  const saveState = async (
+    clarificationId: string,
+    state: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'clear',
+    dbId?: number
+  ) => {
     try {
-      // Найдем db_id для данной кларификации
-      const clarificationItem = clarificationsData.find(item => item.clarification_id === clarificationId)
-      const db_id = clarificationItem?.db_id
+      // Предпочитаем явно переданный dbId из карточки; при отсутствии — находим по clarificationId
+      const effectiveDbId = dbId ?? clarificationsData.find(item => item.clarification_id === clarificationId)?.db_id
+
+      if (effectiveDbId === undefined) {
+        console.error('saveState: missing db_id for clarification', {
+          clarificationId,
+          state,
+        })
+        return
+      }
 
       if (state === 'clear') {
         // Удаляем состояние
         const response = await fetch('/api/states', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ db_id })
+          body: JSON.stringify({ db_id: effectiveDbId })
         })
 
-        if (response.ok) {
+        if (!response.ok) {
+          try {
+            const err = await response.json()
+            console.error('DELETE /api/states failed', err)
+          } catch {}
+        } else {
           setRowStates(prev => {
             const updated = { ...prev }
-            if (db_id !== undefined) {
-              delete updated[String(db_id)]
+            if (effectiveDbId !== undefined) {
+              delete updated[String(effectiveDbId)]
             }
             return updated
           })
@@ -87,17 +103,20 @@ function HomeContent() {
           body: JSON.stringify({ 
             clarification_id: clarificationId, 
             state,
-            db_id // Передаем внутренний ID
+            db_id: effectiveDbId // Передаем внутренний ID
           })
         })
 
-        if (response.ok) {
-          if (db_id !== undefined) {
-            setRowStates(prev => ({ 
-              ...prev, 
-              [String(db_id)]: state 
-            }))
-          }
+        if (!response.ok) {
+          try {
+            const err = await response.json()
+            console.error('POST /api/states failed', err)
+          } catch {}
+        } else {
+          setRowStates(prev => ({ 
+            ...prev, 
+            [String(effectiveDbId)]: state 
+          }))
         }
       }
     } catch (err) {
@@ -171,7 +190,7 @@ function HomeContent() {
                   key={clarification.db_id ?? `${clarification.clarification_id}-${clarification.start_dtts}`}
                   clarification={clarification}
                   state={rowStates[String(clarification.db_id ?? '')]}
-                  onStateChange={(state) => saveState(clarification.clarification_id, state)}
+                  onStateChange={(state) => saveState(clarification.clarification_id, state, clarification.db_id)}
                 />
               ))}
             </div>

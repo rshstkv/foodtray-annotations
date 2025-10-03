@@ -34,3 +34,6 @@ COMMENT ON VIEW public.v_ean_selected_counts IS 'Frequency of the first/selected
 COMMIT;
 
 
+
+
+
