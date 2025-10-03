@@ -418,6 +418,34 @@ function ImageContainer({ src, alt, label, type, rectangle, isSmall }: ImageCont
     )
   }
 
+  // На Android жест «назад» может уводить в предыдущее приложение.
+  // Когда открываем модалку, добавляем запись в history и закрываем её на popstate.
+  useEffect(() => {
+    if (!isModalOpen) return
+
+    // push временное состояние для модалки
+    const state = { imageModal: true }
+    try {
+      window.history.pushState(state, '')
+    } catch {}
+
+    const onPopState = () => {
+      setIsModalOpen(false)
+    }
+    window.addEventListener('popstate', onPopState)
+
+    return () => {
+      window.removeEventListener('popstate', onPopState)
+      // Если пользователь закрыл модалку крестиком/тапом, откатим добавленное состояние
+      // чтобы «назад» не уводило на пустую страницу
+      try {
+        if (window.history.state && (window.history.state as any).imageModal) {
+          window.history.back()
+        }
+      } catch {}
+    }
+  }, [isModalOpen])
+
   return (
     <>
       <div 
@@ -460,9 +488,11 @@ function ImageContainer({ src, alt, label, type, rectangle, isSmall }: ImageCont
       {isModalOpen && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 cursor-zoom-out"
+          // Блокируем жесты браузера/системы в пределах оверлея, особенно на Android
+          style={{ overscrollBehavior: 'none', touchAction: 'none' }}
           onClick={() => setIsModalOpen(false)}
         >
-          <div className="relative w-[90vw] h-[80vh]">
+          <div className="relative w-[90vw] h-[80vh]" onClick={(e) => e.stopPropagation()}>
             <button 
               className="absolute -top-10 right-0 text-white text-2xl font-bold bg-black bg-opacity-50 px-3 py-1 rounded"
               onClick={() => setIsModalOpen(false)}
