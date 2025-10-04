@@ -35,7 +35,8 @@ function HomeContent() {
     error,
     hasMore,
     fetchNextPage,
-    stats
+    stats,
+    refetch
   } = useInfiniteClarifications(filters, isInitialized)
 
   // Загрузка сохраненных состояний при инициализации
@@ -94,6 +95,8 @@ function HomeContent() {
             }
             return updated
           })
+          // Синхронизируем список после очистки состояния
+          refetch()
         }
       } else {
         // Сохраняем состояние
@@ -117,6 +120,8 @@ function HomeContent() {
             ...prev, 
             [String(effectiveDbId)]: state 
           }))
+          // Синхронизируем список после изменения состояния
+          refetch()
         }
       }
     } catch (err) {
