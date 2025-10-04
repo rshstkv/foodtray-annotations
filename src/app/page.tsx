@@ -42,7 +42,7 @@ function HomeContent() {
   useEffect(() => {
     const loadSavedStates = async () => {
       try {
-        const response = await fetch('/api/states')
+        const response = await fetch('/api/states', { cache: 'no-store' })
         if (response.ok) {
           const states = await response.json()
           setRowStates(states)
@@ -189,7 +189,7 @@ function HomeContent() {
                 <ClarificationCard
                   key={clarification.db_id ?? `${clarification.clarification_id}-${clarification.start_dtts}`}
                   clarification={clarification}
-                  state={rowStates[String(clarification.db_id ?? '')]}
+                state={rowStates[String(clarification.db_id ?? '')] ?? clarification.state}
                   onStateChange={(state) => saveState(clarification.clarification_id, state, clarification.db_id)}
                 />
               ))}

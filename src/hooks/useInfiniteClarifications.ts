@@ -88,7 +88,8 @@ export function useInfiniteClarifications(
       })
 
       const response = await fetch(`/api/clarifications?${queryParams}`, {
-        signal: controller.signal
+        signal: controller.signal,
+        cache: 'no-store'
       })
 
       if (!response.ok) {

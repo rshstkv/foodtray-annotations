@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
 // GET /api/states - получить все состояния
+export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const { data, error } = await supabase
@@ -22,7 +23,9 @@ export async function GET() {
       states[key] = item.state
     })
 
-    return NextResponse.json(states)
+    const res = NextResponse.json(states)
+    res.headers.set('Cache-Control', 'no-store')
+    return res
   } catch (error) {
     console.error('Server error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
