@@ -3,9 +3,9 @@ export const dynamic = 'force-dynamic'
 
 import { Suspense, useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
+import { AlertTriangle, HelpCircle } from 'lucide-react'
 import RecognitionImageWithBBox from '@/components/RecognitionImageWithBBox'
 import { Button } from '@/components/ui/button'
-import { AdditionalStatesDropdown } from '@/components/AdditionalStatesDropdown'
 import { Card } from '@/components/ui/card'
 import { useFilters } from '@/hooks/useFilters'
 import { useInfiniteClarifications, ClarificationData } from '@/hooks/useInfiniteClarifications'
@@ -360,10 +360,21 @@ function ClarificationCard({ clarification, state, onStateChange }: Clarificatio
                   >
                     NO
                   </Button>
-                  {/* Dropdown с дополнительными состояниями */}
-                  <AdditionalStatesDropdown 
-                    onStateChange={(newState) => onStateChange(newState)}
-                  />
+                  {/* Кнопки дополнительных состояний с иконками */}
+                  <Button 
+                    onClick={() => onStateChange('bbox_error')}
+                    className="bg-orange-500 hover:bg-orange-600 text-white h-12 w-12 p-0 md:h-10 md:w-10"
+                    title="Ошибка границ"
+                  >
+                    <AlertTriangle className="h-6 w-6 md:h-5 md:w-5" />
+                  </Button>
+                  <Button 
+                    onClick={() => onStateChange('unknown')}
+                    className="bg-gray-500 hover:bg-gray-600 text-white h-12 w-12 p-0 md:h-10 md:w-10"
+                    title="Неизвестно"
+                  >
+                    <HelpCircle className="h-6 w-6 md:h-5 md:w-5" />
+                  </Button>
                 </>
               ) : (
                 <>
