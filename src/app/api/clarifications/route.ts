@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
 // GET /api/clarifications - получить данные кларификаций из БД с пагинацией и фильтрами
+export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -184,7 +185,7 @@ export async function GET(request: NextRequest) {
     const unknownCount = transformedData.filter(item => item.state === 'unknown').length
     const checkedCount = yesCount + noCount + bboxErrorCount + unknownCount
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       data: transformedData,
       count: (count || 0),
       page,
@@ -197,6 +198,8 @@ export async function GET(request: NextRequest) {
         no: noCount
       }
     })
+    res.headers.set('Cache-Control', 'no-store')
+    return res
   } catch (error) {
     console.error('Server error:', error)
     return NextResponse.json({ error: 'Failed to load clarifications data' }, { status: 500 })
