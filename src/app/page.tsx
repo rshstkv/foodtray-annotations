@@ -13,7 +13,8 @@ import { FilterHeader } from '@/components/FilterHeader'
 import { InfiniteScroll } from '@/components/InfiniteScroll'
 import { LoadingIndicator, EmptyState } from '@/components/LoadingIndicator'
 
-type RowStates = Record<string, 'yes' | 'no' | 'bbox_error' | 'unknown'>
+// Локальные изменения состояний для оптимистичного UI (undefined = очищено)
+type LocalStateChanges = Record<string, 'yes' | 'no' | 'bbox_error' | 'unknown' | undefined>
 
 export default function Home() {
   return (
@@ -24,7 +25,7 @@ export default function Home() {
 }
 
 function HomeContent() {
-  const [rowStates, setRowStates] = useState<RowStates>({})
+  const [localStateChanges, setLocalStateChanges] = useState<LocalStateChanges>({})
   const { filters, updateFilter, resetFilters, hasActiveFilters, isInitialized } = useFilters()
   
   const {
@@ -35,26 +36,8 @@ function HomeContent() {
     error,
     hasMore,
     fetchNextPage,
-    stats,
-    refetch
+    stats
   } = useInfiniteClarifications(filters, isInitialized)
-
-  // Загрузка сохраненных состояний при инициализации
-  useEffect(() => {
-    const loadSavedStates = async () => {
-      try {
-        const response = await fetch('/api/states', { cache: 'no-store' })
-        if (response.ok) {
-          const states = await response.json()
-          setRowStates(states)
-        }
-      } catch (err) {
-        console.warn('Failed to load saved states:', err)
-      }
-    }
-
-    loadSavedStates()
-  }, [])
 
   // Сохранение состояния
   const saveState = async (
@@ -63,7 +46,6 @@ function HomeContent() {
     dbId?: number
   ) => {
     try {
-      // Предпочитаем явно переданный dbId из карточки; при отсутствии — находим по clarificationId
       const effectiveDbId = dbId ?? clarificationsData.find(item => item.clarification_id === clarificationId)?.db_id
 
       if (effectiveDbId === undefined) {
@@ -75,7 +57,13 @@ function HomeContent() {
       }
 
       if (state === 'clear') {
-        // Удаляем состояние
+        // Оптимистично очищаем локально (мгновенный фидбэк)
+        setLocalStateChanges(prev => ({ 
+          ...prev, 
+          [String(effectiveDbId)]: undefined 
+        }))
+
+        // Удаляем состояние в фоне
         const response = await fetch('/api/states', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -87,26 +75,22 @@ function HomeContent() {
             const err = await response.json()
             console.error('DELETE /api/states failed', err)
           } catch {}
-        } else {
-          setRowStates(prev => {
-            const updated = { ...prev }
-            if (effectiveDbId !== undefined) {
-              delete updated[String(effectiveDbId)]
-            }
-            return updated
-          })
-          // Синхронизируем список после очистки состояния
-          refetch()
         }
       } else {
-        // Сохраняем состояние
+        // Оптимистично обновляем локально (мгновенный фидбэк)
+        setLocalStateChanges(prev => ({ 
+          ...prev, 
+          [String(effectiveDbId)]: state 
+        }))
+
+        // Сохраняем состояние в фоне
         const response = await fetch('/api/states', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             clarification_id: clarificationId, 
             state,
-            db_id: effectiveDbId // Передаем внутренний ID
+            db_id: effectiveDbId
           })
         })
 
@@ -115,13 +99,6 @@ function HomeContent() {
             const err = await response.json()
             console.error('POST /api/states failed', err)
           } catch {}
-        } else {
-          setRowStates(prev => ({ 
-            ...prev, 
-            [String(effectiveDbId)]: state 
-          }))
-          // Синхронизируем список после изменения состояния
-          refetch()
         }
       }
     } catch (err) {
@@ -190,14 +167,22 @@ function HomeContent() {
             onLoadMore={fetchNextPage}
           >
             <div className="space-y-3">
-              {clarificationsData.map((clarification) => (
-                <ClarificationCard
-                  key={clarification.db_id ?? `${clarification.clarification_id}-${clarification.start_dtts}`}
-                  clarification={clarification}
-                state={rowStates[String(clarification.db_id ?? '')] ?? clarification.state}
-                  onStateChange={(state) => saveState(clarification.clarification_id, state, clarification.db_id)}
-                />
-              ))}
+              {clarificationsData.map((clarification) => {
+                const dbIdKey = String(clarification.db_id ?? '')
+                // Приоритет локальному изменению (оптимистичный UI), иначе из API
+                const effectiveState = dbIdKey in localStateChanges 
+                  ? localStateChanges[dbIdKey] 
+                  : clarification.state
+                
+                return (
+                  <ClarificationCard
+                    key={clarification.db_id ?? `${clarification.clarification_id}-${clarification.start_dtts}`}
+                    clarification={clarification}
+                    state={effectiveState}
+                    onStateChange={(state) => saveState(clarification.clarification_id, state, clarification.db_id)}
+                  />
+                )
+              })}
             </div>
 
             {/* Индикатор загрузки */}
