@@ -190,6 +190,14 @@ function HomeContent() {
                     onStateChange={(state) => saveState(clarification.clarification_id, state, clarification.db_id)}
                     onCorrectDishSelect={async (ean, name, source) => {
                       try {
+                        // Оптимистично меняем статус на 'corrected' если текущий state='no'
+                        if (effectiveState === 'no') {
+                          setLocalStateChanges(prev => ({ 
+                            ...prev, 
+                            [dbIdKey]: 'corrected' 
+                          }))
+                        }
+                        
                         await fetch('/api/correct-dishes', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -207,6 +215,12 @@ function HomeContent() {
                       }
                     }}
                     onCorrectDishDelete={() => {
+                      // Очищаем локальное состояние, чтобы вернуться к оригинальному из БД
+                      setLocalStateChanges(prev => {
+                        const newChanges = { ...prev }
+                        delete newChanges[dbIdKey]
+                        return newChanges
+                      })
                       // Refetch данных чтобы получить обновлённую информацию
                       fetchNextPage()
                     }}
