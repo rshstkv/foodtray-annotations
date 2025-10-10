@@ -20,10 +20,34 @@ export function MenuSearchDialog({ isOpen, onClose, onSelect }: MenuSearchDialog
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Load initial items when dialog opens
+  useEffect(() => {
+    if (!isOpen) return
+
+    // Load first 50 items as initial catalog
+    const loadInitial = async () => {
+      setIsSearching(true)
+      try {
+        const response = await fetch('/api/menu-items?search=a&limit=50')
+        if (response.ok) {
+          const data = await response.json()
+          setResults(data.items || [])
+        }
+      } catch (err) {
+        console.error('Failed to load initial items:', err)
+      } finally {
+        setIsSearching(false)
+      }
+    }
+
+    if (!searchQuery) {
+      loadInitial()
+    }
+  }, [isOpen, searchQuery])
+
   // Debounced search
   useEffect(() => {
     if (!searchQuery || searchQuery.length < 2) {
-      setResults([])
       return
     }
 
@@ -144,9 +168,9 @@ export function MenuSearchDialog({ isOpen, onClose, onSelect }: MenuSearchDialog
             </div>
           )}
 
-          {!isSearching && !error && searchQuery.length < 2 && (
+          {!isSearching && !error && !searchQuery && results.length === 0 && (
             <div className="text-center py-8 text-gray-400">
-              Начните вводить название блюда или EAN код
+              Загрузка каталога...
             </div>
           )}
 
