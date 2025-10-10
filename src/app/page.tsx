@@ -37,7 +37,6 @@ function HomeContent() {
     error,
     hasMore,
     fetchNextPage,
-    refetch,
     stats
   } = useInfiniteClarifications(filters, isInitialized)
 
@@ -199,7 +198,8 @@ function HomeContent() {
                           }))
                         }
                         
-                        await fetch('/api/correct-dishes', {
+                        // Сохраняем в БД в фоне (без ожидания)
+                        fetch('/api/correct-dishes', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
@@ -208,9 +208,15 @@ function HomeContent() {
                             selected_product_name: name,
                             source
                           })
+                        }).catch(err => {
+                          console.error('Failed to save correct dish:', err)
+                          // При ошибке откатываем изменение
+                          setLocalStateChanges(prev => {
+                            const newChanges = { ...prev }
+                            delete newChanges[dbIdKey]
+                            return newChanges
+                          })
                         })
-                        // Refetch данных чтобы получить обновлённую информацию
-                        refetch()
                       } catch (err) {
                         console.error('Failed to save correct dish:', err)
                       }
@@ -222,8 +228,8 @@ function HomeContent() {
                         delete newChanges[dbIdKey]
                         return newChanges
                       })
-                      // Refetch данных чтобы получить обновлённую информацию
-                      refetch()
+                      // Удаляем из БД в фоне (без перезагрузки страницы)
+                      // Карточка уже обновилась локально через selectedCorrectDish и localStateChanges
                     }}
                   />
                 )
