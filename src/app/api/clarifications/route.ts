@@ -44,7 +44,11 @@ export async function GET(request: NextRequest) {
         state,
         state_created_at,
         state_updated_at,
-        bucket
+        bucket,
+        correct_dish_ean,
+        correct_dish_name,
+        correct_dish_source,
+        actual_correct_ean
       `, { count: 'exact' })
 
     // Применяем фильтры (view имеет плоские поля)
@@ -146,6 +150,10 @@ export async function GET(request: NextRequest) {
       state_created_at?: string
       state_updated_at?: string
       bucket?: string
+      correct_dish_ean?: string
+      correct_dish_name?: string
+      correct_dish_source?: 'available' | 'menu'
+      actual_correct_ean?: string
     }
 
     const transformedData = (data as Row[] | undefined)?.map((item) => {
@@ -174,7 +182,12 @@ export async function GET(request: NextRequest) {
         state_created_at: item.state_created_at || undefined,
         state_updated_at: item.state_updated_at || undefined,
         // Частотный бакет
-        freq_bucket: item.bucket || undefined
+        freq_bucket: item.bucket || undefined,
+        // Correct dish information
+        correct_dish_ean: item.correct_dish_ean || undefined,
+        correct_dish_name: item.correct_dish_name || undefined,
+        correct_dish_source: item.correct_dish_source || undefined,
+        actual_correct_ean: item.actual_correct_ean || undefined
       }
     }) || []
 

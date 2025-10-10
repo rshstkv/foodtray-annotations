@@ -3,17 +3,17 @@ DO $$
 BEGIN
   PERFORM setval(
     pg_get_serial_sequence('public.orders','id'),
-    COALESCE((SELECT MAX(id) FROM public.orders), 0)
+    GREATEST(COALESCE((SELECT MAX(id) FROM public.orders), 0), 1)
   );
 
   PERFORM setval(
     pg_get_serial_sequence('public.clarifications','id'),
-    COALESCE((SELECT MAX(id) FROM public.clarifications), 0)
+    GREATEST(COALESCE((SELECT MAX(id) FROM public.clarifications), 0), 1)
   );
 
   PERFORM setval(
     pg_get_serial_sequence('public.clarification_states','id'),
-    COALESCE((SELECT MAX(id) FROM public.clarification_states), 0)
+    GREATEST(COALESCE((SELECT MAX(id) FROM public.clarification_states), 0), 1)
   );
 END $$;
 

@@ -30,6 +30,31 @@ export interface ClarificationData {
   state?: 'yes' | 'no' | 'bbox_error' | 'unknown'
   state_created_at?: string
   state_updated_at?: string
+  // Информация о правильном блюде (заполняется когда state='no')
+  correct_dish_ean?: string
+  correct_dish_name?: string
+  correct_dish_source?: 'available' | 'menu'
+  actual_correct_ean?: string
+}
+
+export interface MenuItem {
+  id: number
+  proto_name: string
+  ean: string | null
+  super_class: string | null
+  product_name: string
+  english_name: string | null
+  reference_image_url: string | null
+}
+
+export interface CorrectDish {
+  id: number
+  clarification_id: string
+  selected_ean: string
+  selected_product_name: string
+  source: 'available' | 'menu'
+  created_at: string
+  updated_at: string
 }
 
 interface UseInfiniteClarificationsState {

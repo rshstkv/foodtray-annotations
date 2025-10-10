@@ -3,15 +3,16 @@ export const dynamic = 'force-dynamic'
 
 import { Suspense, useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
-import { AlertTriangle, HelpCircle } from 'lucide-react'
+import { AlertTriangle, HelpCircle, Check } from 'lucide-react'
 import RecognitionImageWithBBox from '@/components/RecognitionImageWithBBox'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useFilters } from '@/hooks/useFilters'
-import { useInfiniteClarifications, ClarificationData } from '@/hooks/useInfiniteClarifications'
+import { useInfiniteClarifications, ClarificationData, MenuItem } from '@/hooks/useInfiniteClarifications'
 import { FilterHeader } from '@/components/FilterHeader'
 import { InfiniteScroll } from '@/components/InfiniteScroll'
 import { LoadingIndicator, EmptyState } from '@/components/LoadingIndicator'
+import { MenuSearchDialog } from '@/components/MenuSearchDialog'
 
 // Локальные изменения состояний для оптимистичного UI (undefined = очищено)
 type LocalStateChanges = Record<string, 'yes' | 'no' | 'bbox_error' | 'unknown' | undefined>
@@ -180,6 +181,24 @@ function HomeContent() {
                     clarification={clarification}
                     state={effectiveState}
                     onStateChange={(state) => saveState(clarification.clarification_id, state, clarification.db_id)}
+                    onCorrectDishSelect={async (ean, name, source) => {
+                      try {
+                        await fetch('/api/correct-dishes', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            clarification_id: clarification.clarification_id,
+                            selected_ean: ean,
+                            selected_product_name: name,
+                            source
+                          })
+                        })
+                        // Refetch данных чтобы получить обновлённую информацию
+                        fetchNextPage()
+                      } catch (err) {
+                        console.error('Failed to save correct dish:', err)
+                      }
+                    }}
                   />
                 )
               })}
@@ -221,10 +240,36 @@ interface ClarificationCardProps {
   clarification: ClarificationData
   state?: 'yes' | 'no' | 'bbox_error' | 'unknown'
   onStateChange: (state: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'clear') => void
+  onCorrectDishSelect: (ean: string, name: string, source: 'available' | 'menu') => void
 }
 
-function ClarificationCard({ clarification, state, onStateChange }: ClarificationCardProps) {
+function ClarificationCard({ clarification, state, onStateChange, onCorrectDishSelect }: ClarificationCardProps) {
   const matchedProduct = clarification.ean_matched?.[0] as { external_id?: string } | undefined
+  const [isMenuDialogOpen, setIsMenuDialogOpen] = useState(false)
+  const [selectedCorrectDish, setSelectedCorrectDish] = useState<{
+    ean: string
+    name: string
+    source: 'available' | 'menu'
+  } | null>(
+    clarification.correct_dish_ean && clarification.correct_dish_name
+      ? {
+          ean: clarification.correct_dish_ean,
+          name: clarification.correct_dish_name,
+          source: clarification.correct_dish_source || 'available'
+        }
+      : null
+  )
+
+  const handleCorrectDishSelect = async (ean: string, name: string, source: 'available' | 'menu') => {
+    setSelectedCorrectDish({ ean, name, source })
+    await onCorrectDishSelect(ean, name, source)
+  }
+
+  const handleMenuItemSelect = (item: MenuItem) => {
+    if (item.ean && item.product_name) {
+      handleCorrectDishSelect(item.ean, item.product_name, 'menu')
+    }
+  }
 
   const cardClassName = state 
     ? state === 'yes' 
@@ -240,6 +285,7 @@ function ClarificationCard({ clarification, state, onStateChange }: Clarificatio
 
 
   return (
+    <>
     <Card className={`${cardClassName} p-4 shadow-lg hover:shadow-xl transition-shadow`}>
       <div className="flex flex-col md:flex-row gap-4 items-stretch">
         {/* Основная информация */}
@@ -267,23 +313,36 @@ function ClarificationCard({ clarification, state, onStateChange }: Clarificatio
           <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
             {clarification.d.details.map((product: { price: number; description: string; external_id: string }) => {
               const isSelected = product.external_id === matchedProduct?.external_id
+              const isCorrectDish = selectedCorrectDish?.ean === product.external_id
               return (
                 <Card 
                   key={product.external_id}
-                  className={`!px-2 !py-1 !gap-0 text-[10px] md:text-xs rounded-md ${
-                    isSelected
+                  className={`!px-2 !py-1 !gap-0 text-[10px] md:text-xs rounded-md relative ${
+                    isCorrectDish
+                      ? 'bg-green-600 border-green-600 text-white ring-2 ring-green-400'
+                      : isSelected
                       ? 'bg-black border-black text-white'
                       : 'bg-gray-50 border-gray-200'
-                  }`}
+                  } ${state === 'no' && !isSelected ? 'cursor-pointer hover:ring-2 hover:ring-blue-300' : ''}`}
+                  onClick={() => {
+                    if (state === 'no' && !isSelected) {
+                      handleCorrectDishSelect(product.external_id, product.description, 'available')
+                    }
+                  }}
                 >
-                  <div className={`font-semibold text-[11px] md:text-sm leading-tight line-clamp-2 ${isSelected ? 'text-white' : 'text-gray-800'}`}>
+                  {isCorrectDish && (
+                    <div className="absolute -top-1 -right-1 bg-green-500 rounded-full p-0.5">
+                      <Check className="h-3 w-3 text-white" />
+                    </div>
+                  )}
+                  <div className={`font-semibold text-[11px] md:text-sm leading-tight line-clamp-2 ${(isSelected || isCorrectDish) ? 'text-white' : 'text-gray-800'}`}>
                     {product.description}
                   </div>
-                  <div className={`font-semibold text-[11px] md:text-sm ${isSelected ? 'text-white' : 'text-green-600'}`}>
+                  <div className={`font-semibold text-[11px] md:text-sm ${(isSelected || isCorrectDish) ? 'text-white' : 'text-green-600'}`}>
                     €{product.price}
                   </div>
                   <div
-                    className={`${isSelected ? 'text-white' : 'text-gray-500'} font-mono text-[10px] md:text-[11px] overflow-hidden text-ellipsis whitespace-nowrap`}
+                    className={`${(isSelected || isCorrectDish) ? 'text-white' : 'text-gray-500'} font-mono text-[10px] md:text-[11px] overflow-hidden text-ellipsis whitespace-nowrap`}
                     title={`EAN: ${product.external_id}`}
                   >
                     EAN: {product.external_id}
@@ -292,6 +351,58 @@ function ClarificationCard({ clarification, state, onStateChange }: Clarificatio
               )
             })}
           </div>
+
+          {/* Секция выбора правильного блюда (показывается только при state='no') */}
+          {state === 'no' && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="flex flex-col gap-3">
+                <h4 className="text-sm font-semibold text-gray-700">
+                  Выберите правильное блюдо:
+                </h4>
+                
+                {selectedCorrectDish ? (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Check className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-semibold text-green-800">
+                            Выбранное правильное блюдо:
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-800 font-medium">{selectedCorrectDish.name}</p>
+                        <p className="text-xs text-gray-600 mt-1">EAN: {selectedCorrectDish.ean}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Источник: {selectedCorrectDish.source === 'available' ? 'Доступные варианты' : 'Меню'}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedCorrectDish(null)}
+                        className="shrink-0"
+                      >
+                        Изменить
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs text-gray-600">
+                      Кликните на один из вариантов выше или найдите другое блюдо в меню:
+                    </p>
+                    <Button
+                      onClick={() => setIsMenuDialogOpen(true)}
+                      variant="outline"
+                      className="w-full md:w-auto border-blue-300 text-blue-700 hover:bg-blue-50"
+                    >
+                      🔍 Найти в меню
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Изображения */}
@@ -396,6 +507,14 @@ function ClarificationCard({ clarification, state, onStateChange }: Clarificatio
             </div>
           </div>
     </Card>
+
+    {/* Menu search dialog */}
+    <MenuSearchDialog
+      isOpen={isMenuDialogOpen}
+      onClose={() => setIsMenuDialogOpen(false)}
+      onSelect={handleMenuItemSelect}
+    />
+    </>
   )
 }
 
