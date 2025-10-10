@@ -16,8 +16,6 @@ import { MenuSearchDialog } from '@/components/MenuSearchDialog'
 
 // Локальные изменения состояний для оптимистичного UI (undefined = очищено)
 type LocalStateChanges = Record<string, 'yes' | 'no' | 'bbox_error' | 'unknown' | 'corrected' | undefined>
-// Локальное отслеживание удаленных correct_dishes (true = удалено)
-type LocalCorrectDishDeleted = Record<string, boolean>
 
 export default function Home() {
   return (
@@ -29,7 +27,6 @@ export default function Home() {
 
 function HomeContent() {
   const [localStateChanges, setLocalStateChanges] = useState<LocalStateChanges>({})
-  const [localCorrectDishDeleted, setLocalCorrectDishDeleted] = useState<LocalCorrectDishDeleted>({})
   const { filters, updateFilter, resetFilters, hasActiveFilters, isInitialized } = useFilters()
   
   const {
@@ -61,32 +58,23 @@ function HomeContent() {
       }
 
       if (state === 'clear') {
-        // Оптимистично очищаем локально (мгновенный фидбэк)
-        setLocalStateChanges(prev => ({ 
-          ...prev, 
-          [String(effectiveDbId)]: undefined 
-        }))
+        // Оптимистично очищаем локально - удаляем из localStateChanges чтобы вернуться к API данным
+        setLocalStateChanges(prev => {
+          const newState = { ...prev }
+          delete newState[String(effectiveDbId)]
+          return newState
+        })
 
-        // Удаляем состояние в фоне
-        const response = await fetch('/api/states', {
+        // Удаляем состояние из БД в фоне
+        fetch('/api/states', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ db_id: effectiveDbId })
+        }).catch(err => {
+          console.error('DELETE /api/states failed', err)
         })
-
-        if (!response.ok) {
-          try {
-            const err = await response.json()
-            console.error('DELETE /api/states failed', err)
-          } catch {}
-        }
-
-        // Также удаляем correct_dish если он был выбран
-        setLocalCorrectDishDeleted(prev => ({
-          ...prev,
-          [String(effectiveDbId)]: true
-        }))
         
+        // Удаляем correct_dish из БД в фоне
         fetch('/api/correct-dishes', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -192,15 +180,10 @@ function HomeContent() {
                   ? localStateChanges[dbIdKey] 
                   : clarification.state
                 
-                // Если correct_dish был удален локально - скрываем его
-                const effectiveClarification = localCorrectDishDeleted[dbIdKey]
-                  ? { ...clarification, correct_dish_ean: undefined, correct_dish_name: undefined, correct_dish_source: undefined }
-                  : clarification
-                
                 return (
                   <ClarificationCard
                     key={clarification.db_id ?? `${clarification.clarification_id}-${clarification.start_dtts}`}
-                    clarification={effectiveClarification}
+                    clarification={clarification}
                     state={effectiveState}
                     onStateChange={(state) => saveState(clarification.clarification_id, state, clarification.db_id)}
                     onCorrectDishSelect={async (ean, name, source) => {
@@ -212,12 +195,6 @@ function HomeContent() {
                             [dbIdKey]: 'corrected' 
                           }))
                         }
-                        
-                        // Убираем флаг удаления (если был)
-                        setLocalCorrectDishDeleted(prev => ({
-                          ...prev,
-                          [dbIdKey]: false
-                        }))
                         
                         // Сохраняем в БД в фоне (без ожидания)
                         fetch('/api/correct-dishes', {
@@ -241,14 +218,6 @@ function HomeContent() {
                       } catch (err) {
                         console.error('Failed to save correct dish:', err)
                       }
-                    }}
-                    onCorrectDishDelete={() => {
-                      // Оптимистично меняем статус обратно на 'no'
-                      setLocalStateChanges(prev => ({ 
-                        ...prev, 
-                        [dbIdKey]: 'no' 
-                      }))
-                      // Удаление из БД происходит внутри ClarificationCard
                     }}
                   />
                 )
@@ -292,10 +261,9 @@ interface ClarificationCardProps {
   state?: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'corrected'
   onStateChange: (state: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'clear') => void
   onCorrectDishSelect: (ean: string, name: string, source: 'available' | 'menu') => void
-  onCorrectDishDelete: () => void
 }
 
-function ClarificationCard({ clarification, state, onStateChange, onCorrectDishSelect, onCorrectDishDelete }: ClarificationCardProps) {
+function ClarificationCard({ clarification, state, onStateChange, onCorrectDishSelect }: ClarificationCardProps) {
   const matchedProduct = clarification.ean_matched?.[0] as { external_id?: string } | undefined
   const [isMenuDialogOpen, setIsMenuDialogOpen] = useState(false)
   const [selectedCorrectDish, setSelectedCorrectDish] = useState<{
@@ -312,20 +280,20 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
       : null
   )
 
-  // Синхронизация с данными из API (обновляется при Clear)
+  // Синхронизация с данными из API + state
   useEffect(() => {
-    if (clarification.correct_dish_ean && clarification.correct_dish_name) {
-      // Если в API есть correct_dish - показываем
+    // Если state не 'corrected' - очищаем selectedCorrectDish
+    if (state !== 'corrected') {
+      setSelectedCorrectDish(null)
+    } else if (clarification.correct_dish_ean && clarification.correct_dish_name) {
+      // Если state='corrected' и есть correct_dish в API - показываем
       setSelectedCorrectDish({
         ean: clarification.correct_dish_ean,
         name: clarification.correct_dish_name,
         source: clarification.correct_dish_source || 'available'
       })
-    } else {
-      // Если в API нет correct_dish - скрываем
-      setSelectedCorrectDish(null)
     }
-  }, [clarification.correct_dish_ean, clarification.correct_dish_name, clarification.correct_dish_source])
+  }, [state, clarification.correct_dish_ean, clarification.correct_dish_name, clarification.correct_dish_source])
 
   const handleCorrectDishSelect = async (ean: string, name: string, source: 'available' | 'menu') => {
     setSelectedCorrectDish({ ean, name, source })
@@ -444,18 +412,8 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      // 1. Сразу обновляем UI (оптимистично)
-                      setSelectedCorrectDish(null)
-                      onCorrectDishDelete()
-                      
-                      // 2. Удаляем из БД в фоне
-                      fetch('/api/correct-dishes', {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ clarification_id: clarification.clarification_id })
-                      }).catch(err => {
-                        console.error('Failed to delete correct dish:', err)
-                      })
+                      // Вызываем Clear который удалит все (state + correct_dish)
+                      onStateChange('clear')
                     }}
                     className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
@@ -494,18 +452,8 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          // 1. Сразу обновляем UI (оптимистично)
-                          setSelectedCorrectDish(null)
-                          onCorrectDishDelete()
-                          
-                          // 2. Удаляем из БД в фоне
-                          fetch('/api/correct-dishes', {
-                            method: 'DELETE',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ clarification_id: clarification.clarification_id })
-                          }).catch(err => {
-                            console.error('Failed to delete correct dish:', err)
-                          })
+                          // Вызываем Clear который удалит все (state + correct_dish)
+                          onStateChange('clear')
                         }}
                         className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
