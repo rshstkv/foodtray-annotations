@@ -31,10 +31,14 @@ interface MenuRow {
 }
 
 async function importMenu() {
-  const csvPath = '/Users/romanshestakov/Downloads/Pingo Doce menu (new) - Reference menu (2).csv'
+  // Get CSV path from command line argument or use default
+  const csvPath = process.argv[2] || '/Users/romanshestakov/Downloads/Pingo Doce menu (new) - Reference menu (2).csv'
+  
+  console.log(`📁 CSV file path: ${csvPath}`)
   
   if (!fs.existsSync(csvPath)) {
     console.error(`❌ CSV file not found: ${csvPath}`)
+    console.log('Usage: npm run import:menu [path/to/menu.csv]')
     process.exit(1)
   }
 
