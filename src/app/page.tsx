@@ -58,12 +58,11 @@ function HomeContent() {
       }
 
       if (state === 'clear') {
-        // Оптимистично очищаем локально - удаляем из localStateChanges чтобы вернуться к API данным
-        setLocalStateChanges(prev => {
-          const newState = { ...prev }
-          delete newState[String(effectiveDbId)]
-          return newState
-        })
+        // Оптимистично очищаем локально - явно устанавливаем undefined (нет состояния)
+        setLocalStateChanges(prev => ({ 
+          ...prev, 
+          [String(effectiveDbId)]: undefined 
+        }))
 
         // Удаляем состояние из БД в фоне
         fetch('/api/states', {
