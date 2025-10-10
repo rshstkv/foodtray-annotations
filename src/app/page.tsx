@@ -218,6 +218,22 @@ function HomeContent() {
                         console.error('Failed to save correct dish:', err)
                       }
                     }}
+                    onCorrectDishClear={() => {
+                      // Удаляем только correct_dish, возвращаем state к 'no'
+                      setLocalStateChanges(prev => ({ 
+                        ...prev, 
+                        [dbIdKey]: 'no' 
+                      }))
+                      
+                      // Удаляем correct_dish из БД в фоне
+                      fetch('/api/correct-dishes', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ clarification_id: clarification.clarification_id })
+                      }).catch(err => {
+                        console.error('Failed to delete correct dish:', err)
+                      })
+                    }}
                   />
                 )
               })}
@@ -260,9 +276,10 @@ interface ClarificationCardProps {
   state?: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'corrected'
   onStateChange: (state: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'clear') => void
   onCorrectDishSelect: (ean: string, name: string, source: 'available' | 'menu') => void
+  onCorrectDishClear: () => void // Новый колбэк для удаления только correct_dish
 }
 
-function ClarificationCard({ clarification, state, onStateChange, onCorrectDishSelect }: ClarificationCardProps) {
+function ClarificationCard({ clarification, state, onStateChange, onCorrectDishSelect, onCorrectDishClear }: ClarificationCardProps) {
   const matchedProduct = clarification.ean_matched?.[0] as { external_id?: string } | undefined
   const [isMenuDialogOpen, setIsMenuDialogOpen] = useState(false)
   const [selectedCorrectDish, setSelectedCorrectDish] = useState<{
@@ -411,8 +428,8 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      // Вызываем Clear который удалит все (state + correct_dish)
-                      onStateChange('clear')
+                      // Удаляем только correct_dish, возвращаем к NO
+                      onCorrectDishClear()
                     }}
                     className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
@@ -451,8 +468,8 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          // Вызываем Clear который удалит все (state + correct_dish)
-                          onStateChange('clear')
+                          // Удаляем только correct_dish, возвращаем к NO
+                          onCorrectDishClear()
                         }}
                         className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
