@@ -37,6 +37,7 @@ function HomeContent() {
     error,
     hasMore,
     fetchNextPage,
+    refetch,
     stats
   } = useInfiniteClarifications(filters, isInitialized)
 
@@ -209,7 +210,7 @@ function HomeContent() {
                           })
                         })
                         // Refetch данных чтобы получить обновлённую информацию
-                        fetchNextPage()
+                        refetch()
                       } catch (err) {
                         console.error('Failed to save correct dish:', err)
                       }
@@ -222,7 +223,7 @@ function HomeContent() {
                         return newChanges
                       })
                       // Refetch данных чтобы получить обновлённую информацию
-                      fetchNextPage()
+                      refetch()
                     }}
                   />
                 )
