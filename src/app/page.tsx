@@ -206,6 +206,10 @@ function HomeContent() {
                         console.error('Failed to save correct dish:', err)
                       }
                     }}
+                    onCorrectDishDelete={() => {
+                      // Refetch данных чтобы получить обновлённую информацию
+                      fetchNextPage()
+                    }}
                   />
                 )
               })}
@@ -248,9 +252,10 @@ interface ClarificationCardProps {
   state?: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'corrected'
   onStateChange: (state: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'clear') => void
   onCorrectDishSelect: (ean: string, name: string, source: 'available' | 'menu') => void
+  onCorrectDishDelete: () => void
 }
 
-function ClarificationCard({ clarification, state, onStateChange, onCorrectDishSelect }: ClarificationCardProps) {
+function ClarificationCard({ clarification, state, onStateChange, onCorrectDishSelect, onCorrectDishDelete }: ClarificationCardProps) {
   const matchedProduct = clarification.ean_matched?.[0] as { external_id?: string } | undefined
   const [isMenuDialogOpen, setIsMenuDialogOpen] = useState(false)
   const [selectedCorrectDish, setSelectedCorrectDish] = useState<{
@@ -391,6 +396,8 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ clarification_id: clarification.clarification_id })
                       })
+                      // Обновляем данные
+                      onCorrectDishDelete()
                     }}
                     className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
@@ -436,6 +443,8 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ clarification_id: clarification.clarification_id })
                           })
+                          // Обновляем данные
+                          onCorrectDishDelete()
                         }}
                         className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
