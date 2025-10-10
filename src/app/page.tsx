@@ -291,19 +291,6 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
       : null
   )
 
-  // Синхронизация с данными из API (когда нажимается Clear и данные обновляются)
-  useEffect(() => {
-    if (clarification.correct_dish_ean && clarification.correct_dish_name) {
-      setSelectedCorrectDish({
-        ean: clarification.correct_dish_ean,
-        name: clarification.correct_dish_name,
-        source: clarification.correct_dish_source || 'available'
-      })
-    } else {
-      setSelectedCorrectDish(null)
-    }
-  }, [clarification.correct_dish_ean, clarification.correct_dish_name, clarification.correct_dish_source])
-
   const handleCorrectDishSelect = async (ean: string, name: string, source: 'available' | 'menu') => {
     setSelectedCorrectDish({ ean, name, source })
     await onCorrectDishSelect(ean, name, source)
