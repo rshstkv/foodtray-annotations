@@ -222,14 +222,12 @@ function HomeContent() {
                       }
                     }}
                     onCorrectDishDelete={() => {
-                      // Очищаем локальное состояние, чтобы вернуться к оригинальному из БД
-                      setLocalStateChanges(prev => {
-                        const newChanges = { ...prev }
-                        delete newChanges[dbIdKey]
-                        return newChanges
-                      })
-                      // Удаляем из БД в фоне (без перезагрузки страницы)
-                      // Карточка уже обновилась локально через selectedCorrectDish и localStateChanges
+                      // Оптимистично меняем статус обратно на 'no'
+                      setLocalStateChanges(prev => ({ 
+                        ...prev, 
+                        [dbIdKey]: 'no' 
+                      }))
+                      // Удаление из БД происходит внутри ClarificationCard
                     }}
                   />
                 )
@@ -409,16 +407,19 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={async () => {
+                    onClick={() => {
+                      // 1. Сразу обновляем UI (оптимистично)
                       setSelectedCorrectDish(null)
-                      // Удаляем из БД
-                      await fetch('/api/correct-dishes', {
+                      onCorrectDishDelete()
+                      
+                      // 2. Удаляем из БД в фоне
+                      fetch('/api/correct-dishes', {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ clarification_id: clarification.clarification_id })
+                      }).catch(err => {
+                        console.error('Failed to delete correct dish:', err)
                       })
-                      // Обновляем данные
-                      onCorrectDishDelete()
                     }}
                     className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
@@ -456,16 +457,19 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={async () => {
+                        onClick={() => {
+                          // 1. Сразу обновляем UI (оптимистично)
                           setSelectedCorrectDish(null)
-                          // Удаляем из БД
-                          await fetch('/api/correct-dishes', {
+                          onCorrectDishDelete()
+                          
+                          // 2. Удаляем из БД в фоне
+                          fetch('/api/correct-dishes', {
                             method: 'DELETE',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ clarification_id: clarification.clarification_id })
+                          }).catch(err => {
+                            console.error('Failed to delete correct dish:', err)
                           })
-                          // Обновляем данные
-                          onCorrectDishDelete()
                         }}
                         className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
