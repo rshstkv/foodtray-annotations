@@ -15,7 +15,7 @@ import { LoadingIndicator, EmptyState } from '@/components/LoadingIndicator'
 import { MenuSearchDialog } from '@/components/MenuSearchDialog'
 
 // Локальные изменения состояний для оптимистичного UI (undefined = очищено)
-type LocalStateChanges = Record<string, 'yes' | 'no' | 'bbox_error' | 'unknown' | undefined>
+type LocalStateChanges = Record<string, 'yes' | 'no' | 'bbox_error' | 'unknown' | 'corrected' | undefined>
 
 export default function Home() {
   return (
@@ -245,7 +245,7 @@ function HomeContent() {
 
 interface ClarificationCardProps {
   clarification: ClarificationData
-  state?: 'yes' | 'no' | 'bbox_error' | 'unknown'
+  state?: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'corrected'
   onStateChange: (state: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'clear') => void
   onCorrectDishSelect: (ean: string, name: string, source: 'available' | 'menu') => void
 }
@@ -283,6 +283,8 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
       ? 'bg-green-100 border-l-4 border-l-green-500' 
       : state === 'no'
       ? 'bg-red-100 border-l-4 border-l-red-500'
+      : state === 'corrected'
+      ? 'bg-blue-100 border-l-4 border-l-blue-500'
       : state === 'bbox_error'
       ? 'bg-orange-100 border-l-4 border-l-orange-500'
       : state === 'unknown'
@@ -330,9 +332,9 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
                       : isSelected
                       ? 'bg-black border-black text-white'
                       : 'bg-gray-50 border-gray-200'
-                  } ${state === 'no' && !isSelected ? 'cursor-pointer hover:ring-2 hover:ring-blue-300' : ''}`}
+                  } ${state === 'no' && !isSelected && !isCorrectDish ? 'cursor-pointer hover:ring-2 hover:ring-blue-300' : ''}`}
                   onClick={() => {
-                    if (state === 'no' && !isSelected) {
+                    if (state === 'no' && !isSelected && !isCorrectDish) {
                       handleCorrectDishSelect(product.external_id, product.description, 'available')
                     }
                   }}
@@ -359,7 +361,47 @@ function ClarificationCard({ clarification, state, onStateChange, onCorrectDishS
             })}
           </div>
 
-          {/* Секция выбора правильного блюда (показывается только при state='no') */}
+          {/* Секция правильного блюда */}
+          {/* Для corrected - показываем только выбранное блюдо */}
+          {state === 'corrected' && selectedCorrectDish && (
+            <div className="mt-4 pt-4 border-t border-blue-200">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Check className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm font-semibold text-blue-800">
+                        Правильное блюдо:
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-800 font-medium">{selectedCorrectDish.name}</p>
+                    <p className="text-xs text-gray-600 mt-1">EAN: {selectedCorrectDish.ean}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Источник: {selectedCorrectDish.source === 'available' ? 'Доступные варианты' : 'Меню'}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      setSelectedCorrectDish(null)
+                      // Удаляем из БД
+                      await fetch('/api/correct-dishes', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ clarification_id: clarification.clarification_id })
+                      })
+                    }}
+                    className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    Очистить
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Для no (чистый NO) - показываем секцию выбора */}
           {state === 'no' && (
             <div className="mt-4 pt-4 border-t border-gray-200">
               <div className="flex flex-col gap-3">

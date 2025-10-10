@@ -87,19 +87,40 @@ export async function GET(request: NextRequest) {
       query = query.eq('pos_transaction_id', posSearchParam)
     }
 
-    // Фильтры по состояниям (простая логика)
+    // Фильтры по состояниям (с поддержкой виртуального статуса "corrected")
     const stateFilterRaw = searchParams.get('state')
     const stateFilterValues = stateFilterRaw ? stateFilterRaw.split(',') : []
     const hasEmptyState = stateFilterValues.includes('не задано')
-    const actualStateValues = stateFilterValues.filter(s => s !== 'не задано')
+    const hasCorrected = stateFilterValues.includes('corrected')
+    const hasNo = stateFilterValues.includes('no')
+    const otherStateValues = stateFilterValues.filter(s => !['не задано', 'corrected', 'no'].includes(s))
 
     if (stateFilterValues.length > 0) {
-      if (hasEmptyState && actualStateValues.length > 0) {
-        query = query.or(`state.in.(${actualStateValues.join(',')}),state.is.null`)
-      } else if (hasEmptyState) {
-        query = query.is('state', null)
-      } else {
-        query = query.in('state', actualStateValues)
+      const conditions: string[] = []
+      
+      // "не задано" - состояние не установлено
+      if (hasEmptyState) {
+        conditions.push('state.is.null')
+      }
+      
+      // "corrected" - виртуальный статус: state='no' И correct_dish_ean не NULL
+      if (hasCorrected) {
+        conditions.push('and(state.eq.no,correct_dish_ean.not.is.null)')
+      }
+      
+      // "no" - чистый NO: state='no' И correct_dish_ean IS NULL
+      if (hasNo) {
+        conditions.push('and(state.eq.no,correct_dish_ean.is.null)')
+      }
+      
+      // Остальные статусы (yes, bbox_error, unknown)
+      if (otherStateValues.length > 0) {
+        conditions.push(`state.in.(${otherStateValues.join(',')})`)
+      }
+      
+      // Объединяем все условия через OR
+      if (conditions.length > 0) {
+        query = query.or(conditions.join(','))
       }
     }
 
@@ -146,7 +167,7 @@ export async function GET(request: NextRequest) {
       pos_transaction_id: string
       start_dtts: string
       has_assistant_events: boolean
-      state?: 'yes' | 'no' | 'bbox_error' | 'unknown'
+      state?: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'corrected'
       state_created_at?: string
       state_updated_at?: string
       bucket?: string
@@ -157,6 +178,12 @@ export async function GET(request: NextRequest) {
     }
 
     const transformedData = (data as Row[] | undefined)?.map((item) => {
+      // Вычисляем виртуальный статус "corrected"
+      const computedState = 
+        item.state === 'no' && item.correct_dish_ean 
+          ? 'corrected' as const
+          : item.state
+      
       return {
         db_id: item.id,
         clarification_id: item.clarification_id,
@@ -177,8 +204,8 @@ export async function GET(request: NextRequest) {
         d: {
           details: item.available_products
         },
-        // Состояние уже плоское из view
-        state: item.state || undefined,
+        // Возвращаем вычисленный статус
+        state: computedState || undefined,
         state_created_at: item.state_created_at || undefined,
         state_updated_at: item.state_updated_at || undefined,
         // Частотный бакет
@@ -194,9 +221,10 @@ export async function GET(request: NextRequest) {
     // Простая статистика для отображения  
     const yesCount = transformedData.filter(item => item.state === 'yes').length
     const noCount = transformedData.filter(item => item.state === 'no').length
+    const correctedCount = transformedData.filter(item => item.state === 'corrected').length
     const bboxErrorCount = transformedData.filter(item => item.state === 'bbox_error').length
     const unknownCount = transformedData.filter(item => item.state === 'unknown').length
-    const checkedCount = yesCount + noCount + bboxErrorCount + unknownCount
+    const checkedCount = yesCount + noCount + correctedCount + bboxErrorCount + unknownCount
 
     const res = NextResponse.json({
       data: transformedData,

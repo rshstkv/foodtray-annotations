@@ -40,7 +40,7 @@ export async function GET() {
     
     return NextResponse.json({
       device_canteen_names: uniqueCanteenNames,
-      states: ['yes', 'no', 'bbox_error', 'unknown', 'не задано'], // Все возможные состояния
+      states: ['yes', 'no', 'corrected', 'bbox_error', 'unknown', 'не задано'], // Все возможные состояния
       freq_buckets: Array.from(new Set((buckets.data || []).map((r: BucketRow) => r.bucket))).filter(Boolean)
     })
   } catch (error) {

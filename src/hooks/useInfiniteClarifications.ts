@@ -27,7 +27,7 @@ export interface ClarificationData {
     }>
   }
   // Информация о состоянии
-  state?: 'yes' | 'no' | 'bbox_error' | 'unknown'
+  state?: 'yes' | 'no' | 'bbox_error' | 'unknown' | 'corrected'
   state_created_at?: string
   state_updated_at?: string
   // Информация о правильном блюде (заполняется когда state='no')

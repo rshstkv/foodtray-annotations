@@ -24,11 +24,11 @@ export function MenuSearchDialog({ isOpen, onClose, onSelect }: MenuSearchDialog
   useEffect(() => {
     if (!isOpen) return
 
-    // Load first 50 items as initial catalog
+    // Load first 200 items as initial catalog
     const loadInitial = async () => {
       setIsSearching(true)
       try {
-        const response = await fetch('/api/menu-items?search=a&limit=50')
+        const response = await fetch('/api/menu-items?search=a&limit=200')
         if (response.ok) {
           const data = await response.json()
           setResults(data.items || [])
@@ -57,7 +57,7 @@ export function MenuSearchDialog({ isOpen, onClose, onSelect }: MenuSearchDialog
 
       try {
         const response = await fetch(
-          `/api/menu-items?search=${encodeURIComponent(searchQuery)}&limit=50`
+          `/api/menu-items?search=${encodeURIComponent(searchQuery)}&limit=200`
         )
 
         if (!response.ok) {
@@ -229,7 +229,7 @@ export function MenuSearchDialog({ isOpen, onClose, onSelect }: MenuSearchDialog
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 text-center text-sm text-gray-500">
-          Найдено: {results.length} блюд{results.length >= 50 ? ' (показаны первые 50)' : ''}
+          Найдено: {results.length} блюд{results.length >= 200 ? ' (показаны первые 200)' : ''}
         </div>
       </div>
     </div>
