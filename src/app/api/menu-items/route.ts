@@ -6,27 +6,26 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const search = searchParams.get('search')?.trim()
-  const limit = parseInt(searchParams.get('limit') || '50')
-
-  if (!search) {
-    return NextResponse.json({ error: 'search parameter is required' }, { status: 400 })
-  }
+  const limit = parseInt(searchParams.get('limit') || '500')
+  const dateFilter = searchParams.get('date') // Для фильтрации по активной дате
 
   try {
-    // Check if search looks like an EAN (numeric)
-    const isEAN = /^\d+$/.test(search)
-
     let query = supabase
       .from('menu_items')
       .select('id, proto_name, ean, super_class, product_name, english_name, reference_image_url')
       .limit(limit)
 
-    if (isEAN) {
-      // Exact EAN match
-      query = query.eq('ean', search)
-    } else {
-      // Fuzzy search by product name (case-insensitive)
-      query = query.ilike('product_name', `%${search}%`)
+    if (search) {
+      // Check if search looks like an EAN (numeric)
+      const isEAN = /^\d+$/.test(search)
+
+      if (isEAN) {
+        // Exact EAN match
+        query = query.eq('ean', search)
+      } else {
+        // Fuzzy search by product name (case-insensitive)
+        query = query.ilike('product_name', `%${search}%`)
+      }
     }
 
     query = query.order('product_name', { ascending: true })

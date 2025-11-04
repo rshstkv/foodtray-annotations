@@ -122,10 +122,18 @@ export function FilterHeader({
               <Link
                 href="/"
                 className={`text-xs md:text-sm font-medium pb-0.5 border-b-2 transition-colors ${
-                  pathname === '/' ? 'border-white text-white' : 'border-transparent opacity-80 hover:opacity-100'
+                  pathname === '/' ? 'border-blue-600 text-blue-600' : 'border-transparent opacity-80 hover:opacity-100'
                 }`}
               >
                 Clarifications
+              </Link>
+              <Link
+                href="/annotations"
+                className={`text-xs md:text-sm font-medium pb-0.5 border-b-2 transition-colors ${
+                  pathname?.startsWith('/annotations') ? 'border-blue-600 text-blue-600' : 'border-transparent opacity-80 hover:opacity-100'
+                }`}
+              >
+                BBox Annotations
               </Link>
               <span
                 className="text-xs md:text-sm opacity-50 cursor-not-allowed select-none"
