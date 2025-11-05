@@ -3,10 +3,11 @@ import { supabase } from '@/lib/supabase'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const recognitionId = params.id
+    const { id } = await params
+    const recognitionId = id
 
     // Получаем recognition
     const { data: recognition, error: recError } = await supabase
@@ -73,10 +74,11 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const recognitionId = params.id
+    const { id } = await params
+    const recognitionId = id
     const body = await request.json()
 
     const { status, is_mistake, annotator_notes, correct_dishes } = body
@@ -85,7 +87,11 @@ export async function PUT(
     if (status !== undefined) updates.status = status
     if (is_mistake !== undefined) updates.is_mistake = is_mistake
     if (annotator_notes !== undefined) updates.annotator_notes = annotator_notes
-    if (correct_dishes !== undefined) updates.correct_dishes = correct_dishes
+    if (correct_dishes !== undefined) {
+      updates.correct_dishes = correct_dishes
+      // Изменение correct_dishes - это модификация
+      updates.has_modifications = true
+    }
 
     const { data, error } = await supabase
       .from('recognitions')

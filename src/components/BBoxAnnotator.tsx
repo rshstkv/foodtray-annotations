@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { AnnotationControls } from './AnnotationControls'
 
 interface Annotation {
   id: number
@@ -16,6 +17,8 @@ interface Annotation {
   is_bottle_up: boolean | null
   is_error: boolean
   source: string
+  qwen_detection_index?: number | null
+  qwen_detection_type?: string | null
 }
 
 interface BBoxAnnotatorProps {
@@ -23,6 +26,8 @@ interface BBoxAnnotatorProps {
   annotations: Annotation[]
   selectedDishIndex: number | null
   dishNames?: Record<number, string>
+  originalAnnotations?: any | null
+  imageId?: number
   onAnnotationCreate: (bbox: {
     bbox_x1: number
     bbox_y1: number
@@ -47,6 +52,8 @@ interface BBoxAnnotatorProps {
   onDelete?: () => void
   onToggleOverlapped?: (annotationId: number) => void
   onToggleOrientation?: (annotationId: number) => void
+  onAnnotationRestore?: (id: number) => void
+  onToggleError?: (id: number) => void
 }
 
 // Цвета для разных блюд
@@ -66,6 +73,8 @@ export default function BBoxAnnotator({
   imageUrl,
   annotations,
   dishNames = {},
+  originalAnnotations,
+  imageId,
   onAnnotationCreate,
   onAnnotationUpdate,
   onAnnotationSelect,
@@ -77,6 +86,8 @@ export default function BBoxAnnotator({
   onDelete,
   onToggleOverlapped,
   onToggleOrientation,
+  onAnnotationRestore,
+  onToggleError,
 }: BBoxAnnotatorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null)
@@ -428,8 +439,8 @@ export default function BBoxAnnotator({
                 top: p1.y,
                 width: p2.x - p1.x,
                 height: p2.y - p1.y,
-                border: `${isSelected ? 3 : 2}px ${isPending ? 'dashed' : 'solid'} ${isPending ? '#666' : color}`,
-                backgroundColor: isSelected ? `${color}20` : (isPending ? 'rgba(102, 102, 102, 0.1)' : 'transparent'),
+                border: `${isSelected ? 3 : 2}px ${isPending ? 'dashed' : 'solid'} ${isPending ? '#666' : annotation.is_error ? '#dc2626' : color}`,
+                backgroundColor: isSelected ? `${annotation.is_error ? '#dc2626' : color}20` : (isPending ? 'rgba(102, 102, 102, 0.1)' : 'transparent'),
                 boxSizing: 'border-box',
                 cursor: drawingMode ? 'not-allowed' : (isPending ? 'default' : (isSelected ? 'move' : 'pointer')),
                 pointerEvents: isPending ? 'none' : (drawingMode ? 'none' : 'auto'),
@@ -497,8 +508,12 @@ export default function BBoxAnnotator({
                     fontWeight: 'bold',
                     whiteSpace: 'nowrap',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
                   }}
                 >
+                  {annotation.source === 'manual' && <span>🖊️</span>}
                   {getAnnotationLabel(annotation)}
                 </div>
               )}
@@ -595,64 +610,35 @@ export default function BBoxAnnotator({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center gap-1 bg-black bg-opacity-90 rounded px-2 py-1 shadow-lg">
-                {onChangeDish && (
-                  <button
-                    className="text-white hover:text-blue-400 text-sm px-1"
-                    onClick={() => {
-                      // Передаём координаты относительно viewport
+              <div className="bg-black bg-opacity-90 rounded px-2 py-1 shadow-lg">
+                <AnnotationControls
+                  annotation={selectedAnnotation}
+                  originalAnnotations={originalAnnotations}
+                  imageId={imageId}
+                  compact={true}
+                  showRevert={true}
+                  showEdit={true}
+                  showOverlapped={true}
+                  showOrientation={true}
+                  showError={true}
+                  showDelete={true}
+                  onRestore={onAnnotationRestore}
+                  onUpdate={onAnnotationUpdate}
+                  onDelete={onDelete ? () => onDelete() : undefined}
+                  onChangeDish={(id) => {
+                    if (onChangeDish) {
                       const rect = {
                         x: p1.x,
                         y: p1.y - 36,
                         width: toolbarWidth,
                         bboxWidth: p2.x - p1.x
                       }
-                      onChangeDish(selectedAnnotation.id, rect)
-                    }}
-                    title="Изменить блюдо"
-                  >
-                    🔄
-                  </button>
-                )}
-                {onToggleOverlapped && (
-                  <button
-                    className={`text-sm px-1 ${selectedAnnotation.is_overlapped ? 'text-orange-400' : 'text-white hover:text-orange-400'}`}
-                    onClick={() => onToggleOverlapped(selectedAnnotation.id)}
-                    title="Перекрытие"
-                  >
-                    ⚠️
-                  </button>
-                )}
-                {onToggleOrientation && (
-                  <button
-                    className={`text-sm px-1 ${
-                      selectedAnnotation.is_bottle_up === null 
-                        ? 'text-gray-400 hover:text-blue-400' 
-                        : selectedAnnotation.is_bottle_up 
-                          ? 'text-blue-400' 
-                          : 'text-green-400'
-                    }`}
-                    onClick={() => onToggleOrientation(selectedAnnotation.id)}
-                    title={
-                      selectedAnnotation.is_bottle_up === null 
-                        ? 'Ориентация не указана' 
-                        : selectedAnnotation.is_bottle_up 
-                          ? 'Вертикально ↑' 
-                          : 'Горизонтально →'
+                      onChangeDish(id, rect)
                     }
-                  >
-                    {selectedAnnotation.is_bottle_up === null ? '⊙' : selectedAnnotation.is_bottle_up ? '↑' : '→'}
-                  </button>
-                )}
-                {onDelete && (
-                  <button
-                    className="text-white hover:text-red-400 text-sm px-1"
-                    onClick={() => onDelete()}
-                    title="Удалить (Delete)"
-                  >
-                    🗑️
-                  </button>
-                )}
+                  }}
+                  onToggleError={onToggleError}
+                  className="text-white"
+                />
               </div>
             </div>
           )

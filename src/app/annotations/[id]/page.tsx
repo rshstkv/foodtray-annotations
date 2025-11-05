@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useHotkeys } from '@/hooks/useHotkeys'
+import { AlertOctagon } from 'lucide-react'
+import { AnnotationControls } from '@/components/AnnotationControls'
 
 // Динамический импорт компонента с Konva (не работает с SSR)
 const BBoxAnnotator = dynamic(() => import('@/components/BBoxAnnotator'), { ssr: false })
@@ -25,6 +27,8 @@ interface Annotation {
   is_bottle_up: boolean | null
   is_error: boolean
   source: string
+  qwen_detection_index?: number | null
+  qwen_detection_type?: string | null
 }
 
 interface RecognitionImage {
@@ -34,6 +38,7 @@ interface RecognitionImage {
   storage_path: string
   image_width: number | null
   image_height: number | null
+  original_annotations?: any | null
   annotations: Annotation[]
 }
 
@@ -45,6 +50,7 @@ interface Recognition {
   is_mistake: boolean
   correct_dishes: any[]
   annotator_notes: string | null
+  has_modifications: boolean
 }
 
 interface MenuItem {
@@ -87,7 +93,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
   const [changingDishFor, setChangingDishFor] = useState<number | null>(null)
   const [dropdownPosition, setDropdownPosition] = useState<{ x: number; y: number; width: number; bboxWidth: number } | null>(null)
   const [menuSearch, setMenuSearch] = useState('')
-  const [activeTab, setActiveTab] = useState<'check' | 'menu' | 'nonfood' | 'error'>('check')
+  const [activeTab, setActiveTab] = useState<'check' | 'menu' | 'nonfood'>('check')
   
   // Состояние для draggable модального окна
   const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 })
@@ -443,6 +449,52 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
     }
   }
 
+  const handleAnnotationRestore = async (annotationId: number) => {
+    try {
+      const response = await fetch(`/api/annotations/annotations/${annotationId}/restore`, {
+        method: 'POST'
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to restore annotation')
+      }
+
+      await fetchRecognition()
+    } catch (error) {
+      console.error('Error restoring annotation:', error)
+    }
+  }
+
+  const handleToggleError = async (annotationId: number, isError: boolean) => {
+    try {
+      await handleAnnotationUpdate(annotationId, { is_error: isError })
+    } catch (error) {
+      console.error('Error toggling error status:', error)
+    }
+  }
+
+  const handleRecognitionRestore = async () => {
+    if (!confirm('Вы уверены? Это удалит все изменения и восстановит оригинальные QWEN аннотации.')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/annotations/recognitions/${resolvedParams.id}/restore`, {
+        method: 'POST'
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to restore recognition')
+      }
+
+      await fetchRecognition()
+      setSelectedAnnotation(null)
+    } catch (error) {
+      console.error('Error restoring recognition:', error)
+      alert('Ошибка при восстановлении recognition')
+    }
+  }
+
   const handleStatusChange = async (status: string) => {
     try {
       await fetch(`/api/annotations/recognitions/${resolvedParams.id}`, {
@@ -600,11 +652,22 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-[1920px] mx-auto">
         {/* Header с статусом */}
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">
-              Recognition {recognition.recognition_id}
-            </h1>
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold">
+                Recognition {recognition.recognition_id}
+              </h1>
+              {recognition.is_mistake && (
+                <div className="flex items-center gap-1 text-red-600 bg-red-50 px-2 py-1 rounded">
+                  <AlertOctagon className="w-4 h-4" />
+                  <span className="text-sm font-medium">Ошибка</span>
+                </div>
+              )}
+              {recognition.has_modifications && (
+                <Badge className="bg-orange-500">Изменено</Badge>
+              )}
+            </div>
             <p className="text-sm text-gray-600">
               {new Date(recognition.recognition_date).toLocaleDateString('ru-RU')}
             </p>
@@ -622,6 +685,15 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
             <Button variant="outline" onClick={() => router.push('/annotations')}>
               ← Назад
             </Button>
+            {recognition.has_modifications && (
+              <Button 
+                variant="outline"
+                onClick={handleRecognitionRestore}
+                className="text-orange-600 border-orange-600 hover:bg-orange-50"
+              >
+                ↻ Восстановить оригинал
+              </Button>
+            )}
             <Button onClick={() => handleStatusChange('completed')}>
               Done
             </Button>
@@ -689,7 +761,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                       
                         {/* Показываем название только если один вариант без bbox */}
                         {!hasMultiple && dishBboxes.length === 0 && (
-                          <p className="text-xs font-medium line-clamp-1">{displayName}</p>
+                          <p className="text-xs font-medium">{displayName}</p>
                         )}
                         
                         {/* Если bbox ровно один - показываем компактно с действиями */}
@@ -704,72 +776,37 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                               setShowOnlySelected(true)
                             }}
                           >
-                            <span className="text-gray-700 line-clamp-1 flex-1 mr-2">
+                            <span className="text-gray-700 flex-1 mr-2">
                               {displayName}
-                              {dishBboxes[0].is_error && <span className="ml-1 text-red-500">⚠️</span>}
                             </span>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <button
-                                className={`text-xs px-1 ${dishBboxes[0].is_overlapped ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'}`}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleAnnotationUpdate(dishBboxes[0].id, { is_overlapped: !dishBboxes[0].is_overlapped })
-                                }}
-                                title="Перекрытие"
-                              >
-                                ⚠️
-                              </button>
-                              <button
-                                className={`text-xs px-1 ${
-                                  dishBboxes[0].is_bottle_up === null 
-                                    ? 'text-gray-400 hover:text-blue-500' 
-                                    : dishBboxes[0].is_bottle_up 
-                                      ? 'text-blue-500' 
-                                      : 'text-green-500'
-                                }`}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  const newOrientation = dishBboxes[0].is_bottle_up === null ? true : (dishBboxes[0].is_bottle_up ? false : null)
-                                  handleAnnotationUpdate(dishBboxes[0].id, { is_bottle_up: newOrientation })
-                                }}
-                                title={
-                                  dishBboxes[0].is_bottle_up === null 
-                                    ? 'Ориентация не указана' 
-                                    : dishBboxes[0].is_bottle_up 
-                                      ? 'Вертикально ↑' 
-                                      : 'Горизонтально →'
-                                }
-                              >
-                                {dishBboxes[0].is_bottle_up === null ? '⊙' : dishBboxes[0].is_bottle_up ? '↑' : '→'}
-                              </button>
-                              <button
-                                className="text-gray-400 hover:text-blue-500 text-xs px-1"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  const rect = e.currentTarget.getBoundingClientRect()
-                                  setChangingDishFor(dishBboxes[0].id)
+                            <AnnotationControls
+                              annotation={dishBboxes[0]}
+                              originalAnnotations={currentImage?.original_annotations}
+                              imageId={currentImage?.id}
+                              compact={false}
+                              showRevert={true}
+                              showEdit={true}
+                              showOverlapped={true}
+                              showOrientation={true}
+                              showError={true}
+                              showDelete={true}
+                              onRestore={() => handleAnnotationRestore(dishBboxes[0].id)}
+                              onUpdate={handleAnnotationUpdate}
+                              onChangeDish={(id) => {
+                                const rect = document.querySelector(`[data-annotation-id="${id}"]`)?.getBoundingClientRect()
+                                if (rect) {
+                                  setChangingDishFor(id)
                                   setDropdownPosition({
                                     x: rect.left,
                                     y: rect.bottom,
                                     width: 100,
                                     bboxWidth: 100
                                   })
-                                }}
-                                title="Изменить блюдо"
-                              >
-                                🔄
-                              </button>
-                              <button
-                                className="text-gray-400 hover:text-red-500 text-xs px-1"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleAnnotationDelete(dishBboxes[0].id)
-                                }}
-                                title="Удалить"
-                              >
-                                🗑️
-                              </button>
-                      </div>
+                                }
+                              }}
+                              onToggleError={() => handleToggleError(dishBboxes[0].id, !dishBboxes[0].is_error)}
+                              onDelete={() => handleAnnotationDelete(dishBboxes[0].id)}
+                            />
                         </div>
                       )}
                         
@@ -799,72 +836,37 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                                     setShowOnlySelected(true)
                                   }}
                                 >
-                                  <span className="text-gray-600 line-clamp-1 flex-1 mr-2">
+                                  <span className="text-gray-600 flex-1 mr-2">
                                     {bboxLabel}
-                                    {bbox.is_error && <span className="ml-1 text-red-500">⚠️</span>}
                                   </span>
-                                  <div className="flex items-center gap-1 flex-shrink-0">
-                                    <button
-                                      className={`text-xs px-1 ${bbox.is_overlapped ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'}`}
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleAnnotationUpdate(bbox.id, { is_overlapped: !bbox.is_overlapped })
-                                      }}
-                                      title="Перекрытие"
-                                    >
-                                      ⚠️
-                                    </button>
-                                    <button
-                                      className={`text-xs px-1 ${
-                                        bbox.is_bottle_up === null 
-                                          ? 'text-gray-400 hover:text-blue-500' 
-                                          : bbox.is_bottle_up 
-                                            ? 'text-blue-500' 
-                                            : 'text-green-500'
-                                      }`}
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        const newOrientation = bbox.is_bottle_up === null ? true : (bbox.is_bottle_up ? false : null)
-                                        handleAnnotationUpdate(bbox.id, { is_bottle_up: newOrientation })
-                                      }}
-                                      title={
-                                        bbox.is_bottle_up === null 
-                                          ? 'Ориентация не указана' 
-                                          : bbox.is_bottle_up 
-                                            ? 'Вертикально ↑' 
-                                            : 'Горизонтально →'
-                                      }
-                                    >
-                                      {bbox.is_bottle_up === null ? '⊙' : bbox.is_bottle_up ? '↑' : '→'}
-                                    </button>
-                                    <button
-                                      className="text-gray-400 hover:text-blue-500 text-xs px-1"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        const rect = e.currentTarget.getBoundingClientRect()
-                                        setChangingDishFor(bbox.id)
+                                  <AnnotationControls
+                                    annotation={bbox}
+                                    originalAnnotations={currentImage?.original_annotations}
+                                    imageId={currentImage?.id}
+                                    compact={false}
+                                    showRevert={true}
+                                    showEdit={true}
+                                    showOverlapped={true}
+                                    showOrientation={true}
+                                    showError={true}
+                                    showDelete={true}
+                                    onRestore={() => handleAnnotationRestore(bbox.id)}
+                                    onUpdate={handleAnnotationUpdate}
+                                    onChangeDish={(id) => {
+                                      const rect = document.querySelector(`[data-annotation-id="${id}"]`)?.getBoundingClientRect()
+                                      if (rect) {
+                                        setChangingDishFor(id)
                                         setDropdownPosition({
                                           x: rect.left,
                                           y: rect.bottom,
                                           width: 100,
                                           bboxWidth: 100
                                         })
-                                      }}
-                                      title="Изменить блюдо"
-                                    >
-                                      🔄
-                                    </button>
-                                    <button
-                                      className="text-gray-400 hover:text-red-500 text-xs px-1"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleAnnotationDelete(bbox.id)
-                                      }}
-                                      title="Удалить"
-                                    >
-                                      🗑️
-                                    </button>
-                                  </div>
+                                      }
+                                    }}
+                                    onToggleError={() => handleToggleError(bbox.id, !bbox.is_error)}
+                                    onDelete={() => handleAnnotationDelete(bbox.id)}
+                                  />
                     </div>
                   )
                 })}
@@ -899,53 +901,23 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                         >
                           <span className="text-xs">
                             {icon} {name}
-                            {bbox.is_error && <span className="ml-1 text-red-500">⚠️</span>}
                           </span>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <button
-                              className={`text-xs px-1 ${bbox.is_overlapped ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'}`}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleAnnotationUpdate(bbox.id, { is_overlapped: !bbox.is_overlapped })
-                              }}
-                              title="Перекрытие"
-                            >
-                              ⚠️
-                            </button>
-                            <button
-                              className={`text-xs px-1 ${
-                                bbox.is_bottle_up === null 
-                                  ? 'text-gray-400 hover:text-blue-500' 
-                                  : bbox.is_bottle_up 
-                                    ? 'text-blue-500' 
-                                    : 'text-green-500'
-                              }`}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                const newOrientation = bbox.is_bottle_up === null ? true : (bbox.is_bottle_up ? false : null)
-                                handleAnnotationUpdate(bbox.id, { is_bottle_up: newOrientation })
-                              }}
-                              title={
-                                bbox.is_bottle_up === null 
-                                  ? 'Ориентация не указана' 
-                                  : bbox.is_bottle_up 
-                                    ? 'Вертикально ↑' 
-                                    : 'Горизонтально →'
-                              }
-                            >
-                              {bbox.is_bottle_up === null ? '⊙' : bbox.is_bottle_up ? '↑' : '→'}
-                            </button>
-                            <button
-                              className="text-gray-400 hover:text-red-500 text-xs px-1"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleAnnotationDelete(bbox.id)
-                              }}
-                              title="Удалить"
-                            >
-                              🗑️
-                            </button>
-                          </div>
+                          <AnnotationControls
+                            annotation={bbox}
+                            originalAnnotations={currentImage?.original_annotations}
+                            imageId={currentImage?.id}
+                            compact={false}
+                            showRevert={true}
+                            showEdit={false}
+                            showOverlapped={true}
+                            showOrientation={true}
+                            showError={true}
+                            showDelete={true}
+                            onRestore={() => handleAnnotationRestore(bbox.id)}
+                            onUpdate={handleAnnotationUpdate}
+                            onToggleError={() => handleToggleError(bbox.id, !bbox.is_error)}
+                            onDelete={() => handleAnnotationDelete(bbox.id)}
+                          />
                         </div>
                       )
                     })}
@@ -997,10 +969,13 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                   <BBoxAnnotator
                     imageUrl={`/api/bbox-images/${currentImage.storage_path}`}
                     annotations={getFilteredAnnotations(currentImage.annotations)}
+                    originalAnnotations={currentImage.original_annotations}
+                    imageId={currentImage.id}
                     dishNames={getDishNames()}
                     selectedDishIndex={selectedAnnotation?.dish_index ?? null}
                     onAnnotationCreate={(bbox) => handleAnnotationCreate(currentImage.id, bbox)}
                     onAnnotationUpdate={handleAnnotationUpdate}
+                    onAnnotationRestore={handleAnnotationRestore}
                     onAnnotationSelect={(ann) => {
                       // Игнорируем виртуальную аннотацию (pendingBBox)
                       if (ann && ann.id === -1) return
@@ -1144,17 +1119,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                   >
                     📦 Предметы
                   </button>
-                  <button
-                    className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
-                      activeTab === 'error' 
-                        ? 'bg-white border-b-2 border-red-500 text-red-600' 
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                    onClick={() => setActiveTab('error')}
-                  >
-                    ❌ Ошибка
-                  </button>
-                    </div>
+                </div>
               
                 <div className="flex-1 overflow-y-auto p-4">
                   {/* Таб 1: Блюда из чека */}
@@ -1294,26 +1259,6 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                       </div>
                   )}
 
-                  {/* Таб 4: Не найдено (ошибка) */}
-                  {activeTab === 'error' && (
-                    <div>
-                      <p className="text-sm text-gray-600 mb-3">
-                        Выберите эту опцию, если объект не найден ни в чеке, ни в меню
-                      </p>
-                      <button
-                      className="w-full text-left px-3 py-2 hover:bg-red-50 transition-colors text-sm rounded border border-red-200"
-                      onClick={() => {
-                        if (pendingBBox) {
-                          finishAnnotationCreate('plate', null, null, true)
-                        } else if (changingDishFor !== null) {
-                          changeDishForAnnotation('plate', null, null, true)
-                        }
-                      }}
-                    >
-                      <span className="text-red-600 font-medium">Не найдено в чеке или меню</span>
-                    </button>
-                    </div>
-                  )}
                 </div>
               </div>
             )

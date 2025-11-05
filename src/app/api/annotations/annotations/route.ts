@@ -15,7 +15,8 @@ export async function POST(request: NextRequest) {
       bbox_x2,
       bbox_y2,
       is_overlapped,
-      is_bottle_up
+      is_bottle_up,
+      is_error
     } = body
 
     // Валидация
@@ -28,19 +29,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid bbox coordinates' }, { status: 400 })
     }
 
+    // Получаем recognition_id для обновления статуса
+    const { data: image, error: imgError } = await supabase
+      .from('recognition_images')
+      .select('recognition_id')
+      .eq('id', image_id)
+      .single()
+
+    if (imgError || !image) {
+      return NextResponse.json({ error: 'Image not found' }, { status: 404 })
+    }
+
     const { data, error } = await supabase
       .from('annotations')
       .insert({
         image_id,
         object_type,
         object_subtype: object_subtype || null,
-        dish_index: dish_index || null,
+        dish_index: dish_index !== undefined ? dish_index : null,
         bbox_x1,
         bbox_y1,
         bbox_x2,
         bbox_y2,
         is_overlapped: is_overlapped || false,
         is_bottle_up: is_bottle_up || null,
+        is_error: is_error || false,
         source: 'manual'
       })
       .select()
@@ -48,6 +61,29 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Обновляем recognition: статус "в работе" и флаг модификаций
+    const { data: recognition } = await supabase
+      .from('recognitions')
+      .select('status')
+      .eq('recognition_id', image.recognition_id)
+      .single()
+
+    if (recognition && recognition.status !== 'completed') {
+      await supabase
+        .from('recognitions')
+        .update({ 
+          status: 'in_progress',
+          has_modifications: true
+        })
+        .eq('recognition_id', image.recognition_id)
+    } else {
+      // Даже если completed - помечаем что есть модификации
+      await supabase
+        .from('recognitions')
+        .update({ has_modifications: true })
+        .eq('recognition_id', image.recognition_id)
     }
 
     return NextResponse.json({ data }, { status: 201 })
