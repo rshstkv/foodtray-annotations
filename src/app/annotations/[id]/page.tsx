@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, use, useRef } from 'react'
+import { useEffect, useState, use, useRef, useReducer } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
@@ -61,6 +61,34 @@ interface MenuItem {
   english_name?: string
 }
 
+// История изменений для Undo/Redo
+interface HistorySnapshot {
+  images: RecognitionImage[]
+  recognition: Recognition
+  selectedAnnotation: Annotation | null
+}
+
+// Централизованное состояние приложения
+interface AppState {
+  images: RecognitionImage[]
+  recognition: Recognition | null
+  selectedAnnotation: Annotation | null
+  history: HistorySnapshot[]
+  historyIndex: number
+}
+
+// Типы действий для reducer
+type AnnotationAction =
+  | { type: 'INIT_DATA'; payload: { images: RecognitionImage[]; recognition: Recognition; menuAll: MenuItem[] } }
+  | { type: 'CREATE_ANNOTATION'; payload: { annotation: Annotation; imageId: number } }
+  | { type: 'UPDATE_ANNOTATION'; payload: { id: number; updates: Partial<Annotation> } }
+  | { type: 'DELETE_ANNOTATION'; payload: { id: number } }
+  | { type: 'UPDATE_STATUS'; payload: { status: string } }
+  | { type: 'SET_SELECTED'; payload: { annotation: Annotation | null } }
+  | { type: 'UNDO' }
+  | { type: 'REDO' }
+  | { type: 'RESTORE_ORIGINAL' }
+
 // Non-food объекты (hardcoded)
 const NON_FOOD_OBJECTS = [
   { id: 'hand', name: 'Рука', icon: '✋' },
@@ -77,15 +105,299 @@ const DISH_COLORS = [
   '#ec4899', '#06b6d4', '#f97316', '#84cc16'
 ]
 
+// Максимальный размер истории
+const MAX_HISTORY = 50
+
+// Вспомогательная функция для создания snapshot
+function createHistorySnapshot(state: AppState): HistorySnapshot {
+  return {
+    images: JSON.parse(JSON.stringify(state.images)),
+    recognition: JSON.parse(JSON.stringify(state.recognition)),
+    selectedAnnotation: state.selectedAnnotation ? JSON.parse(JSON.stringify(state.selectedAnnotation)) : null
+  }
+}
+
+// Вспомогательная функция для вычисления has_modifications
+function calculateHasModifications(currentImages: RecognitionImage[], originalSnapshot: HistorySnapshot): boolean {
+  if (!originalSnapshot) return false
+  
+  const currentAnnotations = currentImages.flatMap(img => img.annotations).map(a => ({
+    id: a.id,
+    bbox_x1: a.bbox_x1,
+    bbox_y1: a.bbox_y1,
+    bbox_x2: a.bbox_x2,
+    bbox_y2: a.bbox_y2,
+    object_type: a.object_type,
+    object_subtype: a.object_subtype,
+    dish_index: a.dish_index,
+    is_overlapped: a.is_overlapped,
+    is_bottle_up: a.is_bottle_up,
+    is_error: a.is_error
+  }))
+  
+  const originalAnnotations = originalSnapshot.images.flatMap(img => img.annotations).map(a => ({
+    id: a.id,
+    bbox_x1: a.bbox_x1,
+    bbox_y1: a.bbox_y1,
+    bbox_x2: a.bbox_x2,
+    bbox_y2: a.bbox_y2,
+    object_type: a.object_type,
+    object_subtype: a.object_subtype,
+    dish_index: a.dish_index,
+    is_overlapped: a.is_overlapped,
+    is_bottle_up: a.is_bottle_up,
+    is_error: a.is_error
+  }))
+  
+  return JSON.stringify(currentAnnotations) !== JSON.stringify(originalAnnotations)
+}
+
+// Reducer для централизованного управления состоянием
+function annotationReducer(state: AppState, action: AnnotationAction): AppState {
+  switch (action.type) {
+    case 'INIT_DATA': {
+      const { images, recognition } = action.payload
+      const initialSnapshot: HistorySnapshot = {
+        images: JSON.parse(JSON.stringify(images)),
+        recognition: JSON.parse(JSON.stringify(recognition)),
+        selectedAnnotation: null
+      }
+      return {
+        images,
+        recognition,
+        selectedAnnotation: null,
+        history: [initialSnapshot],
+        historyIndex: 0
+      }
+    }
+
+    case 'CREATE_ANNOTATION': {
+      const { annotation, imageId } = action.payload
+      
+      // Обновляем images - добавляем новую аннотацию
+      const newImages = state.images.map(img =>
+        img.id === imageId
+          ? { ...img, annotations: [...img.annotations, annotation] }
+          : img
+      )
+      
+      // Вычисляем has_modifications
+      const hasModifications = calculateHasModifications(newImages, state.history[0])
+      
+      // Создаем новый snapshot
+      const newState = {
+        ...state,
+        images: newImages,
+        recognition: state.recognition ? { ...state.recognition, has_modifications: hasModifications } : null,
+        selectedAnnotation: annotation
+      }
+      
+      const snapshot = createHistorySnapshot(newState)
+      
+      // Обрезаем будущее если были undo
+      const newHistory = state.history.slice(0, state.historyIndex + 1)
+      newHistory.push(snapshot)
+      
+      // Ограничиваем размер истории
+      if (newHistory.length > MAX_HISTORY) {
+        newHistory.shift()
+        return {
+          ...newState,
+          history: newHistory,
+          historyIndex: newHistory.length - 1
+        }
+      }
+      
+      return {
+        ...newState,
+        history: newHistory,
+        historyIndex: newHistory.length - 1
+      }
+    }
+
+    case 'UPDATE_ANNOTATION': {
+      const { id, updates } = action.payload
+      
+      // Обновляем annotation
+      const newImages = state.images.map(img => ({
+        ...img,
+        annotations: img.annotations.map(ann =>
+          ann.id === id ? { ...ann, ...updates } : ann
+        )
+      }))
+      
+      // Вычисляем has_modifications
+      const hasModifications = calculateHasModifications(newImages, state.history[0])
+      
+      // Обновляем selectedAnnotation если это она
+      const newSelectedAnnotation = state.selectedAnnotation?.id === id
+        ? { ...state.selectedAnnotation, ...updates }
+        : state.selectedAnnotation
+      
+      // Создаем новый snapshot
+      const newState = {
+        ...state,
+        images: newImages,
+        recognition: state.recognition ? { ...state.recognition, has_modifications: hasModifications } : null,
+        selectedAnnotation: newSelectedAnnotation
+      }
+      
+      const snapshot = createHistorySnapshot(newState)
+      
+      // Обрезаем будущее если были undo
+      const newHistory = state.history.slice(0, state.historyIndex + 1)
+      newHistory.push(snapshot)
+      
+      // Ограничиваем размер истории
+      if (newHistory.length > MAX_HISTORY) {
+        newHistory.shift()
+        return {
+          ...newState,
+          history: newHistory,
+          historyIndex: newHistory.length - 1
+        }
+      }
+      
+      return {
+        ...newState,
+        history: newHistory,
+        historyIndex: newHistory.length - 1
+      }
+    }
+
+    case 'DELETE_ANNOTATION': {
+      const { id } = action.payload
+      
+      // Удаляем аннотацию
+      const newImages = state.images.map(img => ({
+        ...img,
+        annotations: img.annotations.filter(ann => ann.id !== id)
+      }))
+      
+      // Вычисляем has_modifications
+      const hasModifications = calculateHasModifications(newImages, state.history[0])
+      
+      // Сбрасываем selectedAnnotation если удаляем её
+      const newSelectedAnnotation = state.selectedAnnotation?.id === id ? null : state.selectedAnnotation
+      
+      // Создаем новый snapshot
+      const newState = {
+        ...state,
+        images: newImages,
+        recognition: state.recognition ? { ...state.recognition, has_modifications: hasModifications } : null,
+        selectedAnnotation: newSelectedAnnotation
+      }
+      
+      const snapshot = createHistorySnapshot(newState)
+      
+      // Обрезаем будущее если были undo
+      const newHistory = state.history.slice(0, state.historyIndex + 1)
+      newHistory.push(snapshot)
+      
+      // Ограничиваем размер истории
+      if (newHistory.length > MAX_HISTORY) {
+        newHistory.shift()
+        return {
+          ...newState,
+          history: newHistory,
+          historyIndex: newHistory.length - 1
+        }
+      }
+      
+      return {
+        ...newState,
+        history: newHistory,
+        historyIndex: newHistory.length - 1
+      }
+    }
+
+    case 'UPDATE_STATUS': {
+      const { status } = action.payload
+      return {
+        ...state,
+        recognition: state.recognition ? { ...state.recognition, status } : null
+      }
+    }
+
+    case 'SET_SELECTED': {
+      return {
+        ...state,
+        selectedAnnotation: action.payload.annotation
+      }
+    }
+
+    case 'UNDO': {
+      if (state.historyIndex <= 0) return state
+      
+      const newIndex = state.historyIndex - 1
+      const snapshot = state.history[newIndex]
+      
+      return {
+        ...state,
+        images: JSON.parse(JSON.stringify(snapshot.images)),
+        recognition: JSON.parse(JSON.stringify(snapshot.recognition)),
+        selectedAnnotation: snapshot.selectedAnnotation ? JSON.parse(JSON.stringify(snapshot.selectedAnnotation)) : null,
+        historyIndex: newIndex
+      }
+    }
+
+    case 'REDO': {
+      if (state.historyIndex >= state.history.length - 1) return state
+      
+      const newIndex = state.historyIndex + 1
+      const snapshot = state.history[newIndex]
+      
+      return {
+        ...state,
+        images: JSON.parse(JSON.stringify(snapshot.images)),
+        recognition: JSON.parse(JSON.stringify(snapshot.recognition)),
+        selectedAnnotation: snapshot.selectedAnnotation ? JSON.parse(JSON.stringify(snapshot.selectedAnnotation)) : null,
+        historyIndex: newIndex
+      }
+    }
+
+    case 'RESTORE_ORIGINAL': {
+      // Восстанавливаем из первого snapshot
+      if (state.history.length === 0) return state
+      
+      const originalSnapshot = state.history[0]
+      
+      return {
+        ...state,
+        images: JSON.parse(JSON.stringify(originalSnapshot.images)),
+        recognition: JSON.parse(JSON.stringify(originalSnapshot.recognition)),
+        selectedAnnotation: null,
+        history: [originalSnapshot],
+        historyIndex: 0
+      }
+    }
+
+    default:
+      return state
+  }
+}
+
 export default function AnnotationEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
   const router = useRouter()
   
-  const [recognition, setRecognition] = useState<Recognition | null>(null)
-  const [images, setImages] = useState<RecognitionImage[]>([])
+  // Централизованное состояние через useReducer
+  const initialState: AppState = {
+    images: [],
+    recognition: null,
+    selectedAnnotation: null,
+    history: [],
+    historyIndex: -1
+  }
+  
+  const [state, dispatch] = useReducer(annotationReducer, initialState)
+  
+  // Деструктурируем состояние для удобства
+  const { images, recognition, selectedAnnotation, history, historyIndex } = state
+  
+  // Локальное состояние (не связанное с аннотациями)
   const [menuAll, setMenuAll] = useState<MenuItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null)
   const [drawingMode, setDrawingMode] = useState(false)
   const [currentPhotoType, setCurrentPhotoType] = useState<'Main' | 'Qualifying'>('Main')
   const [showOnlySelected, setShowOnlySelected] = useState(true) // Показывать только выбранные bbox
@@ -159,15 +471,38 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
       const data = await response.json()
       
       if (response.ok) {
-        setRecognition(data.recognition)
-        setImages(data.images)
         setMenuAll(data.menu_all || [])
+        // Инициализируем состояние через reducer
+        dispatch({
+          type: 'INIT_DATA',
+          payload: {
+            images: data.images,
+            recognition: data.recognition,
+            menuAll: data.menu_all || []
+          }
+        })
       }
     } catch (error) {
       console.error('Error fetching recognition:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  // Функции для Undo/Redo (обертки над dispatch)
+  const canUndo = () => historyIndex > 0
+  const canRedo = () => historyIndex < history.length - 1
+
+  const undo = () => {
+    if (!canUndo()) return
+    dispatch({ type: 'UNDO' })
+    setShowOnlySelected(false)
+  }
+
+  const redo = () => {
+    if (!canRedo()) return
+    dispatch({ type: 'REDO' })
+    setShowOnlySelected(false)
   }
 
   // Циклическое переключение между bbox одного блюда (упрощенная навигация)
@@ -192,13 +527,13 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
       if (currentIndex !== -1) {
         // Циклический переход к следующему
         const nextIndex = (currentIndex + 1) % dishAnnotations.length
-        setSelectedAnnotation(dishAnnotations[nextIndex])
+        dispatch({ type: 'SET_SELECTED', payload: { annotation: dishAnnotations[nextIndex] } })
         return
       }
     }
     
     // Иначе выбираем первый bbox этого блюда
-    setSelectedAnnotation(dishAnnotations[0])
+    dispatch({ type: 'SET_SELECTED', payload: { annotation: dishAnnotations[0] } })
   }
   
   // Горячие клавиши (упрощенные - без X0Y)
@@ -209,6 +544,24 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
       handler: (e) => {
         e.preventDefault()
         handleStatusChange('completed')
+      }
+    },
+    {
+      key: 'z',
+      ctrl: true,
+      shift: false,
+      handler: (e) => {
+        e.preventDefault()
+        undo()
+      }
+    },
+    {
+      key: 'z',
+      ctrl: true,
+      shift: true,
+      handler: (e) => {
+        e.preventDefault()
+        redo()
       }
     },
     {
@@ -244,7 +597,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
         }
         
         setDrawingMode(false)
-        setSelectedAnnotation(null)
+        dispatch({ type: 'SET_SELECTED', payload: { annotation: null } })
         setShowOnlySelected(false) // Показываем все bbox
         setChangingDishFor(null)
         setDropdownPosition(null)
@@ -264,7 +617,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
         setDrawingMode(newDrawingMode)
         if (newDrawingMode) {
           // При включении рисования - сбрасываем выделение
-          setSelectedAnnotation(null)
+          dispatch({ type: 'SET_SELECTED', payload: { annotation: null } })
           setShowOnlySelected(true) // Фильтрация включена, но ничего не выбрано = пустой экран
         }
       }
@@ -306,18 +659,26 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
 
       const result = await response.json()
 
+      if (!response.ok) {
+        throw new Error('Failed to create annotation')
+      }
+
+      const newAnnotation = result.data
+
+      // Dispatch для создания аннотации (автоматически создаст snapshot)
+      dispatch({
+        type: 'CREATE_ANNOTATION',
+        payload: {
+          annotation: newAnnotation,
+          imageId: pendingBBox.image_id
+        }
+      })
+
       setPendingBBox(null)
       setDropdownPosition(null)
       setMenuSearch('')
       setDrawingMode(false) // Выключаем режим рисования после создания
-      
-      await fetchRecognition()
-      
-      // Автоматически выбираем созданный bbox
-      if (result.data) {
-        setSelectedAnnotation(result.data)
-        setShowOnlySelected(true)
-      }
+      setShowOnlySelected(true)
     } catch (error) {
       console.error('Error creating annotation:', error)
     }
@@ -327,7 +688,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
     if (changingDishFor === null) return
     
     try {
-      await fetch(`/api/annotations/annotations/${changingDishFor}`, {
+      const response = await fetch(`/api/annotations/annotations/${changingDishFor}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -338,11 +699,28 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
         })
       })
 
+      if (!response.ok) {
+        throw new Error('Failed to update annotation')
+      }
+
+      // Dispatch для обновления аннотации (автоматически создаст snapshot)
+      dispatch({
+        type: 'UPDATE_ANNOTATION',
+        payload: {
+          id: changingDishFor,
+          updates: {
+            object_type: objectType,
+            object_subtype: objectSubtype,
+            dish_index: dishIndex,
+            is_error: isError
+          }
+        }
+      })
+
       setChangingDishFor(null)
       setDropdownPosition(null)
       setMenuSearch('')
       setDrawingMode(false) // Выключаем режим рисования если был активен
-      await fetchRecognition()
     } catch (error) {
       console.error('Error changing dish:', error)
     }
@@ -364,22 +742,11 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
         handleStatusChange('in_progress')
       }
 
-      // Optimistic update
-      if (selectedAnnotation?.id === id) {
-        setSelectedAnnotation({
-          ...selectedAnnotation,
-          ...updates
-        })
-      }
-
-      setImages(prevImages => 
-        prevImages.map(img => ({
-          ...img,
-          annotations: img.annotations.map(ann => 
-            ann.id === id ? { ...ann, ...updates } : ann
-          )
-        }))
-      )
+      // Dispatch для обновления аннотации (автоматически создаст snapshot)
+      dispatch({
+        type: 'UPDATE_ANNOTATION',
+        payload: { id, updates }
+      })
 
       // Отправляем на сервер в фоне
       fetch(`/api/annotations/annotations/${id}`, {
@@ -394,6 +761,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
         })
       }).catch(error => {
         console.error('Error updating annotation:', error)
+        // В случае ошибки перезагружаем данные
         fetchRecognition()
       })
     } catch (error) {
@@ -418,56 +786,35 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
         handleStatusChange('in_progress')
       }
 
-      await fetch(`/api/annotations/annotations/${annToDelete.id}`, {
+      const response = await fetch(`/api/annotations/annotations/${annToDelete.id}`, {
         method: 'DELETE'
       })
 
-      // Если удаляем выбранную аннотацию - сбрасываем выбор
-      if (selectedAnnotation?.id === annToDelete.id) {
-        // Попробуем выбрать следующий bbox того же блюда
-        if (annToDelete.dish_index !== null) {
-          const img = images.find(i => i.photo_type === currentPhotoType)
-          if (img) {
-            const dishAnnotations = img.annotations
-              .filter(a => a.dish_index === annToDelete.dish_index && a.id !== annToDelete.id)
-              .sort((a, b) => a.id - b.id)
-            
-            if (dishAnnotations.length > 0) {
-              setSelectedAnnotation(dishAnnotations[0])
-            } else {
-      setSelectedAnnotation(null)
-            }
+      if (!response.ok) {
+        throw new Error('Failed to delete annotation')
+      }
+
+      // Если удаляем выбранную аннотацию - попробуем выбрать следующий bbox того же блюда
+      if (selectedAnnotation?.id === annToDelete.id && annToDelete.dish_index !== null) {
+        const img = images.find(i => i.photo_type === currentPhotoType)
+        if (img) {
+          const dishAnnotations = img.annotations
+            .filter(a => a.dish_index === annToDelete.dish_index && a.id !== annToDelete.id)
+            .sort((a, b) => a.id - b.id)
+          
+          if (dishAnnotations.length > 0) {
+            dispatch({ type: 'SET_SELECTED', payload: { annotation: dishAnnotations[0] } })
           }
-        } else {
-          setSelectedAnnotation(null)
         }
       }
 
-      await fetchRecognition()
+      // Dispatch для удаления аннотации (автоматически создаст snapshot)
+      dispatch({
+        type: 'DELETE_ANNOTATION',
+        payload: { id: annToDelete.id }
+      })
     } catch (error) {
       console.error('Error deleting annotation:', error)
-    }
-  }
-
-  const handleAnnotationRestore = async (annotationId: number) => {
-    try {
-      const response = await fetch(`/api/annotations/annotations/${annotationId}/restore`, {
-        method: 'POST'
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to restore annotation')
-      }
-
-      await fetchRecognition()
-      // Сбрасываем выделение если была восстановлена текущая аннотация
-      if (selectedAnnotation?.id === annotationId) {
-        setSelectedAnnotation(null)
-      }
-    } catch (error) {
-      console.error('Error restoring annotation:', error)
-      alert(`Ошибка при восстановлении: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -494,13 +841,12 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
         throw new Error(errorData.error || 'Failed to restore recognition')
       }
 
-      // Полностью сбрасываем состояние
-      setSelectedAnnotation(null)
+      // Сбрасываем UI состояние
       setShowOnlySelected(false)
       setDrawingMode(false)
       setChangingDishFor(null)
       
-      // Перезагружаем данные
+      // Перезагружаем данные с сервера
       await fetchRecognition()
     } catch (error) {
       console.error('Error restoring recognition:', error)
@@ -510,13 +856,21 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
 
   const handleStatusChange = async (status: string) => {
     try {
-      await fetch(`/api/annotations/recognitions/${resolvedParams.id}`, {
+      const response = await fetch(`/api/annotations/recognitions/${resolvedParams.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
       })
 
-      await fetchRecognition()
+      if (!response.ok) {
+        throw new Error('Failed to update status')
+      }
+
+      // Dispatch для обновления статуса (без snapshot)
+      dispatch({
+        type: 'UPDATE_STATUS',
+        payload: { status }
+      })
     } catch (error) {
       console.error('Error updating status:', error)
     }
@@ -633,21 +987,27 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
       return annotations.filter(a => a.id === selectedAnnotation.id)
     }
 
+  // Определяем платформу для правильных подсказок
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0
+  const modKey = isMac ? 'Cmd' : 'Ctrl'
+
   // Динамический hint для hotkeys
   const getHotkeyHint = () => {
+    const undoRedo = `${modKey}+Z - отменить • ${modKey}+Shift+Z - вернуть`
+    
     if (drawingMode) {
-      return "Рисуйте bbox • Esc - отмена"
+      return `Рисуйте bbox • Esc - отмена • ${undoRedo}`
     }
     
     if (selectedAnnotation) {
       const dishNum = selectedAnnotation.dish_index !== null ? selectedAnnotation.dish_index + 1 : null
       if (dishNum) {
-        return `${dishNum} - след. bbox • Del/Bksp - удалить • H - показать все • Esc - сброс`
+        return `${dishNum} - след. bbox • Del/Bksp - удалить • H - показать все • Esc - сброс • ${undoRedo}`
       }
-      return "Del/Bksp - удалить • H - показать все • Esc - сброс"
+      return `Del/Bksp - удалить • H - показать все • Esc - сброс • ${undoRedo}`
     }
     
-    return "1-9 - выбор блюда • 2,2,2 - перебор bbox • D - рисовать • H - показать/скрыть • Del/Bksp - удалить • Esc - сброс"
+    return `1-9 - выбор блюда • 2,2,2 - перебор bbox • D - рисовать • H - показать/скрыть • Del/Bksp - удалить • Esc - сброс • ${undoRedo}`
   }
 
   if (loading) {
@@ -698,6 +1058,36 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
             <Button variant="outline" onClick={() => router.push('/annotations')}>
               ← Назад
             </Button>
+            
+            {/* Undo/Redo кнопки */}
+            <div className="flex items-center gap-2 border-l border-r px-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={undo}
+                disabled={!canUndo()}
+                title={`Отменить (${modKey}+Z)`}
+                className="h-8"
+              >
+                ↶ Undo
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={redo}
+                disabled={!canRedo()}
+                title={`Вернуть (${modKey}+Shift+Z)`}
+                className="h-8"
+              >
+                ↷ Redo
+              </Button>
+              {(canUndo() || canRedo()) && (
+                <span className="text-xs text-gray-500">
+                  {historyIndex + 1}/{history.length}
+                </span>
+              )}
+            </div>
+            
             {recognition.has_modifications && (
               <Button 
                 variant="outline"
@@ -736,7 +1126,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                     const displayName = allDishes[0]?.Name || allDishes[0]?.product_name || 'Unknown'
                     const hasMultiple = allDishes.length > 1
 
-                  // Не показываем блюда без аннотаций
+                  // Не показываем блюда без bbox
                   if (dishBboxes.length === 0) return null
 
                   return (
@@ -750,7 +1140,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                       onClick={() => {
                             // Клик на блюдо - выбрать первый bbox
                             if (dishBboxes.length > 0) {
-                              setSelectedAnnotation(dishBboxes[0])
+                              dispatch({ type: 'SET_SELECTED', payload: { annotation: dishBboxes[0] } })
                           setShowOnlySelected(true)
                         }
                       }}
@@ -785,7 +1175,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                             }`}
                             onClick={(e) => {
                               e.stopPropagation()
-                              setSelectedAnnotation(dishBboxes[0])
+                              dispatch({ type: 'SET_SELECTED', payload: { annotation: dishBboxes[0] } })
                               setShowOnlySelected(true)
                             }}
                           >
@@ -797,13 +1187,11 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                               originalAnnotations={currentImage?.original_annotations}
                               imageId={currentImage?.id}
                               compact={false}
-                              showRevert={true}
                               showEdit={true}
                               showOverlapped={true}
                               showOrientation={true}
                               showError={true}
                               showDelete={true}
-                              onRestore={() => handleAnnotationRestore(dishBboxes[0].id)}
                               onUpdate={handleAnnotationUpdate}
                               onChangeDish={(id) => {
                                 const rect = document.querySelector(`[data-annotation-id="${id}"]`)?.getBoundingClientRect()
@@ -845,7 +1233,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                                   }`}
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    setSelectedAnnotation(bbox)
+                                    dispatch({ type: 'SET_SELECTED', payload: { annotation: bbox } })
                                     setShowOnlySelected(true)
                                   }}
                                 >
@@ -857,13 +1245,11 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                                     originalAnnotations={currentImage?.original_annotations}
                                     imageId={currentImage?.id}
                                     compact={false}
-                                    showRevert={true}
                                     showEdit={true}
                                     showOverlapped={true}
                                     showOrientation={true}
                                     showError={true}
                                     showDelete={true}
-                                    onRestore={() => handleAnnotationRestore(bbox.id)}
                                     onUpdate={handleAnnotationUpdate}
                                     onChangeDish={(id) => {
                                       const rect = document.querySelector(`[data-annotation-id="${id}"]`)?.getBoundingClientRect()
@@ -908,7 +1294,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                             selectedAnnotation?.id === bbox.id ? 'bg-blue-100' : 'hover:bg-gray-50'
                           }`}
                 onClick={() => {
-                            setSelectedAnnotation(bbox)
+                            dispatch({ type: 'SET_SELECTED', payload: { annotation: bbox } })
                             setShowOnlySelected(true)
                           }}
                         >
@@ -920,13 +1306,11 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                             originalAnnotations={currentImage?.original_annotations}
                             imageId={currentImage?.id}
                             compact={false}
-                            showRevert={true}
                             showEdit={false}
                             showOverlapped={true}
                             showOrientation={true}
                             showError={true}
                             showDelete={true}
-                            onRestore={() => handleAnnotationRestore(bbox.id)}
                             onUpdate={handleAnnotationUpdate}
                             onToggleError={() => handleToggleError(bbox.id, !bbox.is_error)}
                             onDelete={() => handleAnnotationDelete(bbox.id)}
@@ -967,7 +1351,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                     setDrawingMode(newDrawingMode)
                     if (newDrawingMode) {
                       // При включении рисования - очищаем экран
-                      setSelectedAnnotation(null)
+                      dispatch({ type: 'SET_SELECTED', payload: { annotation: null } })
                       setShowOnlySelected(true)
                     }
                   }}
@@ -988,12 +1372,11 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                     selectedDishIndex={selectedAnnotation?.dish_index ?? null}
                     onAnnotationCreate={(bbox) => handleAnnotationCreate(currentImage.id, bbox)}
                     onAnnotationUpdate={handleAnnotationUpdate}
-                    onAnnotationRestore={handleAnnotationRestore}
                     onAnnotationSelect={(ann) => {
                       // Игнорируем виртуальную аннотацию (pendingBBox)
                       if (ann && ann.id === -1) return
                       
-                      setSelectedAnnotation(ann)
+                      dispatch({ type: 'SET_SELECTED', payload: { annotation: ann } })
                       if (ann) {
                         setShowOnlySelected(true) // Включаем фильтрацию при выборе
                       }

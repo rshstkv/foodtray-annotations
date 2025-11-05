@@ -21,11 +21,11 @@ from tqdm import tqdm
 load_dotenv('.env.local')
 
 # Настройки Supabase
-SUPABASE_URL = os.getenv('NEXT_PUBLIC_SUPABASE_URL')
-SUPABASE_KEY = os.getenv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
+SUPABASE_URL = os.getenv('SUPABASE_URL') or os.getenv('NEXT_PUBLIC_SUPABASE_URL')
+SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_ANON_KEY') or os.getenv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    print("Error: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set in .env.local")
+    print("Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or ANON_KEY) must be set in .env.local")
     sys.exit(1)
 
 # Создаем клиент Supabase
@@ -73,8 +73,8 @@ def upload_image_to_storage(local_path: Path, storage_path: str) -> bool:
         with open(local_path, 'rb') as f:
             image_data = f.read()
         
-        # Загружаем в bucket
-        result = supabase.storage().from_('bbox-images').upload(
+        # Загружаем в bucket (новый API supabase-py v2.23+)
+        result = supabase.storage.from_('bbox-images').upload(
             storage_path,
             image_data,
             file_options={"content-type": "image/jpeg", "upsert": "true"}
@@ -154,15 +154,25 @@ def insert_recognition(recognition_id: str, recognition_date: str, correct_dishe
 
 
 def insert_recognition_image(recognition_id: str, photo_type: str, storage_path: str,
-                             width: Optional[int] = None, height: Optional[int] = None) -> Optional[int]:
+                             width: Optional[int] = None, height: Optional[int] = None,
+                             qwen_dishes: Optional[List] = None, qwen_plates: Optional[List] = None) -> Optional[int]:
     """Вставляет запись в recognition_images и возвращает id."""
     try:
+        # Формируем original_annotations для возможности восстановления
+        original_annotations = None
+        if qwen_dishes or qwen_plates:
+            original_annotations = {
+                'qwen_dishes_detections': qwen_dishes or [],
+                'qwen_plates_detections': qwen_plates or []
+            }
+        
         data = {
             'recognition_id': recognition_id,
             'photo_type': photo_type,
             'storage_path': storage_path,
             'image_width': width,
-            'image_height': height
+            'image_height': height,
+            'original_annotations': original_annotations
         }
         result = supabase.table('recognition_images').insert(data).execute()
         if result.data and len(result.data) > 0:
@@ -291,8 +301,9 @@ def process_recognition(recognition_dir: Path, qwen_data: Dict, export_version: 
         insert_recognition_image_raw(recognition_id, qwen_key or f"unknown/{image_file.name}",
                                     photo_type, storage_path, qwen_dishes, qwen_plates)
         
-        # Вставляем в recognition_images
-        image_id = insert_recognition_image(recognition_id, photo_type, storage_path)
+        # Вставляем в recognition_images с original_annotations
+        image_id = insert_recognition_image(recognition_id, photo_type, storage_path, 
+                                           qwen_dishes=qwen_dishes, qwen_plates=qwen_plates)
         
         if image_id:
             # Вставляем аннотации

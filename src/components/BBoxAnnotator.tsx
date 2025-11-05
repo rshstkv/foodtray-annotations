@@ -52,7 +52,6 @@ interface BBoxAnnotatorProps {
   onDelete?: () => void
   onToggleOverlapped?: (annotationId: number) => void
   onToggleOrientation?: (annotationId: number) => void
-  onAnnotationRestore?: (id: number) => void
   onToggleError?: (id: number) => void
 }
 
@@ -86,7 +85,6 @@ export default function BBoxAnnotator({
   onDelete,
   onToggleOverlapped,
   onToggleOrientation,
-  onAnnotationRestore,
   onToggleError,
 }: BBoxAnnotatorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -616,13 +614,11 @@ export default function BBoxAnnotator({
                   originalAnnotations={originalAnnotations}
                   imageId={imageId}
                   compact={true}
-                  showRevert={true}
                   showEdit={true}
                   showOverlapped={true}
                   showOrientation={true}
                   showError={true}
                   showDelete={true}
-                  onRestore={onAnnotationRestore}
                   onUpdate={onAnnotationUpdate}
                   onDelete={onDelete ? () => onDelete() : undefined}
                   onChangeDish={(id) => {

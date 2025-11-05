@@ -118,7 +118,7 @@ export async function POST(
         }).filter(Boolean) // Удаляем null
 
         const allAnnotations = [...dishAnnotations, ...plateAnnotations]
-
+        
         if (allAnnotations.length > 0) {
           const { error: insertError } = await supabase
             .from('annotations')
@@ -144,7 +144,7 @@ export async function POST(
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
-
+    
     return NextResponse.json({ 
       success: true,
       message: 'Original annotations restored successfully'

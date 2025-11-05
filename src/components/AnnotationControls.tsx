@@ -6,7 +6,7 @@
  */
 
 import React from 'react'
-import { RotateCcw, Pencil, Layers, AlertOctagon, Trash2 } from 'lucide-react'
+import { Pencil, Layers, AlertOctagon, Trash2 } from 'lucide-react'
 
 interface Annotation {
   id: number
@@ -35,13 +35,11 @@ interface AnnotationControlsProps {
   originalAnnotations?: OriginalAnnotations | null
   imageId?: number
   compact?: boolean
-  showRevert?: boolean
   showEdit?: boolean
   showOverlapped?: boolean
   showOrientation?: boolean
   showError?: boolean
   showDelete?: boolean
-  onRestore?: (id: number) => void
   onUpdate?: (id: number, updates: any) => void
   onDelete?: (id: number) => void
   onChangeDish?: (id: number, rect?: any) => void
@@ -49,177 +47,24 @@ interface AnnotationControlsProps {
   className?: string
 }
 
-/**
- * Helper функция для определения наличия изменений относительно оригинала
- */
-export function hasModifications(
-  annotation: Annotation,
-  originalAnnotations?: OriginalAnnotations | null
-): boolean {
-  if (!originalAnnotations) return false
-
-  // Если есть qwen_detection_index - используем его для точного поиска
-  if (annotation.qwen_detection_index !== null && annotation.qwen_detection_index !== undefined) {
-    const detectionType = annotation.qwen_detection_type
-    let detections: any[] = []
-
-    if (detectionType === 'dish') {
-      detections = originalAnnotations.qwen_dishes_detections || []
-    } else if (detectionType === 'plate') {
-      detections = originalAnnotations.qwen_plates_detections || []
-    }
-
-    if (annotation.qwen_detection_index < detections.length) {
-      const original = detections[annotation.qwen_detection_index]
-      const bbox = original.bbox_2d || original.bbox
-
-      if (bbox && bbox.length >= 4) {
-        // Извлекаем dish_index из оригинала
-        let originalDishIndex = null
-        if (typeof original.dish_index === 'number') {
-          originalDishIndex = original.dish_index
-        } else if (typeof original.dish_index === 'string') {
-          const match = original.dish_index.match(/\d+/)
-          if (match) originalDishIndex = parseInt(match[0])
-        } else if (original.label) {
-          const match = original.label.match(/dish_(\d+)/)
-          if (match) originalDishIndex = parseInt(match[1])
-        }
-
-        // Сравниваем с допуском 5px для координат (чтобы не считать микро-сдвиги изменениями)
-        const coordsChanged = (
-          Math.abs(Math.round(annotation.bbox_x1) - Math.round(bbox[0])) > 5 ||
-          Math.abs(Math.round(annotation.bbox_y1) - Math.round(bbox[1])) > 5 ||
-          Math.abs(Math.round(annotation.bbox_x2) - Math.round(bbox[2])) > 5 ||
-          Math.abs(Math.round(annotation.bbox_y2) - Math.round(bbox[3])) > 5
-        )
-
-        const flagsChanged = (
-          annotation.dish_index !== originalDishIndex ||
-          annotation.is_overlapped !== (original.is_overlapped || false) ||
-          annotation.is_bottle_up !== (original.is_bottle_up !== undefined ? original.is_bottle_up : null) ||
-          annotation.is_error !== false // Любая ошибка - это модификация
-        )
-
-        return coordsChanged || flagsChanged
-      }
-    }
-  }
-
-  // Fallback: если нет qwen_detection_index, но source='qwen_auto' - ищем по координатам
-  if (annotation.source === 'qwen_auto') {
-    const detections = originalAnnotations.qwen_dishes_detections || []
-    const centerX = (annotation.bbox_x1 + annotation.bbox_x2) / 2
-    const centerY = (annotation.bbox_y1 + annotation.bbox_y2) / 2
-
-    let closestMatch: any = null
-    let minDistance = Infinity
-
-    for (const detection of detections) {
-      const bbox = detection.bbox_2d || detection.bbox
-      if (!bbox) continue
-
-      const detectionCenterX = (bbox[0] + bbox[2]) / 2
-      const detectionCenterY = (bbox[1] + bbox[3]) / 2
-
-      const distance = Math.sqrt(
-        Math.pow(centerX - detectionCenterX, 2) +
-        Math.pow(centerY - detectionCenterY, 2)
-      )
-
-      // Находим самый близкий match
-      if (distance < minDistance) {
-        minDistance = distance
-        closestMatch = detection
-      }
-    }
-
-    // Если нашли близкий match (в пределах 500px для надёжности)
-    if (closestMatch && minDistance < 500) {
-      const bbox = closestMatch.bbox_2d || closestMatch.bbox
-      
-      let originalDishIndex = null
-      if (typeof closestMatch.dish_index === 'number') {
-        originalDishIndex = closestMatch.dish_index
-      } else if (typeof closestMatch.dish_index === 'string') {
-        const match = closestMatch.dish_index.match(/\d+/)
-        if (match) originalDishIndex = parseInt(match[0])
-      } else if (closestMatch.label) {
-        const match = closestMatch.label.match(/dish_(\d+)/)
-        if (match) originalDishIndex = parseInt(match[1])
-      }
-
-      // Сравниваем с допуском 5px для координат (чтобы не считать микро-сдвиги изменениями)
-      const coordsChanged = (
-        Math.abs(Math.round(annotation.bbox_x1) - Math.round(bbox[0])) > 5 ||
-        Math.abs(Math.round(annotation.bbox_y1) - Math.round(bbox[1])) > 5 ||
-        Math.abs(Math.round(annotation.bbox_x2) - Math.round(bbox[2])) > 5 ||
-        Math.abs(Math.round(annotation.bbox_y2) - Math.round(bbox[3])) > 5
-      )
-
-      const flagsChanged = (
-        annotation.dish_index !== originalDishIndex ||
-        annotation.is_overlapped !== (closestMatch.is_overlapped || false) ||
-        annotation.is_bottle_up !== (closestMatch.is_bottle_up !== undefined ? closestMatch.is_bottle_up : null) ||
-        annotation.is_error !== false
-      )
-
-      return coordsChanged || flagsChanged
-    }
-
-    // Если не нашли близкого match - считаем что изменений нет (безопасное поведение для новых QWEN аннотаций)
-    return false
-  }
-
-  // Если source='manual' - это вручную созданная аннотация, нет оригинала
-  return false
-}
-
 export function AnnotationControls({
   annotation,
   originalAnnotations,
   imageId,
   compact = false,
-  showRevert = true,
   showEdit = true,
   showOverlapped = true,
   showOrientation = true,
   showError = true,
   showDelete = true,
-  onRestore,
   onUpdate,
   onDelete,
   onChangeDish,
   onToggleError,
   className = ''
 }: AnnotationControlsProps) {
-  const hasChanges = hasModifications(annotation, originalAnnotations)
-  // Показываем кнопку Revert только для QWEN аннотаций (с оригиналом) или вручную созданных если есть изменения
-  const hasOriginal = annotation.source === 'qwen_auto' || (annotation.qwen_detection_index !== null && annotation.qwen_detection_index !== undefined)
-
   return (
     <div className={`flex items-center gap-1 ${className}`}>
-      {/* Revert - откат к оригиналу */}
-      {showRevert && onRestore && hasOriginal && (
-        <button
-          className={`text-xs px-1 transition-colors ${
-            hasChanges
-              ? 'text-gray-600 hover:text-blue-600 cursor-pointer'
-              : 'text-gray-300 cursor-not-allowed'
-          }`}
-          onClick={(e) => {
-            e.stopPropagation()
-            if (hasChanges) {
-              onRestore(annotation.id)
-            }
-          }}
-          disabled={!hasChanges}
-          title={hasChanges ? 'Откатить к оригиналу' : 'Нет изменений'}
-        >
-          <RotateCcw className="w-3 h-3" />
-        </button>
-      )}
-
       {/* Edit dish - изменить блюдо */}
       {showEdit && onChangeDish && annotation.object_type === 'food' && (
         <button
