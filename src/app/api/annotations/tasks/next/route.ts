@@ -58,11 +58,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Строим запрос для поиска recognition
+    // Ищем задачи которые:
+    // 1. В состоянии 'pending'
+    // 2. Либо не назначены (assigned_to IS NULL)
+    // 3. Либо назначены давно (last_activity_at старше 15 минут) - автоосвобождение
     let query = supabase
       .from('recognitions')
       .select('*')
       .eq('workflow_state', 'pending')
       .eq('current_stage_id', stage.id)
+      .or('assigned_to.is.null,last_activity_at.lt.' + new Date(Date.now() - 15 * 60 * 1000).toISOString())
 
     // Фильтр по tier если указан
     if (tierParam) {
@@ -131,25 +136,22 @@ export async function GET(request: NextRequest) {
       })
     )
 
-    // Помечаем recognition как "in_progress" и записываем время начала
+    // Обновляем last_activity_at для предотвращения двойного назначения
+    // Но НЕ меняем workflow_state - задача остается pending
     const { error: updateError } = await supabase
       .from('recognitions')
       .update({
-        workflow_state: 'in_progress',
-        started_at: new Date().toISOString()
+        last_activity_at: new Date().toISOString()
       })
       .eq('recognition_id', recognition.recognition_id)
 
     if (updateError) {
-      console.error('Error updating recognition status:', updateError)
+      console.error('Error updating last_activity_at:', updateError)
       // Не прерываем выполнение, просто логируем
     }
 
     return NextResponse.json({
-      recognition: {
-        ...recognition,
-        workflow_state: 'in_progress'
-      },
+      recognition: recognition,
       images: imagesWithAnnotations,
       menu_all: recognition.menu_all || [],
       task_type: taskType,

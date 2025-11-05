@@ -14,3 +14,4 @@ COMMENT ON COLUMN recognitions.menu_all IS 'Available menu items for this recogn
 
 COMMIT;
 
+

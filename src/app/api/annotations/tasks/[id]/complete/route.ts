@@ -103,7 +103,9 @@ export async function POST(
     const completedStages = [...(recognition.completed_stages || []), stage_id]
 
     let updates: Record<string, unknown> = {
-      completed_stages: completedStages
+      completed_stages: completedStages,
+      assigned_to: null, // Очищаем назначение при завершении
+      last_activity_at: new Date().toISOString() // Обновляем время последней активности
     }
 
     if (move_to_next) {

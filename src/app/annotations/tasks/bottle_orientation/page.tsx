@@ -10,12 +10,12 @@ import dynamic from 'next/dynamic'
 const BBoxAnnotator = dynamic(() => import('@/components/BBoxAnnotator'), { ssr: false })
 
 /**
- * Overlap Marking Task UI
- * Быстрая маркировка перекрытий между объектами
+ * Bottle Orientation Task UI
+ * Быстрая маркировка ориентации бутылок
  * 
- * Фокус: Показать bbox, быстро проставить Y (есть перекрытие) или N (нет)
- * Layout: Изображение с подсвеченным текущим bbox + крупные кнопки Y/N
- * Hotkeys: Y, N, Esc
+ * Фокус: Показать bbox бутылок, проставить вертикально/горизонтально/не определено
+ * Layout: Изображение с подсвеченным bbox + крупные кнопки V/H/N
+ * Hotkeys: V (вертикально), H (горизонтально), N (не определено), Esc
  */
 
 interface Annotation {
@@ -45,10 +45,6 @@ interface Image {
 
 interface Recognition {
   recognition_id: string
-  correct_dishes: Array<{
-    Count: number
-    Dishes: Array<{ Name: string }>
-  }>
   tier: number
 }
 
@@ -65,7 +61,7 @@ interface TaskData {
   }
 }
 
-export default function OverlapMarkingPage() {
+export default function BottleOrientationPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const tier = searchParams.get('tier')
@@ -73,14 +69,14 @@ export default function OverlapMarkingPage() {
   const [taskData, setTaskData] = useState<TaskData | null>(null)
   const [images, setImages] = useState<Image[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentBBoxIndex, setCurrentBBoxIndex] = useState(0)
+  const [currentBottleIndex, setCurrentBottleIndex] = useState(0)
   const [processing, setProcessing] = useState(false)
 
-  const currentBBoxIndexRef = useRef(currentBBoxIndex)
+  const currentBottleIndexRef = useRef(currentBottleIndex)
 
   useEffect(() => {
-    currentBBoxIndexRef.current = currentBBoxIndex
-  }, [currentBBoxIndex])
+    currentBottleIndexRef.current = currentBottleIndex
+  }, [currentBottleIndex])
 
   useEffect(() => {
     fetchNextTask()
@@ -93,10 +89,13 @@ export default function OverlapMarkingPage() {
       
       const key = e.key.toLowerCase()
       
-      if (key === 'y') {
-        handleMarkOverlap(true)
-      } else if (key === 'n') {
-        handleMarkOverlap(false)
+      if (key === 'v' || key === 'arrowup') {
+        handleSetOrientation(true) // Вертикально
+      } else if (key === 'h' || key === 'arrowright') {
+        handleSetOrientation(false) // Горизонтально
+      } else if (key === 'n' || key === ' ') {
+        e.preventDefault()
+        handleSetOrientation(null) // Не определено
       } else if (key === 'escape') {
         handleSkip()
       }
@@ -104,14 +103,14 @@ export default function OverlapMarkingPage() {
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [taskData, currentBBoxIndex, processing])
+  }, [taskData, currentBottleIndex, processing])
 
   const fetchNextTask = async () => {
     try {
       setLoading(true)
       const url = tier
-        ? `/api/annotations/tasks/next?task_type=overlap_marking&tier=${tier}`
-        : `/api/annotations/tasks/next?task_type=overlap_marking`
+        ? `/api/annotations/tasks/next?task_type=bottle_orientation&tier=${tier}`
+        : `/api/annotations/tasks/next?task_type=bottle_orientation`
       
       const response = await fetch(url)
       
@@ -123,7 +122,7 @@ export default function OverlapMarkingPage() {
       const data = await response.json()
       setTaskData(data)
       setImages(data.images)
-      setCurrentBBoxIndex(0)
+      setCurrentBottleIndex(0)
     } catch (error) {
       console.error('Error fetching task:', error)
     } finally {
@@ -131,30 +130,31 @@ export default function OverlapMarkingPage() {
     }
   }
 
-  const handleMarkOverlap = async (isOverlapped: boolean) => {
+  const handleSetOrientation = async (isBottleUp: boolean | null) => {
     if (!taskData || processing) return
 
-    const allBBoxes = images.flatMap(img => 
-      img.annotations.filter(a => a.dish_index !== null)
+    // Находим все бутылки
+    const allBottles = images.flatMap(img => 
+      img.annotations.filter(a => a.object_subtype === 'bottle' || a.object_type === 'bottle')
     )
 
-    if (currentBBoxIndex >= allBBoxes.length) return
+    if (currentBottleIndex >= allBottles.length) return
 
-    const currentBBox = allBBoxes[currentBBoxIndex]
+    const currentBottle = allBottles[currentBottleIndex]
 
     try {
       setProcessing(true)
 
       // Обновляем annotation
-      await fetch(`/api/annotations/annotations/${currentBBox.id}`, {
+      await fetch(`/api/annotations/annotations/${currentBottle.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          is_overlapped: isOverlapped,
-          current_bbox_x1: currentBBox.bbox_x1,
-          current_bbox_y1: currentBBox.bbox_y1,
-          current_bbox_x2: currentBBox.bbox_x2,
-          current_bbox_y2: currentBBox.bbox_y2
+          is_bottle_up: isBottleUp,
+          current_bbox_x1: currentBottle.bbox_x1,
+          current_bbox_y1: currentBottle.bbox_y1,
+          current_bbox_x2: currentBottle.bbox_x2,
+          current_bbox_y2: currentBottle.bbox_y2
         })
       })
 
@@ -162,20 +162,20 @@ export default function OverlapMarkingPage() {
       setImages(prev => prev.map(img => ({
         ...img,
         annotations: img.annotations.map(ann =>
-          ann.id === currentBBox.id ? { ...ann, is_overlapped: isOverlapped } : ann
+          ann.id === currentBottle.id ? { ...ann, is_bottle_up: isBottleUp } : ann
         )
       })))
 
-      // Переходим к следующему bbox
-      const nextIndex = currentBBoxIndex + 1
-      if (nextIndex >= allBBoxes.length) {
-        // Все bbox обработаны, завершаем задачу
+      // Переходим к следующей бутылке
+      const nextIndex = currentBottleIndex + 1
+      if (nextIndex >= allBottles.length) {
+        // Все бутылки обработаны, завершаем задачу
         await handleComplete()
       } else {
-        setCurrentBBoxIndex(nextIndex)
+        setCurrentBottleIndex(nextIndex)
       }
     } catch (error) {
-      console.error('Error marking overlap:', error)
+      console.error('Error setting orientation:', error)
       alert('Ошибка при сохранении')
     } finally {
       setProcessing(false)
@@ -195,7 +195,7 @@ export default function OverlapMarkingPage() {
             stage_id: taskData.stage.id,
             move_to_next: true,
             changes: {
-              completed_by: 'overlap_marking_ui',
+              completed_by: 'bottle_orientation_ui',
               completed_at: new Date().toISOString()
             }
           })
@@ -238,7 +238,7 @@ export default function OverlapMarkingPage() {
         <Card className="p-8 text-center max-w-md">
           <h2 className="text-2xl font-bold mb-4">Нет доступных задач</h2>
           <p className="text-gray-600 mb-6">
-            Все задачи маркировки перекрытий {tier && `(Tier ${tier})`} выполнены!
+            Все задачи ориентации бутылок {tier && `(Tier ${tier})`} выполнены!
           </p>
           <Button onClick={() => router.push('/annotations/tasks')}>
             ← Вернуться к списку задач
@@ -248,19 +248,24 @@ export default function OverlapMarkingPage() {
     )
   }
 
-  const allBBoxes = images.flatMap(img => 
+  const allBottles = images.flatMap(img => 
     img.annotations
-      .filter(a => a.dish_index !== null)
+      .filter(a => a.object_subtype === 'bottle' || a.object_type === 'bottle')
       .map(a => ({ ...a, imageType: img.photo_type }))
   )
   
-  const currentBBox = allBBoxes[currentBBoxIndex]
-  const progress = allBBoxes.length > 0 ? ((currentBBoxIndex + 1) / allBBoxes.length) * 100 : 0
+  const currentBottle = allBottles[currentBottleIndex]
+  const progress = allBottles.length > 0 ? ((currentBottleIndex + 1) / allBottles.length) * 100 : 0
 
-  // Находим изображение для текущего bbox
-  const currentImage = currentBBox ? images.find(img => 
-    img.annotations.some(a => a.id === currentBBox.id)
+  // Находим изображение для текущей бутылки
+  const currentImage = currentBottle ? images.find(img => 
+    img.annotations.some(a => a.id === currentBottle.id)
   ) : null
+
+  const getOrientationText = (isBottleUp: boolean | null) => {
+    if (isBottleUp === null) return 'Не определено'
+    return isBottleUp ? 'Вертикально ↑' : 'Горизонтально →'
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -269,7 +274,7 @@ export default function OverlapMarkingPage() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <h1 className="text-xl font-bold">Маркировка перекрытий</h1>
+              <h1 className="text-xl font-bold">Ориентация бутылок</h1>
               <p className="text-sm text-gray-600">
                 Recognition {taskData.recognition.recognition_id} | Tier {taskData.recognition.tier}
               </p>
@@ -290,7 +295,7 @@ export default function OverlapMarkingPage() {
             />
           </div>
           <div className="text-sm text-gray-600 mt-1">
-            BBox {currentBBoxIndex + 1} из {allBBoxes.length}
+            Бутылка {currentBottleIndex + 1} из {allBottles.length}
           </div>
         </div>
       </div>
@@ -298,22 +303,26 @@ export default function OverlapMarkingPage() {
       {/* Instructions */}
       <Card className="max-w-7xl mx-auto mx-6 mt-4 p-3 bg-blue-50 border-blue-200">
         <div className="text-sm">
-          <span className="font-medium">Инструкция:</span> Проверьте, перекрывается ли выделенный объект с другими объектами.
-          Нажмите <span className="font-bold">Y</span> (есть перекрытие) или <span className="font-bold">N</span> (нет перекрытия)
+          <span className="font-medium">Инструкция:</span> Определите ориентацию бутылки.
+          Нажмите <span className="font-bold">V/↑</span> (вертикально), <span className="font-bold">H/→</span> (горизонтально)
+          или <span className="font-bold">N/Space</span> (не определено)
         </div>
       </Card>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto p-6">
-        {currentBBox && currentImage ? (
+        {currentBottle && currentImage ? (
           <div className="grid grid-cols-3 gap-6">
-            {/* Image with highlighted bbox */}
+            {/* Image with highlighted bottle */}
             <div className="col-span-2">
               <Card className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold">{currentImage.photo_type}</h3>
-                  <Badge>
-                    {currentBBox.is_overlapped ? 'Есть перекрытие' : 'Нет перекрытия'}
+                  <Badge className={
+                    currentBottle.is_bottle_up === null ? 'bg-gray-500' :
+                    currentBottle.is_bottle_up ? 'bg-blue-500' : 'bg-green-500'
+                  }>
+                    {getOrientationText(currentBottle.is_bottle_up)}
                   </Badge>
                 </div>
                 <div className="h-[calc(100vh-320px)] rounded border relative bg-gray-100">
@@ -323,11 +332,11 @@ export default function OverlapMarkingPage() {
                     originalAnnotations={null}
                     imageId={currentImage.id}
                     dishNames={{}}
-                    selectedDishIndex={currentBBox.dish_index}
+                    selectedDishIndex={null}
                     onAnnotationCreate={() => {}}
                     onAnnotationUpdate={() => {}}
                     onAnnotationSelect={() => {}}
-                    selectedAnnotation={currentBBox}
+                    selectedAnnotation={currentBottle}
                     drawingMode={false}
                     referenceWidth={currentImage.photo_type === 'Main' ? 1810 : 1410}
                     referenceHeight={1080}
@@ -340,39 +349,50 @@ export default function OverlapMarkingPage() {
             <div className="col-span-1">
               <div className="space-y-4 sticky top-32">
                 <Card className="p-6">
-                  <h3 className="font-semibold mb-4 text-center">Есть перекрытие?</h3>
+                  <h3 className="font-semibold mb-4 text-center">Ориентация бутылки</h3>
                   
                   <div className="space-y-3">
                     <Button
-                      onClick={() => handleMarkOverlap(true)}
+                      onClick={() => handleSetOrientation(true)}
                       disabled={processing}
-                      className="w-full h-24 text-2xl bg-red-600 hover:bg-red-700"
+                      className="w-full h-20 text-xl bg-blue-600 hover:bg-blue-700 flex flex-col"
                       size="lg"
                     >
-                      ✓ ДА (Y)
-                      <div className="text-sm font-normal mt-1">Есть перекрытие</div>
+                      <div className="text-3xl">↑</div>
+                      <div className="text-sm mt-1">Вертикально (V)</div>
                     </Button>
                     
                     <Button
-                      onClick={() => handleMarkOverlap(false)}
+                      onClick={() => handleSetOrientation(false)}
                       disabled={processing}
-                      className="w-full h-24 text-2xl bg-green-600 hover:bg-green-700"
+                      className="w-full h-20 text-xl bg-green-600 hover:bg-green-700 flex flex-col"
                       size="lg"
                     >
-                      ✗ НЕТ (N)
-                      <div className="text-sm font-normal mt-1">Нет перекрытия</div>
+                      <div className="text-3xl">→</div>
+                      <div className="text-sm mt-1">Горизонтально (H)</div>
+                    </Button>
+
+                    <Button
+                      onClick={() => handleSetOrientation(null)}
+                      disabled={processing}
+                      variant="outline"
+                      className="w-full h-20 text-xl flex flex-col"
+                      size="lg"
+                    >
+                      <div className="text-2xl">?</div>
+                      <div className="text-sm mt-1">Не определено (N)</div>
                     </Button>
                   </div>
                 </Card>
 
                 {/* Info card */}
                 <Card className="p-4">
-                  <h4 className="font-semibold mb-2 text-sm">Информация о bbox:</h4>
+                  <h4 className="font-semibold mb-2 text-sm">Информация:</h4>
                   <div className="text-xs text-gray-600 space-y-1">
-                    <div>ID: {currentBBox.id}</div>
-                    <div>Dish Index: {currentBBox.dish_index !== null ? `#${currentBBox.dish_index + 1}` : 'N/A'}</div>
-                    <div>Type: {currentBBox.object_type}</div>
-                    <div>Source: {currentBBox.source}</div>
+                    <div>ID: {currentBottle.id}</div>
+                    <div>Type: {currentBottle.object_type}</div>
+                    <div>Subtype: {currentBottle.object_subtype || 'N/A'}</div>
+                    <div>Source: {currentBottle.source}</div>
                   </div>
                 </Card>
               </div>
@@ -380,10 +400,11 @@ export default function OverlapMarkingPage() {
           </div>
         ) : (
           <div className="text-center">
-            <p className="text-gray-600">Нет bbox для проверки</p>
+            <p className="text-gray-600">Нет бутылок для проверки</p>
           </div>
         )}
       </div>
     </div>
   )
 }
+
