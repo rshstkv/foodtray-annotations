@@ -84,6 +84,7 @@ type AnnotationAction =
   | { type: 'UPDATE_ANNOTATION'; payload: { id: number; updates: Partial<Annotation> } }
   | { type: 'DELETE_ANNOTATION'; payload: { id: number } }
   | { type: 'UPDATE_STATUS'; payload: { status: string } }
+  | { type: 'UPDATE_CORRECT_DISHES'; payload: { correct_dishes: any[] } }
   | { type: 'SET_SELECTED'; payload: { annotation: Annotation | null } }
   | { type: 'UNDO' }
   | { type: 'REDO' }
@@ -316,6 +317,18 @@ function annotationReducer(state: AppState, action: AnnotationAction): AppState 
       return {
         ...state,
         recognition: state.recognition ? { ...state.recognition, status } : null
+      }
+    }
+
+    case 'UPDATE_CORRECT_DISHES': {
+      const { correct_dishes } = action.payload
+      return {
+        ...state,
+        recognition: state.recognition ? { 
+          ...state.recognition, 
+          correct_dishes,
+          has_modifications: true  // Изменение correct_dishes = модификация
+        } : null
       }
     }
 
@@ -676,6 +689,11 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
     if (!pendingBBox) return
     
     try {
+      // Автоматически ставим "в работе" если создаем аннотацию
+      if (recognition && recognition.status === 'completed') {
+        handleStatusChange('in_progress')
+      }
+      
       const response = await fetch('/api/annotations/annotations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -725,6 +743,11 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
     if (changingDishFor === null) return
     
     try {
+      // Автоматически ставим "в работе" если меняем блюдо
+      if (recognition && recognition.status === 'completed') {
+        handleStatusChange('in_progress')
+      }
+      
       const response = await fetch(`/api/annotations/annotations/${changingDishFor}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1135,7 +1158,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
               </Button>
             )}
             <Button onClick={() => handleStatusChange('completed')}>
-              Done
+              ✓ Проверено
             </Button>
           </div>
         </div>
@@ -1624,11 +1647,12 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                               // Обновляем recognition локально и на сервере
                               if (recognition) {
                                 const updatedCorrectDishes = [...recognition.correct_dishes, newDish]
-                                const updatedRecognition = {
-                                  ...recognition,
-                                  correct_dishes: updatedCorrectDishes
-                                }
-                                setRecognition(updatedRecognition)
+                                
+                                // Dispatch для обновления correct_dishes
+                                dispatch({
+                                  type: 'UPDATE_CORRECT_DISHES',
+                                  payload: { correct_dishes: updatedCorrectDishes }
+                                })
                                 
                                 // Сохраняем на сервере
                                 try {
