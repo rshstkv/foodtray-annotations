@@ -10,3 +10,7 @@ CREATE INDEX IF NOT EXISTS idx_annotations_is_error ON annotations(is_error);
 -- Комментарий
 COMMENT ON COLUMN annotations.is_error IS 'Флаг ошибки распознавания для конкретного блюда/объекта';
 
+
+
+
+

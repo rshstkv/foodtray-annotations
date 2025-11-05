@@ -80,7 +80,7 @@ def upload_image_to_storage(supabase: Client, local_path: Path, storage_path: st
     """Загружает изображение в Supabase Storage."""
     try:
         with open(local_path, 'rb') as f:
-            supabase.storage.from_('bbox-images').upload(
+            supabase.storage().from_('bbox-images').upload(
                 storage_path,
                 f.read(),
                 {'content-type': 'image/jpeg'}
@@ -160,6 +160,9 @@ def process_recognition(
     # Обрабатываем изображения
     image_files = sorted(photos_dir.glob('*.jpg')) + sorted(photos_dir.glob('*.jpeg'))
     
+    # Собираем все аннотации для batch insert
+    all_annotations = []
+    
     for img_file in image_files:
         photo_type = extract_photo_type(img_file.name)
         if not photo_type:
@@ -198,7 +201,7 @@ def process_recognition(
             
             image_id = result.data[0]['id']
             
-            # Создаем аннотации для блюд
+            # Собираем аннотации для блюд
             for detection in qwen_dishes:
                 bbox = detection.get('bbox_2d') or detection.get('bbox')
                 if not bbox or len(bbox) < 4:
@@ -207,7 +210,7 @@ def process_recognition(
                 label = detection.get('label', '')
                 dish_index = dish_mapping.get(label)
                 
-                supabase.table('annotations').insert({
+                all_annotations.append({
                     'image_id': image_id,
                     'object_type': 'food',
                     'object_subtype': None,
@@ -220,16 +223,15 @@ def process_recognition(
                     'is_bottle_up': None,
                     'is_error': False,
                     'source': 'qwen_auto'
-                }).execute()
-                stats['annotations_created'] += 1
+                })
             
-            # Создаем аннотации для тарелок
+            # Собираем аннотации для тарелок
             for detection in qwen_plates:
                 bbox = detection.get('bbox_2d') or detection.get('bbox')
                 if not bbox or len(bbox) < 4:
                     continue
                 
-                supabase.table('annotations').insert({
+                all_annotations.append({
                     'image_id': image_id,
                     'object_type': 'plate',
                     'object_subtype': None,
@@ -242,11 +244,18 @@ def process_recognition(
                     'is_bottle_up': None,
                     'is_error': False,
                     'source': 'qwen_auto'
-                }).execute()
-                stats['annotations_created'] += 1
+                })
                 
         except Exception as e:
             print(f"Error creating image/annotations for {recognition_id}: {e}")
+    
+    # Batch insert всех аннотаций одним запросом
+    if all_annotations:
+        try:
+            supabase.table('annotations').insert(all_annotations).execute()
+            stats['annotations_created'] = len(all_annotations)
+        except Exception as e:
+            print(f"Error batch inserting annotations for {recognition_id}: {e}")
     
     stats['success'] = True
     return stats

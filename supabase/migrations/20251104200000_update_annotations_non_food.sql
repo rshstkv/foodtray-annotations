@@ -23,3 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_annotations_is_error ON annotations(is_error) WHE
 CREATE INDEX IF NOT EXISTS idx_annotations_non_food ON annotations(object_type, object_subtype) 
 WHERE object_type = 'non_food';
 
+
+
+
+

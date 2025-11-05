@@ -16,3 +16,7 @@ CREATE INDEX IF NOT EXISTS idx_recognitions_has_modifications ON recognitions(ha
 COMMENT ON COLUMN recognition_images.original_annotations IS 'Оригинальные QWEN аннотации для возможности отката';
 COMMENT ON COLUMN recognitions.has_modifications IS 'Флаг наличия пользовательских модификаций (создание/изменение/удаление bbox)';
 
+
+
+
+

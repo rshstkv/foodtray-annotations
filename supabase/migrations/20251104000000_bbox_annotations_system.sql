@@ -144,3 +144,7 @@ COMMENT ON TABLE recognition_images IS 'Рабочие изображения д
 COMMENT ON TABLE annotations IS 'Аннотации bounding box для всех типов объектов';
 COMMENT ON VIEW recognitions_with_stats IS 'Статистика по recognitions с количеством изображений и аннотаций';
 
+
+
+
+
