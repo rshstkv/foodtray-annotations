@@ -1,0 +1,21 @@
+# Python virtual environment
+venv/
+
+# Old/legacy scripts - не для деплоя
+scripts/bulk-set-states.ts
+scripts/check_menu_all.js
+scripts/import-clarification-states.ts
+scripts/import-clarifications.ts
+scripts/import-menu.ts
+scripts/import-raw-data.ts
+scripts/populate-qwen-detection-indexes.ts
+scripts/process-raw-to-db.ts
+
+# Python scripts
+scripts/*.py
+
+# Build output
+.next/
+out/
+node_modules/
+

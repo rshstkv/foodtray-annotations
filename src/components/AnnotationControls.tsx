@@ -10,6 +10,7 @@ import { Pencil, Layers, AlertOctagon, Trash2 } from 'lucide-react'
 
 interface Annotation {
   id: number
+  image_id: number
   bbox_x1: number
   bbox_y1: number
   bbox_x2: number
@@ -26,8 +27,15 @@ interface Annotation {
 }
 
 interface OriginalAnnotations {
-  qwen_dishes_detections?: any[]
-  qwen_plates_detections?: any[]
+  qwen_dishes_detections?: unknown[]
+  qwen_plates_detections?: unknown[]
+}
+
+interface ChangeDishPosition {
+  x: number
+  y: number
+  width: number
+  bboxWidth: number
 }
 
 interface AnnotationControlsProps {
@@ -40,17 +48,17 @@ interface AnnotationControlsProps {
   showOrientation?: boolean
   showError?: boolean
   showDelete?: boolean
-  onUpdate?: (id: number, updates: any) => void
+  onUpdate?: (id: number, updates: Partial<Annotation>) => void
   onDelete?: (id: number) => void
-  onChangeDish?: (id: number, rect?: any) => void
+  onChangeDish?: (id: number, rect?: ChangeDishPosition) => void
   onToggleError?: (id: number) => void
   className?: string
 }
 
 export function AnnotationControls({
   annotation,
-  originalAnnotations,
-  imageId,
+  originalAnnotations: _originalAnnotations,
+  imageId: _imageId,
   compact = false,
   showEdit = true,
   showOverlapped = true,

@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -20,13 +19,6 @@ interface Recognition {
   food_annotation_count: number
   main_count?: number
   qualifying_count?: number
-}
-
-interface PaginationInfo {
-  page: number
-  limit: number
-  total: number
-  totalPages: number
 }
 
 export default function AnnotationsListPage() {

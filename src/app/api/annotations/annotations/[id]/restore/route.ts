@@ -38,8 +38,8 @@ export async function POST(
       }, { status: 404 })
     }
 
-    const originalAnnotations = image.original_annotations as any
-    let originalData = null
+    const originalAnnotations = image.original_annotations as { qwen_dishes_detections?: unknown[]; qwen_plates_detections?: unknown[] }
+    let originalData: Record<string, unknown> | null = null
 
     // НОВАЯ ЛОГИКА: Используем qwen_detection_index для точного восстановления
     if (currentAnnotation.qwen_detection_index !== null && currentAnnotation.qwen_detection_type) {
@@ -47,7 +47,7 @@ export async function POST(
       const detectionType = currentAnnotation.qwen_detection_type
       const detectionIndex = currentAnnotation.qwen_detection_index
       
-      let detections: any[] = []
+      let detections: unknown[] = []
       if (detectionType === 'dish') {
         detections = originalAnnotations.qwen_dishes_detections || []
       } else if (detectionType === 'plate') {
@@ -55,10 +55,10 @@ export async function POST(
       }
 
       if (detectionIndex < detections.length) {
-        const detection = detections[detectionIndex]
-        const bbox = detection.bbox_2d || detection.bbox
+        const detection = detections[detectionIndex] as Record<string, unknown>
+        const bbox = (detection.bbox_2d || detection.bbox) as number[]
 
-        if (bbox && bbox.length >= 4) {
+        if (bbox && Array.isArray(bbox) && bbox.length >= 4) {
           // Извлекаем dish_index из детекции
           let detectionDishIndex = null
           if (typeof detection.dish_index === 'number') {
@@ -67,7 +67,7 @@ export async function POST(
             const match = detection.dish_index.match(/\d+/)
             if (match) detectionDishIndex = parseInt(match[0])
           } else if (detection.label) {
-            const match = detection.label.match(/dish_(\d+)/)
+            const match = String(detection.label).match(/dish_(\d+)/)
             if (match) detectionDishIndex = parseInt(match[1])
           }
 
@@ -76,8 +76,8 @@ export async function POST(
             bbox_y1: bbox[1],
             bbox_x2: bbox[2],
             bbox_y2: bbox[3],
-            is_bottle_up: detection.is_bottle_up !== undefined ? detection.is_bottle_up : null,
-            is_overlapped: detection.is_overlapped || false,
+            is_bottle_up: detection.is_bottle_up !== undefined ? Boolean(detection.is_bottle_up) : null,
+            is_overlapped: Boolean(detection.is_overlapped) || false,
             is_error: false, // Сбрасываем флаг ошибки
             dish_index: detectionDishIndex,
             source: 'qwen_auto',
@@ -93,9 +93,9 @@ export async function POST(
       let bestMatchScore = Infinity
 
       for (let index = 0; index < originalAnnotations.qwen_dishes_detections.length; index++) {
-        const detection = originalAnnotations.qwen_dishes_detections[index]
-        const bbox = detection.bbox_2d || detection.bbox
-        if (!bbox) continue
+        const detection = originalAnnotations.qwen_dishes_detections[index] as Record<string, unknown>
+        const bbox = (detection.bbox_2d || detection.bbox) as number[]
+        if (!bbox || !Array.isArray(bbox)) continue
 
         // Считаем расстояние между центрами bbox
         const currentCenterX = (currentAnnotation.bbox_x1 + currentAnnotation.bbox_x2) / 2
@@ -117,7 +117,7 @@ export async function POST(
             const match = detection.dish_index.match(/\d+/)
             if (match) detectionDishIndex = parseInt(match[0])
           } else if (detection.label) {
-            const match = detection.label.match(/dish_(\d+)/)
+            const match = String(detection.label).match(/dish_(\d+)/)
             if (match) detectionDishIndex = parseInt(match[1])
           }
 
@@ -127,8 +127,8 @@ export async function POST(
             bbox_y1: bbox[1],
             bbox_x2: bbox[2],
             bbox_y2: bbox[3],
-            is_bottle_up: detection.is_bottle_up !== undefined ? detection.is_bottle_up : null,
-            is_overlapped: detection.is_overlapped || false,
+            is_bottle_up: detection.is_bottle_up !== undefined ? Boolean(detection.is_bottle_up) : null,
+            is_overlapped: Boolean(detection.is_overlapped) || false,
             is_error: false,
             dish_index: detectionDishIndex,
             source: 'qwen_auto',
@@ -164,7 +164,7 @@ export async function POST(
 
       // Обновляем has_modifications в recognition
       if (image.recognition_id) {
-        const { data: allAnnotations } = await supabase
+        const { data: _ } = await supabase
           .from('annotations')
           .select('id, image_id')
           .eq('image_id', currentAnnotation.image_id)

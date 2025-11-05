@@ -52,23 +52,24 @@ export async function POST(
 
       // 3b. Восстанавливаем оригинальные QWEN аннотации
       if (image.original_annotations) {
-        const origAnnotations = image.original_annotations as any
+        const origAnnotations = image.original_annotations as { qwen_dishes_detections?: unknown[]; qwen_plates_detections?: unknown[] }
         const qwenDishes = origAnnotations.qwen_dishes_detections || []
         const qwenPlates = origAnnotations.qwen_plates_detections || []
 
         // Конвертируем QWEN dishes в аннотации
-        const dishAnnotations = qwenDishes.map((detection: any, index: number) => {
-          const bbox = detection.bbox_2d || detection.bbox
-          if (!bbox || bbox.length < 4) return null
+        const dishAnnotations = qwenDishes.map((det, index: number) => {
+          const detection = det as Record<string, unknown>
+          const bbox = (detection.bbox_2d || detection.bbox) as number[]
+          if (!bbox || !Array.isArray(bbox) || bbox.length < 4) return null
           
           // Парсим dish_index из label (может быть "dish_0", "dish_1" и т.д.)
           let dishIndex = null
           if (detection.dish_index !== undefined && detection.dish_index !== null) {
             dishIndex = typeof detection.dish_index === 'number' 
               ? detection.dish_index 
-              : parseInt(detection.dish_index)
+              : parseInt(String(detection.dish_index))
           } else if (detection.label && typeof detection.label === 'string') {
-            const match = detection.label.match(/dish_(\d+)/)
+            const match = String(detection.label).match(/dish_(\d+)/)
             if (match) {
               dishIndex = parseInt(match[1])
             }
@@ -94,9 +95,10 @@ export async function POST(
         }).filter(Boolean) // Удаляем null
 
         // Конвертируем QWEN plates в аннотации
-        const plateAnnotations = qwenPlates.map((detection: any, index: number) => {
-          const bbox = detection.bbox_2d || detection.bbox
-          if (!bbox || bbox.length < 4) return null
+        const plateAnnotations = qwenPlates.map((det, index: number) => {
+          const detection = det as Record<string, unknown>
+          const bbox = (detection.bbox_2d || detection.bbox) as number[]
+          if (!bbox || !Array.isArray(bbox) || bbox.length < 4) return null
           
           return {
             image_id: image.id,

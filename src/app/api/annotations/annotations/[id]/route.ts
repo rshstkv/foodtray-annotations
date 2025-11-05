@@ -10,7 +10,7 @@ export async function PUT(
     const annotationId = parseInt(id)
     const body = await request.json()
 
-    const updates: any = {}
+    const updates: Record<string, unknown> = {}
     
     if (body.bbox_x1 !== undefined) updates.bbox_x1 = body.bbox_x1
     if (body.bbox_y1 !== undefined) updates.bbox_y1 = body.bbox_y1

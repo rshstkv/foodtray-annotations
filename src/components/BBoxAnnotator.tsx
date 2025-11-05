@@ -6,6 +6,7 @@ import { AnnotationControls } from './AnnotationControls'
 
 interface Annotation {
   id: number
+  image_id: number
   bbox_x1: number
   bbox_y1: number
   bbox_x2: number
@@ -26,7 +27,10 @@ interface BBoxAnnotatorProps {
   annotations: Annotation[]
   selectedDishIndex: number | null
   dishNames?: Record<number, string>
-  originalAnnotations?: any | null
+  originalAnnotations?: {
+    qwen_dishes_detections?: unknown[]
+    qwen_plates_detections?: unknown[]
+  } | null
   imageId?: number
   onAnnotationCreate: (bbox: {
     bbox_x1: number
@@ -72,8 +76,8 @@ export default function BBoxAnnotator({
   imageUrl,
   annotations,
   dishNames = {},
-  originalAnnotations,
-  imageId,
+  originalAnnotations: _originalAnnotations,
+  imageId: _imageId,
   onAnnotationCreate,
   onAnnotationUpdate,
   onAnnotationSelect,
@@ -83,8 +87,8 @@ export default function BBoxAnnotator({
   referenceHeight = 1080,
   onChangeDish,
   onDelete,
-  onToggleOverlapped,
-  onToggleOrientation,
+  onToggleOverlapped: _onToggleOverlapped,
+  onToggleOrientation: _onToggleOrientation,
   onToggleError,
 }: BBoxAnnotatorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -221,12 +225,12 @@ export default function BBoxAnnotator({
         const p1 = refToScreen(initialBBoxRef.current.bbox_x1, initialBBoxRef.current.bbox_y1)
         const p2 = refToScreen(initialBBoxRef.current.bbox_x2, initialBBoxRef.current.bbox_y2)
 
-        let updates: any
+        let updates: { bbox_x1: number; bbox_y1: number; bbox_x2: number; bbox_y2: number }
 
         if (resizeHandle) {
           // Resize
-          let newP1 = p1
-          let newP2 = p2
+          const newP1 = { ...p1 }
+          const newP2 = { ...p2 }
 
           if (resizeHandle.includes('t')) newP1.y = p1.y + dy
           if (resizeHandle.includes('b')) newP2.y = p2.y + dy
@@ -611,8 +615,8 @@ export default function BBoxAnnotator({
               <div className="bg-black bg-opacity-90 rounded px-2 py-1 shadow-lg">
                 <AnnotationControls
                   annotation={selectedAnnotation}
-                  originalAnnotations={originalAnnotations}
-                  imageId={imageId}
+                  originalAnnotations={_originalAnnotations}
+                  imageId={_imageId}
                   compact={true}
                   showEdit={true}
                   showOverlapped={true}

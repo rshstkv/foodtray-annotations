@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const search = searchParams.get('search')?.trim()
   const limit = parseInt(searchParams.get('limit') || '500')
-  const dateFilter = searchParams.get('date') // Для фильтрации по активной дате
+  const _dateFilter = searchParams.get('date') // Для фильтрации по активной дате
 
   try {
     let query = supabase

@@ -3,10 +3,11 @@ import { supabase } from '@/lib/supabase'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const imagePath = params.path.join('/')
+    const { path } = await params
+    const imagePath = path.join('/')
 
     // Получаем изображение из storage
     const { data, error } = await supabase

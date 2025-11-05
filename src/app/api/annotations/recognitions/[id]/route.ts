@@ -83,7 +83,7 @@ export async function PUT(
 
     const { status, is_mistake, annotator_notes, correct_dishes, has_modifications } = body
 
-    const updates: any = {}
+    const updates: Record<string, unknown> = {}
     if (status !== undefined) updates.status = status
     if (is_mistake !== undefined) updates.is_mistake = is_mistake
     if (annotator_notes !== undefined) updates.annotator_notes = annotator_notes

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, use, useRef, useReducer } from 'react'
+import { useEffect, useState, use, useRef, useReducer, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
@@ -38,8 +38,22 @@ interface RecognitionImage {
   storage_path: string
   image_width: number | null
   image_height: number | null
-  original_annotations?: any | null
+  original_annotations?: {
+    qwen_dishes_detections?: unknown[]
+    qwen_plates_detections?: unknown[]
+  } | null
   annotations: Annotation[]
+}
+
+interface CorrectDish {
+  Count: number
+  Dishes: Array<{
+    Name: string
+    product_name?: string
+    ean?: string
+    proto_name?: string | null
+    ExternalId?: string
+  }>
 }
 
 interface Recognition {
@@ -48,7 +62,7 @@ interface Recognition {
   recognition_date: string
   status: string
   is_mistake: boolean
-  correct_dishes: any[]
+  correct_dishes: CorrectDish[]
   annotator_notes: string | null
   has_modifications: boolean
 }
@@ -59,6 +73,12 @@ interface MenuItem {
   ean?: string
   product_name: string
   english_name?: string
+}
+
+interface MenuAllItem {
+  Name: string
+  ExternalId: string
+  ProtoNames?: string[]
 }
 
 // История изменений для Undo/Redo
@@ -84,7 +104,7 @@ type AnnotationAction =
   | { type: 'UPDATE_ANNOTATION'; payload: { id: number; updates: Partial<Annotation> } }
   | { type: 'DELETE_ANNOTATION'; payload: { id: number } }
   | { type: 'UPDATE_STATUS'; payload: { status: string } }
-  | { type: 'UPDATE_CORRECT_DISHES'; payload: { correct_dishes: any[] } }
+  | { type: 'UPDATE_CORRECT_DISHES'; payload: { correct_dishes: CorrectDish[] } }
   | { type: 'SET_SELECTED'; payload: { annotation: Annotation | null } }
   | { type: 'UNDO' }
   | { type: 'REDO' }
@@ -421,14 +441,14 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
   const { images, recognition, selectedAnnotation, history, historyIndex } = state
   
   // Локальное состояние (не связанное с аннотациями)
-  const [menuAll, setMenuAll] = useState<MenuItem[]>([])
+  const [menuAll, setMenuAll] = useState<MenuAllItem[]>([])
   const [loading, setLoading] = useState(true)
   const [drawingMode, setDrawingMode] = useState(false)
   const [currentPhotoType, setCurrentPhotoType] = useState<'Main' | 'Qualifying'>('Main')
   const [showOnlySelected, setShowOnlySelected] = useState(true) // Показывать только выбранные bbox
   const [pendingBBox, setPendingBBox] = useState<{bbox_x1: number; bbox_y1: number; bbox_x2: number; bbox_y2: number; image_id: number} | null>(null)
   const [changingDishFor, setChangingDishFor] = useState<number | null>(null)
-  const [dropdownPosition, setDropdownPosition] = useState<{ x: number; y: number; width: number; bboxWidth: number } | null>(null)
+  const [, setDropdownPosition] = useState<{ x: number; y: number; width: number; bboxWidth: number } | null>(null)
   const [menuSearch, setMenuSearch] = useState('')
   const [activeTab, setActiveTab] = useState<'check' | 'menu' | 'nonfood'>('check')
   
@@ -447,10 +467,6 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
     currentPhotoTypeRef.current = currentPhotoType
     selectedAnnotationRef.current = selectedAnnotation
   }, [images, currentPhotoType, selectedAnnotation])
-
-  useEffect(() => {
-    fetchRecognition()
-  }, [resolvedParams.id])
 
   // Обработчики для draggable модального окна
   useEffect(() => {
@@ -490,7 +506,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
     setIsDragging(true)
   }
 
-  const fetchRecognition = async () => {
+  const fetchRecognition = useCallback(async () => {
     try {
       const response = await fetch(`/api/annotations/recognitions/${resolvedParams.id}`)
       const data = await response.json()
@@ -512,7 +528,12 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
     } finally {
       setLoading(false)
     }
-  }
+  }, [resolvedParams.id])
+
+  // Загружаем данные при монтировании
+  useEffect(() => {
+    fetchRecognition()
+  }, [fetchRecognition])
 
   // Функции для Undo/Redo (обертки над dispatch)
   const canUndo = () => historyIndex > 0
@@ -679,7 +700,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
     }))
   ])
 
-  const handleAnnotationCreate = async (imageId: number, bbox: any) => {
+  const handleAnnotationCreate = async (imageId: number, bbox: { bbox_x1: number; bbox_y1: number; bbox_x2: number; bbox_y2: number }) => {
     // Показываем dropdown для выбора типа объекта
     setPendingBBox({ ...bbox, image_id: imageId })
     // НЕ выключаем drawingMode - оставляем экран чистым до выбора типа
@@ -786,7 +807,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
     }
   }
 
-  const handleAnnotationUpdate = async (id: number, updates: any) => {
+  const handleAnnotationUpdate = async (id: number, updates: Partial<Annotation>) => {
     // Игнорируем виртуальную аннотацию (pendingBBox)
     if (id === -1) return
     
@@ -949,7 +970,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
   const getDishNames = () => {
     const names: Record<number, string> = {}
     if (!recognition) return names
-    recognition.correct_dishes.forEach((dish: any, index: number) => {
+    recognition.correct_dishes.forEach((dish: CorrectDish, index: number) => {
       names[index] = dish.Dishes?.[0]?.Name || 'Unknown'
     })
     return names
@@ -995,13 +1016,13 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
     // Точное совпадение по ExternalId (EAN)
     const isNumeric = /^\d+$/.test(query)
     if (isNumeric) {
-      const exactMatch = menuAll.filter((item: any) => item.ExternalId === query)
+      const exactMatch = menuAll.filter((item: MenuAllItem) => item.ExternalId === query)
       if (exactMatch.length > 0) return exactMatch
     }
 
     // Fuzzy поиск по имени и ProtoNames
     return menuAll
-      .filter((item: any) => {
+      .filter((item: MenuAllItem) => {
         const name = item.Name?.toLowerCase() || ''
         const protoNames = Array.isArray(item.ProtoNames) 
           ? item.ProtoNames.join(' ').toLowerCase() 
@@ -1178,7 +1199,7 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
               <div className="mb-6">
                 <h3 className="font-semibold mb-3 text-sm text-gray-700">Блюда из чека</h3>
               <div className="space-y-2">
-                {recognition.correct_dishes.map((dish: any, index: number) => {
+                {recognition.correct_dishes.map((dish: CorrectDish, index: number) => {
                   const count = dish.Count || 1
                     const bboxCount = getDishAnnotationCount(index)
                     const dishBboxes = dishes[index] || []
@@ -1492,8 +1513,8 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
               const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080
               
             // Если modalPosition не установлена, центрируем
-            let left = modalPosition.x || Math.max(20, (screenWidth - dropdownWidth) / 2)
-            let top = modalPosition.y || Math.max(20, (screenHeight - dropdownHeight) / 2)
+            const left = modalPosition.x || Math.max(20, (screenWidth - dropdownWidth) / 2)
+            const top = modalPosition.y || Math.max(20, (screenHeight - dropdownHeight) / 2)
             
             // Инициализируем позицию если она еще не установлена
             if (modalPosition.x === 0 && modalPosition.y === 0) {
@@ -1581,9 +1602,9 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                   {/* Таб 1: Блюда из чека */}
                   {activeTab === 'check' && (
                     <div className="space-y-2">
-                      {recognition.correct_dishes.map((dish: any, dishIndex: number) => {
+                      {recognition.correct_dishes.map((dish: CorrectDish, dishIndex: number) => {
                         const dishes = dish.Dishes || []
-                        return dishes.map((variant: any, variantIdx: number) => (
+                        return dishes.map((variant, variantIdx: number) => (
                         <button
                             key={`${dishIndex}-${variantIdx}`}
                             className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center gap-2 text-sm rounded"
@@ -1625,10 +1646,10 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
                         <div className="text-sm text-gray-500 px-3 py-2 text-center bg-gray-50 rounded border border-gray-200">
                           <p className="font-medium">📋 Активное меню недоступно</p>
                           <p className="text-xs mt-2">Для этого recognition нет данных меню</p>
-                          <p className="text-xs mt-1 text-gray-400">Используйте вкладку "Из чека" или "Предметы"</p>
+                          <p className="text-xs mt-1 text-gray-400">Используйте вкладку &quot;Из чека&quot; или &quot;Предметы&quot;</p>
                   </div>
                       ) : filteredMenuAll.length > 0 ? (
-                        filteredMenuAll.map((item: any, idx: number) => (
+                        filteredMenuAll.map((item: MenuAllItem, idx: number) => (
                           <button
                             key={item.ExternalId || idx}
                             className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors text-sm rounded border border-gray-200"
