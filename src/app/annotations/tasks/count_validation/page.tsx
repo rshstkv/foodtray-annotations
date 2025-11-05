@@ -437,7 +437,7 @@ export default function CountValidationPage() {
             <div>
               <h1 className="text-xl font-bold">Проверка количества bbox</h1>
               <p className="text-sm text-gray-600">
-                Recognition {taskData.recognition.recognition_id} | Tier {taskData.recognition.tier}
+                Recognition {taskData?.recognition?.recognition_id} | Tier {taskData?.recognition?.tier}
               </p>
             </div>
             
