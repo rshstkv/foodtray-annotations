@@ -9,7 +9,7 @@ export async function GET(
     const { id } = await params
     const recognitionId = id
 
-    // Получаем recognition
+    // Получаем recognition (включая menu_all)
     const { data: recognition, error: recError } = await supabase
       .from('recognitions')
       .select('*')
@@ -20,17 +20,8 @@ export async function GET(
       return NextResponse.json({ error: 'Recognition not found' }, { status: 404 })
     }
 
-    // Получаем menu_all из recognitions_raw
-    const { data: recognitionRaw, error: rawError } = await supabase
-      .from('recognitions_raw')
-      .select('menu_all')
-      .eq('recognition_id', recognitionId)
-      .single()
-
-    let menuAll = []
-    if (!rawError && recognitionRaw) {
-      menuAll = recognitionRaw.menu_all || []
-    }
+    // menu_all теперь находится в recognitions
+    const menuAll = recognition.menu_all || []
 
     // Получаем изображения
     const { data: images, error: imgError } = await supabase
