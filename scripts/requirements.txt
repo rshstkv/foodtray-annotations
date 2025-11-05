@@ -1,5 +1,4 @@
+psycopg2-binary>=2.9.0
 supabase>=0.7.1
 python-dotenv>=0.21.0
 tqdm>=4.60.0
-Pillow>=9.0.0
-

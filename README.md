@@ -89,6 +89,27 @@ CREATE INDEX idx_clarification_states_clarification_id ON clarification_states(c
 - `count: 'exact'` только при необходимости
 - Пагинация через `.range()`
 
+## 📦 Импорт датасета
+
+### Быстрый старт
+```bash
+# Установка зависимостей для импорта
+cd scripts
+pip install -r requirements.txt
+
+# Импорт данных (~1.5 минуты для полного датасета)
+python3 import_dataset_fast.py \
+  "/path/to/RRS_Dataset 2" \
+  "/path/to/qwen_annotations.json" \
+  --env prod \
+  --skip-storage-upload
+```
+
+**Важно**: 
+- Добавь `DATABASE_URL` в `.env.production` (pooled connection string из Supabase)
+- Скрипт автоматически обрабатывает дубликаты - просто запускай с новыми данными
+- Использует PostgreSQL COPY (в 60 раз быстрее старого метода)
+
 ## 🚀 Запуск приложения
 
 ### Установка зависимостей
@@ -101,6 +122,7 @@ npm install
 ```
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+DATABASE_URL=your_pooled_connection_string  # Для импорта данных
 ```
 
 ### Запуск в разработке
