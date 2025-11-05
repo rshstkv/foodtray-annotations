@@ -28,12 +28,12 @@ export async function POST(
       )
     }
 
-    // Сбрасываем assigned_to и last_activity_at
+    // Сбрасываем assigned_to и started_at
     const { error: updateError } = await supabase
       .from('recognitions')
       .update({
         assigned_to: null,
-        last_activity_at: null,
+        started_at: null,
         workflow_state: 'pending' // Явно возвращаем в pending
       })
       .eq('recognition_id', recognitionId)

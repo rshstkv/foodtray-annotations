@@ -61,13 +61,13 @@ export async function GET(request: NextRequest) {
     // Ищем задачи которые:
     // 1. В состоянии 'pending'
     // 2. Либо не назначены (assigned_to IS NULL)
-    // 3. Либо назначены давно (last_activity_at старше 15 минут) - автоосвобождение
+    // 3. Либо назначены давно (started_at старше 15 минут) - автоосвобождение
     let query = supabase
       .from('recognitions')
       .select('*')
       .eq('workflow_state', 'pending')
       .eq('current_stage_id', stage.id)
-      .or('assigned_to.is.null,last_activity_at.lt.' + new Date(Date.now() - 15 * 60 * 1000).toISOString())
+      .or('assigned_to.is.null,started_at.lt.' + new Date(Date.now() - 15 * 60 * 1000).toISOString())
 
     // Фильтр по tier если указан
     if (tierParam) {
@@ -136,17 +136,17 @@ export async function GET(request: NextRequest) {
       })
     )
 
-    // Обновляем last_activity_at для предотвращения двойного назначения
+    // Обновляем started_at для предотвращения двойного назначения
     // Но НЕ меняем workflow_state - задача остается pending
     const { error: updateError } = await supabase
       .from('recognitions')
       .update({
-        last_activity_at: new Date().toISOString()
+        started_at: new Date().toISOString()
       })
       .eq('recognition_id', recognition.recognition_id)
 
     if (updateError) {
-      console.error('Error updating last_activity_at:', updateError)
+      console.error('Error updating started_at:', updateError)
       // Не прерываем выполнение, просто логируем
     }
 

@@ -39,12 +39,12 @@ export async function POST(
       )
     }
 
-    // Сбрасываем assigned_to и обновляем last_activity_at
+    // Сбрасываем assigned_to и обновляем started_at
     const { error: updateError } = await supabase
       .from('recognitions')
       .update({
         assigned_to: null,
-        last_activity_at: null
+        started_at: null
       })
       .eq('recognition_id', recognitionId)
 

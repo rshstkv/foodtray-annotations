@@ -105,7 +105,7 @@ export async function POST(
     let updates: Record<string, unknown> = {
       completed_stages: completedStages,
       assigned_to: null, // Очищаем назначение при завершении
-      last_activity_at: new Date().toISOString() // Обновляем время последней активности
+      started_at: new Date().toISOString() // Обновляем время последней активности
     }
 
     if (move_to_next) {
