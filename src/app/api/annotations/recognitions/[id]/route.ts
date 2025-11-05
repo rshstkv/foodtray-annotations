@@ -81,12 +81,13 @@ export async function PUT(
     const recognitionId = id
     const body = await request.json()
 
-    const { status, is_mistake, annotator_notes, correct_dishes } = body
+    const { status, is_mistake, annotator_notes, correct_dishes, has_modifications } = body
 
     const updates: any = {}
     if (status !== undefined) updates.status = status
     if (is_mistake !== undefined) updates.is_mistake = is_mistake
     if (annotator_notes !== undefined) updates.annotator_notes = annotator_notes
+    if (has_modifications !== undefined) updates.has_modifications = has_modifications
     if (correct_dishes !== undefined) {
       updates.correct_dishes = correct_dishes
       // Изменение correct_dishes - это модификация

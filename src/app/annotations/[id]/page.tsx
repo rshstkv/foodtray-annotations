@@ -332,10 +332,16 @@ function annotationReducer(state: AppState, action: AnnotationAction): AppState 
       const newIndex = state.historyIndex - 1
       const snapshot = state.history[newIndex]
       
+      // Пересчитываем has_modifications: если на позиции 0 (оригинал), то false
+      const hasModifications = newIndex !== 0
+      
       return {
         ...state,
         images: JSON.parse(JSON.stringify(snapshot.images)),
-        recognition: JSON.parse(JSON.stringify(snapshot.recognition)),
+        recognition: snapshot.recognition ? {
+          ...JSON.parse(JSON.stringify(snapshot.recognition)),
+          has_modifications: hasModifications
+        } : null,
         selectedAnnotation: snapshot.selectedAnnotation ? JSON.parse(JSON.stringify(snapshot.selectedAnnotation)) : null,
         historyIndex: newIndex
       }
@@ -347,10 +353,16 @@ function annotationReducer(state: AppState, action: AnnotationAction): AppState 
       const newIndex = state.historyIndex + 1
       const snapshot = state.history[newIndex]
       
+      // Пересчитываем has_modifications: если на позиции 0 (оригинал), то false
+      const hasModifications = newIndex !== 0
+      
       return {
         ...state,
         images: JSON.parse(JSON.stringify(snapshot.images)),
-        recognition: JSON.parse(JSON.stringify(snapshot.recognition)),
+        recognition: snapshot.recognition ? {
+          ...JSON.parse(JSON.stringify(snapshot.recognition)),
+          has_modifications: hasModifications
+        } : null,
         selectedAnnotation: snapshot.selectedAnnotation ? JSON.parse(JSON.stringify(snapshot.selectedAnnotation)) : null,
         historyIndex: newIndex
       }
@@ -497,12 +509,37 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
     if (!canUndo()) return
     dispatch({ type: 'UNDO' })
     setShowOnlySelected(false)
+    
+    // Синхронизируем has_modifications с сервером после Undo
+    const newIndex = historyIndex - 1
+    const hasModifications = newIndex !== 0
+    syncHasModifications(hasModifications)
   }
 
   const redo = () => {
     if (!canRedo()) return
     dispatch({ type: 'REDO' })
     setShowOnlySelected(false)
+    
+    // Синхронизируем has_modifications с сервером после Redo
+    const newIndex = historyIndex + 1
+    const hasModifications = newIndex !== 0
+    syncHasModifications(hasModifications)
+  }
+  
+  // Синхронизация has_modifications с сервером
+  const syncHasModifications = async (hasModifications: boolean) => {
+    if (!recognition) return
+    
+    try {
+      await fetch(`/api/annotations/recognitions/${resolvedParams.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ has_modifications: hasModifications })
+      })
+    } catch (error) {
+      console.error('Error syncing has_modifications:', error)
+    }
   }
 
   // Циклическое переключение между bbox одного блюда (упрощенная навигация)
