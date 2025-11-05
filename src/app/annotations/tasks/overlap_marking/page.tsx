@@ -134,9 +134,9 @@ export default function OverlapMarkingPage() {
   const handleMarkOverlap = async (isOverlapped: boolean) => {
     if (!taskData || processing) return
 
-    const allBBoxes = images.flatMap(img => 
+    const allBBoxes = images?.flatMap(img => 
       img.annotations.filter(a => a.dish_index !== null)
-    )
+    ) || []
 
     if (currentBBoxIndex >= allBBoxes.length) return
 
@@ -248,17 +248,17 @@ export default function OverlapMarkingPage() {
     )
   }
 
-  const allBBoxes = images.flatMap(img => 
+  const allBBoxes = images?.flatMap(img => 
     img.annotations
       .filter(a => a.dish_index !== null)
       .map(a => ({ ...a, imageType: img.photo_type }))
-  )
+  ) || []
   
   const currentBBox = allBBoxes[currentBBoxIndex]
   const progress = allBBoxes.length > 0 ? ((currentBBoxIndex + 1) / allBBoxes.length) * 100 : 0
 
   // Находим изображение для текущего bbox
-  const currentImage = currentBBox ? images.find(img => 
+  const currentImage = currentBBox ? images?.find(img => 
     img.annotations.some(a => a.id === currentBBox.id)
   ) : null
 

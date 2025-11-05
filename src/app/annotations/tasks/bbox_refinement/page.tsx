@@ -159,7 +159,7 @@ export default function BBoxRefinementPage() {
   }
 
   const selectNextBbox = useCallback(() => {
-    const currentImage = images.find(i => i.photo_type === activeImage)
+    const currentImage = images?.find(i => i.photo_type === activeImage)
     if (!currentImage) return
     
     const currentIndex = selectedAnnotation 
@@ -171,7 +171,7 @@ export default function BBoxRefinementPage() {
   }, [images, activeImage, selectedAnnotation])
 
   const selectNextBboxForDish = useCallback((dishIndex: number) => {
-    const currentImage = images.find(i => i.photo_type === activeImage)
+    const currentImage = images?.find(i => i.photo_type === activeImage)
     if (!currentImage) return
     
     const dishAnnotations = currentImage.annotations
@@ -294,7 +294,7 @@ export default function BBoxRefinementPage() {
     )
   }
 
-  const currentImage = images.find(img => img.photo_type === activeImage)
+  const currentImage = images?.find(img => img.photo_type === activeImage)
   const getDishColor = (index: number) => DISH_COLORS[index % DISH_COLORS.length]
 
   return (

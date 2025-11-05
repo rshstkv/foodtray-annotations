@@ -134,9 +134,9 @@ export default function BottleOrientationPage() {
     if (!taskData || processing) return
 
     // Находим все бутылки
-    const allBottles = images.flatMap(img => 
+    const allBottles = images?.flatMap(img => 
       img.annotations.filter(a => a.object_subtype === 'bottle' || a.object_type === 'bottle')
-    )
+    ) || []
 
     if (currentBottleIndex >= allBottles.length) return
 
@@ -248,17 +248,17 @@ export default function BottleOrientationPage() {
     )
   }
 
-  const allBottles = images.flatMap(img => 
+  const allBottles = images?.flatMap(img => 
     img.annotations
       .filter(a => a.object_subtype === 'bottle' || a.object_type === 'bottle')
       .map(a => ({ ...a, imageType: img.photo_type }))
-  )
+  ) || []
   
   const currentBottle = allBottles[currentBottleIndex]
   const progress = allBottles.length > 0 ? ((currentBottleIndex + 1) / allBottles.length) * 100 : 0
 
   // Находим изображение для текущей бутылки
-  const currentImage = currentBottle ? images.find(img => 
+  const currentImage = currentBottle ? images?.find(img => 
     img.annotations.some(a => a.id === currentBottle.id)
   ) : null
 

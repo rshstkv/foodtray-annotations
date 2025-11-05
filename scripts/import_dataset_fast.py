@@ -184,11 +184,15 @@ def prepare_recognition_data(recognition_dir: Path, qwen_data: Dict) -> Optional
     }
 
 
-def upload_file_to_storage(supabase: Client, local_path: Path, storage_path: str) -> Tuple[bool, str]:
-    """Загружает один файл в Storage."""
+def upload_file_to_storage(supabase_url: str, supabase_key: str, local_path: Path, storage_path: str) -> Tuple[bool, str]:
+    """Загружает один файл в Storage. Создает свой клиент для thread-safety."""
     try:
+        # Создаем новый клиент для каждого потока
+        from supabase import create_client
+        client = create_client(supabase_url, supabase_key)
+        
         with open(local_path, 'rb') as f:
-            supabase.storage().from_('bbox-images').upload(
+            client.storage().from_('bbox-images').upload(
                 storage_path,
                 f.read(),
                 {'content-type': 'image/jpeg'}
@@ -1255,9 +1259,14 @@ def main():
         for data in all_data:
             for img_data in data['images']:
                 upload_tasks.append((img_data['local_path'], img_data['storage_path']))
+        
+        # Получаем URL и key для передачи в потоки
+        supabase_url = os.getenv('SUPABASE_URL') or os.getenv('NEXT_PUBLIC_SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_ANON_KEY') or os.getenv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
+        
         with ThreadPoolExecutor(max_workers=args.workers) as executor:
             futures = {
-                executor.submit(upload_file_to_storage, supabase, local_path, storage_path): (local_path, storage_path)
+                executor.submit(upload_file_to_storage, supabase_url, supabase_key, local_path, storage_path): (local_path, storage_path)
                 for local_path, storage_path in upload_tasks
             }
             with tqdm(total=len(upload_tasks), desc="Uploading files") as pbar:

@@ -277,7 +277,7 @@ export default function NonFoodObjectsPage() {
     )
   }
 
-  const currentImage = images.find(img => img.photo_type === activeImage)
+  const currentImage = images?.find(img => img.photo_type === activeImage)
   const nonFoodCount = currentImage?.annotations.filter(a => a.object_type === 'non_food').length || 0
 
   return (

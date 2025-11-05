@@ -268,7 +268,7 @@ export default function CountValidationPage() {
 
   const handleAnnotationDelete = async (annotationId?: number) => {
     const annToDelete = annotationId !== undefined 
-      ? images.flatMap(img => img.annotations).find(a => a.id === annotationId)
+      ? images?.flatMap(img => img.annotations).find(a => a.id === annotationId)
       : selectedAnnotation
 
     if (!annToDelete || annToDelete.id === -1) return
@@ -411,22 +411,22 @@ export default function CountValidationPage() {
     )
   }
 
-  const mainImage = images.find(img => img.photo_type === 'Main')
-  const qualifyingImage = images.find(img => img.photo_type === 'Qualifying')
+  const mainImage = images?.find(img => img.photo_type === 'Main')
+  const qualifyingImage = images?.find(img => img.photo_type === 'Qualifying')
   
   const mainCount = mainImage?.annotations.filter(a => a.dish_index !== null).length || 0
   const qualifyingCount = qualifyingImage?.annotations.filter(a => a.dish_index !== null).length || 0
-  const expectedCount = taskData.recognition.correct_dishes.reduce((sum, dish) => sum + dish.Count, 0)
+  const expectedCount = taskData?.recognition.correct_dishes.reduce((sum, dish) => sum + dish.Count, 0) || 0
 
   const getDishColor = (index: number) => DISH_COLORS[index % DISH_COLORS.length]
 
   const getDishAnnotationCount = (dishIndex: number, photoType: string) => {
-    const img = images.find(i => i.photo_type === photoType)
+    const img = images?.find(i => i.photo_type === photoType)
     if (!img) return 0
     return img.annotations.filter(a => a.dish_index === dishIndex).length
   }
 
-  const currentImage = images.find(img => img.photo_type === activeImage)
+  const currentImage = images?.find(img => img.photo_type === activeImage)
 
   return (
     <div className="min-h-screen bg-gray-50">
