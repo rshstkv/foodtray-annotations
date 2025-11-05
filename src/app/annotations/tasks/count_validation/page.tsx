@@ -416,7 +416,7 @@ export default function CountValidationPage() {
   
   const mainCount = mainImage?.annotations.filter(a => a.dish_index !== null).length || 0
   const qualifyingCount = qualifyingImage?.annotations.filter(a => a.dish_index !== null).length || 0
-  const expectedCount = taskData?.recognition.correct_dishes.reduce((sum, dish) => sum + dish.Count, 0) || 0
+  const expectedCount = taskData?.recognition?.correct_dishes?.reduce((sum, dish) => sum + dish.Count, 0) || 0
 
   const getDishColor = (index: number) => DISH_COLORS[index % DISH_COLORS.length]
 
@@ -497,7 +497,7 @@ export default function CountValidationPage() {
             <Card className="p-4 h-[calc(100vh-220px)] overflow-y-auto">
               <h3 className="font-semibold mb-3 text-sm text-gray-700">Блюда из чека</h3>
               <div className="space-y-2">
-                {taskData.recognition.correct_dishes.map((dish, index) => {
+                {taskData?.recognition?.correct_dishes?.map((dish, index) => {
                   const count = dish.Count || 1
                   const mainBboxCount = getDishAnnotationCount(index, 'Main')
                   const qualBboxCount = getDishAnnotationCount(index, 'Qualifying')
@@ -630,7 +630,7 @@ export default function CountValidationPage() {
           <Card className="p-6 max-w-md">
             <h3 className="text-lg font-semibold mb-4">Выберите блюдо:</h3>
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {taskData.recognition.correct_dishes.map((dish, index) => (
+              {taskData?.recognition?.correct_dishes?.map((dish, index) => (
                 <button
                   key={index}
                   className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors flex items-center gap-3 text-sm rounded border"
