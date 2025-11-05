@@ -456,12 +456,18 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
       })
 
       if (!response.ok) {
-        throw new Error('Failed to restore annotation')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to restore annotation')
       }
 
       await fetchRecognition()
+      // Сбрасываем выделение если была восстановлена текущая аннотация
+      if (selectedAnnotation?.id === annotationId) {
+        setSelectedAnnotation(null)
+      }
     } catch (error) {
       console.error('Error restoring annotation:', error)
+      alert(`Ошибка при восстановлении: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -484,11 +490,18 @@ export default function AnnotationEditorPage({ params }: { params: Promise<{ id:
       })
 
       if (!response.ok) {
-        throw new Error('Failed to restore recognition')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to restore recognition')
       }
 
-      await fetchRecognition()
+      // Полностью сбрасываем состояние
       setSelectedAnnotation(null)
+      setShowOnlySelected(false)
+      setDrawingMode(false)
+      setChangingDishFor(null)
+      
+      // Перезагружаем данные
+      await fetchRecognition()
     } catch (error) {
       console.error('Error restoring recognition:', error)
       alert('Ошибка при восстановлении recognition')

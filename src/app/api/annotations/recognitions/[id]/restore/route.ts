@@ -131,11 +131,12 @@ export async function POST(
       }
     }
 
-    // 4. Сбрасываем has_modifications и статус
+    // 4. Сбрасываем has_modifications, is_mistake и статус
     const { error: updateError } = await supabase
       .from('recognitions')
       .update({ 
         has_modifications: false,
+        is_mistake: false,
         status: 'not_started'
       })
       .eq('recognition_id', recognitionId)

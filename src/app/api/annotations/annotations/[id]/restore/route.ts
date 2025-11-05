@@ -108,8 +108,8 @@ export async function POST(
           Math.pow(currentCenterY - detectionCenterY, 2)
         )
 
-        // Увеличен допуск до 500 пикселей для надёжности
-        if (distance < bestMatchScore && distance < 500) {
+        // Увеличен допуск до 2000 пикселей для надёжности после resize
+        if (distance < bestMatchScore && distance < 2000) {
           let detectionDishIndex = null
           if (typeof detection.dish_index === 'number') {
             detectionDishIndex = detection.dish_index
@@ -142,8 +142,17 @@ export async function POST(
       originalData = bestMatch
     }
 
-    // Если оригинал не найден - это вручную созданная аннотация, удаляем её
+    // Если оригинал не найден
     if (!originalData) {
+      // Если это QWEN аннотация - значит что-то пошло не так, НЕ удаляем
+      if (currentAnnotation.source === 'qwen_auto') {
+        console.error('Could not find original for QWEN annotation:', annotationId, currentAnnotation)
+        return NextResponse.json({ 
+          error: 'Could not find original QWEN detection. This annotation was too heavily modified or corrupted.' 
+        }, { status: 400 })
+      }
+
+      // Это вручную созданная аннотация - удаляем её
       const { error: deleteError } = await supabase
         .from('annotations')
         .delete()
