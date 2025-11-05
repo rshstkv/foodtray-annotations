@@ -74,6 +74,13 @@ export async function PUT(
 
     const { status, is_mistake, annotator_notes, correct_dishes, has_modifications } = body
 
+    // Получаем текущее состояние ПЕРЕД обновлением для логирования
+    const { data: currentRecognition } = await supabase
+      .from('recognitions')
+      .select('*')
+      .eq('recognition_id', recognitionId)
+      .single()
+
     const updates: Record<string, unknown> = {}
     if (status !== undefined) updates.status = status
     if (is_mistake !== undefined) updates.is_mistake = is_mistake
@@ -94,6 +101,51 @@ export async function PUT(
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Логируем изменение в history если изменились важные поля
+    const shouldLog = correct_dishes !== undefined || status === 'completed' || is_mistake !== undefined
+    
+    if (shouldLog && currentRecognition) {
+      // Получаем аннотации для полного snapshot
+      const { data: images } = await supabase
+        .from('recognition_images')
+        .select('id')
+        .eq('recognition_id', recognitionId)
+
+      const imageIds = (images || []).map((img: { id: number }) => img.id)
+      
+      const { data: annotations } = await supabase
+        .from('annotations')
+        .select('*')
+        .in('image_id', imageIds)
+
+      // Создаем snapshot
+      await supabase
+        .from('recognition_history')
+        .insert({
+          recognition_id: recognitionId,
+          stage_id: data.current_stage_id || null,
+          snapshot_type: 'manual_save',
+          data_snapshot: {
+            recognition_id: recognitionId,
+            correct_dishes: data.correct_dishes,
+            annotations: annotations || [],
+            status: data.status,
+            is_mistake: data.is_mistake,
+            has_modifications: data.has_modifications,
+            tier: data.tier
+          },
+          changes_summary: {
+            changed_fields: Object.keys(updates),
+            previous_values: {
+              correct_dishes: currentRecognition.correct_dishes,
+              status: currentRecognition.status,
+              is_mistake: currentRecognition.is_mistake
+            },
+            updated_at: new Date().toISOString()
+          }
+        })
     }
 
     return NextResponse.json({ data })
