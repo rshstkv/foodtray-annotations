@@ -28,12 +28,15 @@ export async function POST(
       )
     }
 
-    // Сбрасываем assigned_to и started_at
+    // Сбрасываем assigned_to, но устанавливаем started_at на "13 минут назад"
+    // чтобы задача стала доступной через ~2 минуты (согласно логике в /next: started_at < NOW() - 15 minutes)
+    const thirteenMinutesAgo = new Date(Date.now() - 13 * 60 * 1000).toISOString()
+    
     const { error: updateError } = await supabase
       .from('recognitions')
       .update({
         assigned_to: null,
-        started_at: null,
+        started_at: thirteenMinutesAgo,
         workflow_state: 'pending' // Явно возвращаем в pending
       })
       .eq('recognition_id', recognitionId)

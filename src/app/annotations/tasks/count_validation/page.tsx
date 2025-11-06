@@ -545,15 +545,18 @@ export default function CountValidationPage() {
                       variant={activeImage === 'Main' ? 'default' : 'outline'}
                       onClick={() => setActiveImage('Main')}
                     >
-                      Активно
+                      {activeImage === 'Main' ? 'Рисование' : 'Просмотр'}
                     </Button>
                   </div>
                 </div>
-                <div className="h-[calc(100vh-320px)] rounded border relative bg-gray-100">
+                <div 
+                  className="h-[calc(100vh-320px)] rounded border relative bg-gray-100 cursor-pointer"
+                  onClick={() => setActiveImage('Main')}
+                >
                   {mainImage && (
                     <BBoxAnnotator
                       imageUrl={`/api/bbox-images/${mainImage.storage_path}`}
-                      annotations={activeImage === 'Main' ? mainImage.annotations : []}
+                      annotations={mainImage.annotations}
                       originalAnnotations={mainImage.original_annotations}
                       imageId={mainImage.id}
                       dishNames={{}}
@@ -567,11 +570,6 @@ export default function CountValidationPage() {
                       referenceHeight={1080}
                       onDelete={() => handleAnnotationDelete()}
                     />
-                  )}
-                  {activeImage !== 'Main' && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 text-white">
-                      Неактивно (Tab для переключения)
-                    </div>
                   )}
                 </div>
               </Card>
@@ -589,15 +587,18 @@ export default function CountValidationPage() {
                       variant={activeImage === 'Qualifying' ? 'default' : 'outline'}
                       onClick={() => setActiveImage('Qualifying')}
                     >
-                      Активно
+                      {activeImage === 'Qualifying' ? 'Рисование' : 'Просмотр'}
                     </Button>
                   </div>
                 </div>
-                <div className="h-[calc(100vh-320px)] rounded border relative bg-gray-100">
+                <div 
+                  className="h-[calc(100vh-320px)] rounded border relative bg-gray-100 cursor-pointer"
+                  onClick={() => setActiveImage('Qualifying')}
+                >
                   {qualifyingImage && (
                     <BBoxAnnotator
                       imageUrl={`/api/bbox-images/${qualifyingImage.storage_path}`}
-                      annotations={activeImage === 'Qualifying' ? qualifyingImage.annotations : []}
+                      annotations={qualifyingImage.annotations}
                       originalAnnotations={qualifyingImage.original_annotations}
                       imageId={qualifyingImage.id}
                       dishNames={{}}
@@ -611,11 +612,6 @@ export default function CountValidationPage() {
                       referenceHeight={1080}
                       onDelete={() => handleAnnotationDelete()}
                     />
-                  )}
-                  {activeImage !== 'Qualifying' && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 text-white">
-                      Неактивно (Tab для переключения)
-                    </div>
                   )}
                 </div>
               </Card>
