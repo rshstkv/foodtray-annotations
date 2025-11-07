@@ -71,12 +71,30 @@ export default function BottleOrientationPage() {
   const [loading, setLoading] = useState(true)
   const [currentBottleIndex, setCurrentBottleIndex] = useState(0)
   const [processing, setProcessing] = useState(false)
+  const [bottleEans, setBottleEans] = useState<Set<string>>(new Set())
 
   const currentBottleIndexRef = useRef(currentBottleIndex)
 
   useEffect(() => {
     currentBottleIndexRef.current = currentBottleIndex
   }, [currentBottleIndex])
+
+  // Загружаем список EAN для бутылок при монтировании
+  useEffect(() => {
+    const fetchBottleEans = async () => {
+      try {
+        const res = await fetch('/api/annotations/dish-eans?requires_bottle_orientation=true')
+        if (res.ok) {
+          const data = await res.json()
+          setBottleEans(new Set(data.map((item: { ean: string }) => item.ean)))
+        }
+      } catch (error) {
+        console.error('Error fetching bottle EANs:', error)
+        // Fallback to keywords if API fails
+      }
+    }
+    fetchBottleEans()
+  }, [])
 
   useEffect(() => {
     fetchNextTask()
@@ -120,23 +138,66 @@ export default function BottleOrientationPage() {
       }
 
       const data = await response.json()
+      
+      // Фильтруем annotations - оставляем только те где EAN блюда требует проверки ориентации
+      const bottleKeywords = ['бутылка', 'bottle', 'банка', 'can', 'пиво', 'beer', 'вино', 'wine'] // fallback
+      
+      const filteredImages = data.images.map((img: Image) => ({
+        ...img,
+        annotations: img.annotations.filter((ann: Annotation) => {
+          // Проверяем по dish_index
+          if (ann.dish_index !== null && data.recognition.correct_dishes[ann.dish_index]) {
+            const dish = data.recognition.correct_dishes[ann.dish_index].Dishes[0]
+            
+            // Если есть EAN и он в списке бутылок - используем EAN фильтр
+            if (dish?.ean && bottleEans.size > 0) {
+              return bottleEans.has(dish.ean)
+            }
+            
+            // Fallback: Проверяем по имени (если EAN нет или не загружен)
+            const dishName = dish?.Name?.toLowerCase() || ''
+            return bottleKeywords.some(keyword => dishName.includes(keyword))
+          }
+          return false
+        })
+      }))
+      
       setTaskData(data)
-      setImages(data.images)
+      setImages(filteredImages)
       setCurrentBottleIndex(0)
+      
+      // Auto-skip если нет подходящих bbox
+      const totalBottles = filteredImages.reduce((sum: number, img: Image) => 
+        sum + img.annotations.length, 0
+      )
+      if (totalBottles === 0) {
+        console.log('No bottles found, auto-skipping...')
+        await handleSkipDirect(data.recognition.recognition_id)
+      }
     } catch (error) {
       console.error('Error fetching task:', error)
     } finally {
       setLoading(false)
     }
   }
+  
+  const handleSkipDirect = async (recognitionId: string) => {
+    try {
+      await fetch(`/api/annotations/tasks/${recognitionId}/skip`, {
+        method: 'POST'
+      })
+      // Fetch next task
+      await fetchNextTask()
+    } catch (error) {
+      console.error('Error skipping:', error)
+    }
+  }
 
   const handleSetOrientation = async (isBottleUp: boolean | null) => {
     if (!taskData || processing) return
 
-    // Находим все бутылки
-    const allBottles = images?.flatMap(img => 
-      img.annotations.filter(a => a.object_subtype === 'bottle' || a.object_type === 'bottle')
-    ) || []
+    // Используем отфильтрованные annotations (уже содержат только бутылки)
+    const allBottles = images?.flatMap(img => img.annotations) || []
 
     if (currentBottleIndex >= allBottles.length) return
 
@@ -248,10 +309,9 @@ export default function BottleOrientationPage() {
     )
   }
 
+  // Используем отфильтрованные annotations (уже содержат только бутылки)
   const allBottles = images?.flatMap(img => 
-    img.annotations
-      .filter(a => a.object_subtype === 'bottle' || a.object_type === 'bottle')
-      .map(a => ({ ...a, imageType: img.photo_type }))
+    img.annotations.map(a => ({ ...a, imageType: img.photo_type }))
   ) || []
   
   const currentBottle = allBottles[currentBottleIndex]

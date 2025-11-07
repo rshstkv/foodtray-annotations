@@ -2,91 +2,34 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-
-interface TaskType {
-  id: number
-  code: string
-  name: string
-  description: string
-  ui_config: {
-    layout: string
-    focus_mode: string
-  }
-  is_active: boolean
-}
-
-interface TaskStats {
-  task_type_code: string
-  tier: number
-  count: number
-}
+import type { TaskStats } from '@/types/annotations'
 
 export default function TasksListPage() {
   const router = useRouter()
-  const [taskTypes, setTaskTypes] = useState<TaskType[]>([])
-  const [stats, setStats] = useState<Record<string, Record<number, number>>>({})
+  const [stats, setStats] = useState<TaskStats | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchData()
+    fetchStats()
   }, [])
 
-  const fetchData = async () => {
+  const fetchStats = async () => {
     try {
       setLoading(true)
-
-      // Получаем task types
-      const tasksRes = await fetch('/api/annotations/task-types')
-      if (tasksRes.ok) {
-        const tasksData = await tasksRes.json()
-        setTaskTypes(tasksData.data || [])
-      }
-
-      // Получаем статистику по задачам
-      const statsRes = await fetch('/api/annotations/task-stats')
-      if (statsRes.ok) {
-        const statsData = await statsRes.json()
-        // Преобразуем массив в объект { task_code: { tier: count } }
-        const statsMap: Record<string, Record<number, number>> = {}
-        statsData.data.forEach((stat: TaskStats) => {
-          if (!statsMap[stat.task_type_code]) {
-            statsMap[stat.task_type_code] = {}
-          }
-          statsMap[stat.task_type_code][stat.tier] = stat.count
-        })
-        setStats(statsMap)
+      const res = await fetch('/api/annotations/tasks/stats')
+      if (res.ok) {
+        const data = await res.json()
+        setStats(data)
       }
     } catch (error) {
-      console.error('Error fetching data:', error)
+      console.error('Error fetching stats:', error)
     } finally {
       setLoading(false)
     }
-  }
-
-  const getTotalCount = (taskCode: string): number => {
-    const taskStats = stats[taskCode] || {}
-    return Object.values(taskStats).reduce((sum, count) => sum + count, 0)
-  }
-
-  const getTierColor = (tier: number): string => {
-    switch (tier) {
-      case 1: return 'bg-green-500'
-      case 2: return 'bg-blue-500'
-      case 3: return 'bg-yellow-500'
-      case 4: return 'bg-orange-500'
-      case 5: return 'bg-red-500'
-      default: return 'bg-gray-500'
-    }
-  }
-
-  const handleStartTask = (taskCode: string, tier?: number) => {
-    const url = tier 
-      ? `/annotations/tasks/${taskCode}?tier=${tier}`
-      : `/annotations/tasks/${taskCode}`
-    router.push(url)
   }
 
   if (loading) {
@@ -106,7 +49,7 @@ export default function TasksListPage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Задачи для аннотаторов</h1>
               <p className="text-gray-600 mt-2">
-                Выберите тип задачи и уровень сложности
+                Выберите тип задачи для работы
               </p>
             </div>
             <Button variant="outline" onClick={() => router.push('/annotations')}>
@@ -115,105 +58,287 @@ export default function TasksListPage() {
           </div>
         </div>
 
-        {/* Task Types */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {taskTypes.map((taskType) => {
-            const totalCount = getTotalCount(taskType.code)
-            const taskStats = stats[taskType.code] || {}
-
-            return (
-              <Card key={taskType.id} className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-1">
-                      {taskType.name}
-                    </h2>
-                    <p className="text-sm text-gray-600 mb-3">{taskType.description}</p>
-                    
-                    {/* Badges */}
-                    <div className="flex gap-2 mb-4">
-                      <Badge variant="outline" className="text-xs">
-                        {taskType.ui_config.layout === 'dual-image' ? '2 фото' : '1 фото'}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {taskType.ui_config.focus_mode}
-                      </Badge>
-                    </div>
+        {/* Main Task Groups */}
+        <div className="space-y-6 mb-8">
+          {/* 1. Быстрая проверка блюд */}
+          <Card className="p-6 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                    <span className="text-2xl">✓</span>
                   </div>
-
-                  {/* Total count */}
-                  <div className="text-right">
-                    <div className="text-3xl font-bold text-blue-600">{totalCount}</div>
-                    <div className="text-xs text-gray-500">доступно</div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Быстрая проверка блюд
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      Задачи, где количество совпадает — нужна только проверка соответствия
+                    </p>
                   </div>
                 </div>
-
-                {/* Tier breakdown */}
-                {totalCount > 0 && (
-                  <div className="space-y-2 mb-4">
-                    <div className="text-sm font-medium text-gray-700 mb-2">По уровням:</div>
-                    {[1, 2, 3, 4, 5].map((tier) => {
-                      const count = taskStats[tier] || 0
-                      if (count === 0) return null
-                      
-                      return (
-                        <div key={tier} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ${getTierColor(tier)}`} />
-                            <span className="text-sm text-gray-700">Tier {tier}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{count}</span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleStartTask(taskType.code, tier)}
-                            >
-                              Начать
-                            </Button>
-                          </div>
-                        </div>
-                      )
-                    })}
+                <div className="ml-13 mt-3 space-y-1">
+                  <div className="text-xs text-gray-500">
+                    • Количество bbox уже совпадает на обеих картинках
                   </div>
-                )}
-
-                {/* Main action button */}
-                <Button
-                  className="w-full"
-                  disabled={totalCount === 0}
-                  onClick={() => handleStartTask(taskType.code)}
-                >
-                  {totalCount > 0 ? 'Начать работу' : 'Нет доступных задач'}
-                </Button>
-              </Card>
-            )
-          })}
-        </div>
-
-        {/* Legend */}
-        <Card className="mt-8 p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Уровни сложности:</h3>
-          <div className="grid grid-cols-5 gap-4">
-            {[
-              { tier: 1, label: 'Очень легко', desc: 'Все совпадает' },
-              { tier: 2, label: 'Легко', desc: 'Есть выбор блюд' },
-              { tier: 3, label: 'Средне', desc: 'Разница в bbox' },
-              { tier: 4, label: 'Сложно', desc: 'Комбинация факторов' },
-              { tier: 5, label: 'Очень сложно', desc: 'Требует внимания' },
-            ].map(({ tier, label, desc }) => (
-              <div key={tier} className="flex items-start gap-2">
-                <div className={`w-4 h-4 rounded-full ${getTierColor(tier)} mt-0.5 flex-shrink-0`} />
-                <div>
-                  <div className="text-xs font-medium text-gray-900">{label}</div>
-                  <div className="text-xs text-gray-500">{desc}</div>
+                  <div className="text-xs text-gray-500">
+                    • Можно быстро подвигать границы если нужно
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    • Просто проверить что блюда правильно определены
+                  </div>
                 </div>
               </div>
-            ))}
+              <div className="text-right">
+                <div className="text-4xl font-bold text-green-600">
+                  {stats?.quick_validation || 0}
+                </div>
+                <div className="text-xs text-gray-500 mb-3">задач</div>
+                <Link href="/annotations/tasks/dish_validation?mode=quick">
+                  <Button 
+                    size="lg"
+                    className="bg-green-600 hover:bg-green-700"
+                    disabled={!stats?.quick_validation || stats.quick_validation === 0}
+                  >
+                    Начать проверку →
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </Card>
+
+          {/* 2. Уточнение количества */}
+          <Card className="p-6 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <span className="text-2xl">✏️</span>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Уточнение количества
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      Задачи, требующие добавления или удаления bounding boxes
+                    </p>
+                  </div>
+                </div>
+                <div className="ml-13 mt-3 space-y-1">
+                  <div className="text-xs text-gray-500">
+                    • Количество не совпадает между картинками
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    • Нужно нарисовать недостающие bbox или удалить лишние
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    • После выравнивания можно сразу завершить
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-4xl font-bold text-blue-600">
+                  {stats?.edit_mode || 0}
+                </div>
+                <div className="text-xs text-gray-500 mb-3">задач</div>
+                <Link href="/annotations/tasks/dish_validation?mode=edit">
+                  <Button 
+                    size="lg"
+                    className="bg-blue-600 hover:bg-blue-700"
+                    disabled={!stats?.edit_mode || stats.edit_mode === 0}
+                  >
+                    Начать редактирование →
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </Card>
+
+          {/* 3. Требуют исправления */}
+          <Card className="p-6 hover:shadow-lg transition-shadow border-red-200">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+                    <span className="text-2xl">⚠️</span>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Требуют исправления
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      Задачи с ошибками bbox, требующие повторной проверки
+                    </p>
+                  </div>
+                </div>
+                <div className="ml-13 mt-3 space-y-1">
+                  <div className="text-xs text-gray-500">
+                    • Bbox перепутаны или неверно привязаны к блюдам
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    • Отмечены аннотаторами как требующие исправления
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-4xl font-bold text-red-600">
+                  {stats?.requires_correction || 0}
+                </div>
+                <div className="text-xs text-gray-500 mb-3">задач</div>
+                <Link href="/annotations/tasks/dish_validation?queue=requires_correction">
+                  <Button 
+                    size="lg"
+                    variant="destructive"
+                    disabled={!stats?.requires_correction || stats.requires_correction === 0}
+                  >
+                    Исправить →
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Специальные задачи */}
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Специальные задачи</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Ориентация бутылок */}
+            <Card className="p-4 hover:shadow-md transition-shadow">
+              <div className="flex flex-col h-full">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">🍾</span>
+                  <h3 className="text-md font-semibold">Ориентация бутылок</h3>
+                </div>
+                <p className="text-xs text-gray-600 mb-3 flex-1">
+                  Определение вертикальной/горизонтальной ориентации напитков
+                </p>
+                <div className="flex items-center justify-between">
+                  <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100">
+                    {stats?.bottle_orientation || 0} задач
+                  </Badge>
+                  <Link href="/annotations/tasks/bottle_orientation">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      disabled={!stats?.bottle_orientation || stats.bottle_orientation === 0}
+                    >
+                      Начать →
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </Card>
+
+            {/* Разметка баззеров */}
+            <Card className="p-4 hover:shadow-md transition-shadow">
+              <div className="flex flex-col h-full">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">🔔</span>
+                  <h3 className="text-md font-semibold">Разметка баззеров</h3>
+                </div>
+                <p className="text-xs text-gray-600 mb-3 flex-1">
+                  Рисование bounding boxes для баззеров и выбор их цвета
+                </p>
+                <div className="flex items-center justify-between">
+                  <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                    {stats?.buzzer_annotation || 0} задач
+                  </Badge>
+                  <Link href="/annotations/tasks/buzzer_annotation">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      disabled={!stats?.buzzer_annotation || stats.buzzer_annotation === 0}
+                    >
+                      Начать →
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </Card>
+
+            {/* Другие объекты */}
+            <Card className="p-4 hover:shadow-md transition-shadow">
+              <div className="flex flex-col h-full">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">📦</span>
+                  <h3 className="text-md font-semibold">Другие объекты</h3>
+                </div>
+                <p className="text-xs text-gray-600 mb-3 flex-1">
+                  Разметка не-еды (руки, телефоны, кошельки)
+                </p>
+                <div className="flex items-center justify-between">
+                  <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">
+                    {stats?.non_food_objects || 0} задач
+                  </Badge>
+                  <Link href="/annotations/tasks/non_food_objects">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      disabled={!stats?.non_food_objects || stats.non_food_objects === 0}
+                    >
+                      Начать →
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* Экспорт датасета */}
+        <Card className="p-6 bg-gradient-to-r from-indigo-50 to-blue-50 border-indigo-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <span className="text-2xl">📊</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Экспорт датасета</h3>
+                <p className="text-sm text-gray-600">
+                  Скачать CSV с результатами аннотаций для Data Science
+                </p>
+              </div>
+            </div>
+            <Link href="/annotations/export">
+              <Button size="lg" className="bg-indigo-600 hover:bg-indigo-700">
+                Перейти к экспорту →
+              </Button>
+            </Link>
+          </div>
+        </Card>
+
+        {/* Статистика */}
+        <Card className="mt-8 p-6">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Общая статистика</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900">
+                {(stats?.quick_validation || 0) + (stats?.edit_mode || 0)}
+              </div>
+              <div className="text-xs text-gray-500">В очереди</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">
+                {stats?.requires_correction || 0}
+              </div>
+              <div className="text-xs text-gray-500">На исправлении</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">
+                {(stats?.bottle_orientation || 0) + (stats?.buzzer_annotation || 0) + (stats?.non_food_objects || 0)}
+              </div>
+              <div className="text-xs text-gray-500">Спец. задачи</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {stats?.completed || 0}
+              </div>
+              <div className="text-xs text-gray-500">Завершено</div>
+            </div>
           </div>
         </Card>
       </div>
     </div>
   )
 }
-

@@ -18,3 +18,5 @@ DROP TABLE IF EXISTS recognitions_raw CASCADE;
 COMMIT;
 
 
+
+

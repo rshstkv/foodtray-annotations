@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { evaluateSkipCondition } from '@/lib/api/skipCondition'
 
 /**
  * GET /api/annotations/tasks/next
  * 
  * Получить следующую задачу для работы
  * Query params:
- *   - task_type: код типа задачи (count_validation, dish_selection, etc)
+ *   - task_type: код типа задачи (dish_validation, etc)
  *   - tier: уровень сложности (1-5), опционально
+ *   - queue: тип очереди ('pending' | 'requires_correction'), default: 'pending'
  * 
  * Возвращает следующий доступный recognition с:
  * - recognition данными
@@ -16,10 +18,14 @@ import { supabase } from '@/lib/supabase'
  * - task_type конфигурацией
  */
 export async function GET(request: NextRequest) {
+  const startTime = Date.now()
   try {
     const searchParams = request.nextUrl.searchParams
     const taskTypeCode = searchParams.get('task_type')
     const tierParam = searchParams.get('tier')
+    const minTierParam = searchParams.get('min_tier') // Минимальный tier (для Edit Mode)
+    const maxTierParam = searchParams.get('max_tier') // Максимальный tier (для Quick Mode)
+    const queueType = searchParams.get('queue') || 'pending' // 'pending' | 'requires_correction'
     
     if (!taskTypeCode) {
       return NextResponse.json(
@@ -27,6 +33,8 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    console.log(`[TIMING] Request started for ${taskTypeCode}, tier=${tierParam}, min_tier=${minTierParam}, max_tier=${maxTierParam}`)
 
     // Получаем task_type и соответствующий stage
     const { data: taskType, error: taskTypeError } = await supabase
@@ -59,13 +67,15 @@ export async function GET(request: NextRequest) {
 
     // Строим запрос для поиска recognition
     // Ищем задачи которые:
-    // 1. В состоянии 'pending'
+    // 1. В нужной очереди (workflow_state = queueType)
     // 2. Либо не назначены (assigned_to IS NULL)
     // 3. Либо назначены давно (started_at старше 15 минут) - автоосвобождение
+    const workflowState = queueType === 'requires_correction' ? 'requires_correction' : 'pending'
+    
     let query = supabase
       .from('recognitions')
       .select('*')
-      .eq('workflow_state', 'pending')
+      .eq('workflow_state', workflowState)
       .eq('current_stage_id', stage.id)
       .or('assigned_to.is.null,started_at.lt.' + new Date(Date.now() - 15 * 60 * 1000).toISOString())
 
@@ -74,6 +84,20 @@ export async function GET(request: NextRequest) {
       const tier = parseInt(tierParam)
       if (tier >= 1 && tier <= 5) {
         query = query.eq('tier', tier)
+      }
+    } else {
+      // Фильтры по диапазону tier
+      if (minTierParam) {
+        const minTier = parseInt(minTierParam)
+        if (minTier >= 1 && minTier <= 5) {
+          query = query.gte('tier', minTier)
+        }
+      }
+      if (maxTierParam) {
+        const maxTier = parseInt(maxTierParam)
+        if (maxTier >= 1 && maxTier <= 5) {
+          query = query.lte('tier', maxTier)
+        }
       }
     }
 
@@ -106,10 +130,13 @@ export async function GET(request: NextRequest) {
 
     const recognition = recognitions[0]
 
-    // Получаем images с annotations
+    // ОПТИМИЗАЦИЯ: Получаем images с annotations одним запросом через JOIN
     const { data: images, error: imgError } = await supabase
       .from('recognition_images')
-      .select('*')
+      .select(`
+        *,
+        annotations (*)
+      `)
       .eq('recognition_id', recognition.recognition_id)
       .order('photo_type')
 
@@ -118,23 +145,55 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: imgError.message }, { status: 500 })
     }
 
-    // Получаем annotations для каждого изображения
-    const imagesWithAnnotations = await Promise.all(
-      (images || []).map(async (image) => {
-        const { data: annotations, error: annError } = await supabase
-          .from('annotations')
-          .select('*')
-          .eq('image_id', image.id)
-          .order('id')
+    // Преобразуем результат для совместимости
+    const imagesWithAnnotations = (images || []).map(image => ({
+      ...image,
+      annotations: image.annotations || []
+    }))
 
-        if (annError) {
-          console.error('Error fetching annotations:', annError)
-          return { ...image, annotations: [] }
+    // Проверяем skip_condition - если задача должна быть пропущена
+    if (stage.skip_condition && queueType === 'pending') {
+      const shouldSkip = evaluateSkipCondition(
+        recognition,
+        imagesWithAnnotations,
+        stage.skip_condition
+      )
+
+      if (shouldSkip) {
+        // Автоматически завершаем stage и ищем следующую задачу
+        console.log(`Skipping recognition ${recognition.recognition_id} due to skip_condition`)
+        
+        // Используем PostgreSQL function для завершения
+        const { error: completeError } = await supabase.rpc('complete_task', {
+          p_recognition_id: recognition.recognition_id,
+          p_stage_id: stage.id,
+          p_move_to_next: true,
+        })
+
+        if (completeError) {
+          console.error('Error completing skipped task:', completeError)
         }
 
-        return { ...image, annotations: annotations || [] }
-      })
-    )
+        // Рекурсивно ищем следующую задачу (с ограничением глубины)
+        const recursionDepth = parseInt(searchParams.get('_recursion') || '0')
+        if (recursionDepth < 10) {
+          // Перенаправляем на себя с увеличенным счетчиком
+          const newParams = new URLSearchParams(searchParams)
+          newParams.set('_recursion', String(recursionDepth + 1))
+          return GET(new NextRequest(new URL(`?${newParams}`, request.url)))
+        } else {
+          // Достигли лимита рекурсии
+          return NextResponse.json(
+            { 
+              message: 'No tasks available after skip evaluation',
+              task_type: taskType.code,
+              stage: stage.name
+            },
+            { status: 404 }
+          )
+        }
+      }
+    }
 
     // Обновляем started_at для предотвращения двойного назначения
     // Но НЕ меняем workflow_state - задача остается pending
@@ -150,6 +209,9 @@ export async function GET(request: NextRequest) {
       // Не прерываем выполнение, просто логируем
     }
 
+    const totalTime = Date.now() - startTime
+    console.log(`[TIMING] Total request time: ${totalTime}ms for recognition ${recognition.recognition_id}`)
+
     return NextResponse.json({
       recognition: recognition,
       images: imagesWithAnnotations,
@@ -159,7 +221,8 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Unexpected error in tasks/next:', error)
+    const totalTime = Date.now() - startTime
+    console.error(`[TIMING] Error after ${totalTime}ms:`, error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
