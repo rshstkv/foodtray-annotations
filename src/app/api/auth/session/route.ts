@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
-import { createClient as createServiceClient } from '@supabase/supabase-js'
 
 /**
  * GET /api/auth/session
@@ -23,19 +22,8 @@ export async function GET() {
       )
     }
 
-    // Используем service_role_key для получения профиля (обходим RLS)
-    const serviceClient = createServiceClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    )
-
-    const { data: profile, error: profileError } = await serviceClient
+    // Используем обычный клиент с RLS - пользователь может читать свой профиль
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role, is_active, email, full_name')
       .eq('id', user.id)

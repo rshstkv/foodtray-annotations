@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase-client'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -20,7 +20,8 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      // Логин через клиентский Supabase SDK (правильно устанавливает cookies)
+      const supabase = createClient()
+      
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -38,7 +39,7 @@ export default function LoginPage() {
         return
       }
 
-      // Успешный вход - редирект на главную страницу задач
+      // Успешный вход - используем router для плавного перехода
       router.push('/annotations/tasks')
       router.refresh()
     } catch (err) {
