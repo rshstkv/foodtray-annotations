@@ -114,22 +114,22 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // Для dish_validation используем старую логику
-      let query = supabase
-        .from('recognitions')
-        .select('*')
-        .eq('workflow_state', 'pending')
-        .eq('task_queue', taskQueue)
-        .eq('current_stage_id', stage.id)
+    let query = supabase
+      .from('recognitions')
+      .select('*')
+      .eq('workflow_state', 'pending')
+      .eq('task_queue', taskQueue)
+      .eq('current_stage_id', stage.id)
         .eq('assigned_to', user.id)
 
-      // КРИТИЧНО: Фильтр по validation_mode если mode указан
-      if (modeParam) {
-        query = query.eq('validation_mode', modeParam)
-      }
+    // КРИТИЧНО: Фильтр по validation_mode если mode указан
+    if (modeParam) {
+      query = query.eq('validation_mode', modeParam)
+    }
 
-      query = query
-        .order('recognition_date', { ascending: false })
-        .limit(1)
+    query = query
+      .order('recognition_date', { ascending: false })
+      .limit(1)
 
       const result = await query
       recognitions = result.data || []

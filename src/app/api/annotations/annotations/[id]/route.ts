@@ -82,18 +82,18 @@ export async function PUT(
       // Проверяем есть ли хоть одна аннотация с ошибкой
       const hasErrors = allAnnotations?.some(ann => ann.is_error) || false
 
-      // Обновляем recognition: статус "в работе", флаг модификаций и is_mistake
+      // Обновляем recognition: workflow_state "в работе", флаг модификаций и is_mistake
       const { data: recognition } = await supabase
         .from('recognitions')
-        .select('status')
+        .select('workflow_state')
         .eq('recognition_id', image.recognition_id)
         .single()
 
-      if (recognition && recognition.status !== 'completed') {
+      if (recognition && recognition.workflow_state !== 'completed') {
         await supabase
           .from('recognitions')
           .update({ 
-            status: 'in_progress',
+            workflow_state: 'in_progress',
             has_modifications: true,
             is_mistake: hasErrors
           })
@@ -168,18 +168,18 @@ export async function DELETE(
       // Проверяем есть ли хоть одна аннотация с ошибкой
       const hasErrors = allAnnotations?.some(ann => ann.is_error) || false
 
-      // Обновляем recognition: статус "в работе", флаг модификаций и is_mistake
+      // Обновляем recognition: workflow_state "в работе", флаг модификаций и is_mistake
       const { data: recognition } = await supabase
         .from('recognitions')
-        .select('status')
+        .select('workflow_state')
         .eq('recognition_id', image.recognition_id)
         .single()
 
-      if (recognition && recognition.status !== 'completed') {
+      if (recognition && recognition.workflow_state !== 'completed') {
         await supabase
           .from('recognitions')
           .update({ 
-            status: 'in_progress',
+            workflow_state: 'in_progress',
             has_modifications: true,
             is_mistake: hasErrors
           })

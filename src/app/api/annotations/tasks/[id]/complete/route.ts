@@ -110,32 +110,32 @@ export async function POST(
       })
     } else {
       // Для dish_validation обновляем recognition
-      const { error: updateError } = await supabase
-        .from('recognitions')
-        .update({
-          workflow_state: 'completed',
-          current_stage_id: null,
-          completed_at: new Date().toISOString(),
-          completed_by: user?.id || null, // Записываем кто завершил задачу
-          assigned_to: null, // Очищаем назначение
-          started_at: null,
-          ...changes // Применяем дополнительные изменения если есть
-        })
-        .eq('recognition_id', recognitionId)
-
-      if (updateError) {
-        console.error('Error updating recognition:', updateError)
-        return NextResponse.json(
-          { error: 'Failed to complete task' },
-          { status: 500 }
-        )
-      }
-
-      return NextResponse.json({
-        success: true,
-        recognition_id: recognitionId,
-        workflow_state: 'completed'
+    const { error: updateError } = await supabase
+      .from('recognitions')
+      .update({
+        workflow_state: 'completed',
+        current_stage_id: null,
+        completed_at: new Date().toISOString(),
+        completed_by: user?.id || null, // Записываем кто завершил задачу
+        assigned_to: null, // Очищаем назначение
+        started_at: null,
+        ...changes // Применяем дополнительные изменения если есть
       })
+      .eq('recognition_id', recognitionId)
+
+    if (updateError) {
+      console.error('Error updating recognition:', updateError)
+      return NextResponse.json(
+        { error: 'Failed to complete task' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      recognition_id: recognitionId,
+      workflow_state: 'completed'
+    })
     }
 
   } catch (error) {

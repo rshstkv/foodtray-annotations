@@ -63,18 +63,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Обновляем recognition: статус "в работе" и флаг модификаций
+    // Обновляем recognition: workflow_state "в работе" и флаг модификаций
     const { data: recognition } = await supabase
       .from('recognitions')
-      .select('status')
+      .select('workflow_state')
       .eq('recognition_id', image.recognition_id)
       .single()
 
-    if (recognition && recognition.status !== 'completed') {
+    if (recognition && recognition.workflow_state !== 'completed') {
       await supabase
         .from('recognitions')
         .update({ 
-          status: 'in_progress',
+          workflow_state: 'in_progress',
           has_modifications: true
         })
         .eq('recognition_id', image.recognition_id)

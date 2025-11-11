@@ -99,43 +99,43 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Для dish_validation используем recognitions
-      let query = supabase
-        .from('recognitions')
-        .select('recognition_id')
-        .eq('validation_mode', mode)
-        .eq('workflow_state', 'pending')
-        .is('assigned_to', null)
-      
-      // Фильтр по task_queue (если указан)
-      if (taskQueue) {
-        query = query.eq('task_queue', taskQueue)
-      }
-      
-      query = query.limit(count)
-      
+    let query = supabase
+      .from('recognitions')
+      .select('recognition_id')
+      .eq('validation_mode', mode)
+      .eq('workflow_state', 'pending')
+      .is('assigned_to', null)
+    
+    // Фильтр по task_queue (если указан)
+    if (taskQueue) {
+      query = query.eq('task_queue', taskQueue)
+    }
+    
+    query = query.limit(count)
+    
       const { data, error } = await query
       tasks = data || []
       fetchError = error
 
       if (!fetchError && tasks.length > 0) {
-        // Назначить задачи пользователю
-        const recognitionIds = tasks.map(t => t.recognition_id)
-        const { error: assignError } = await supabase
-          .from('recognitions')
-          .update({ assigned_to: userId })
-          .in('recognition_id', recognitionIds)
+    // Назначить задачи пользователю
+    const recognitionIds = tasks.map(t => t.recognition_id)
+    const { error: assignError } = await supabase
+      .from('recognitions')
+      .update({ assigned_to: userId })
+      .in('recognition_id', recognitionIds)
 
-        if (assignError) {
-          console.error('[Admin] Error assigning tasks:', assignError.message)
-          return NextResponse.json({ error: assignError.message }, { status: 500 })
-        }
+    if (assignError) {
+      console.error('[Admin] Error assigning tasks:', assignError.message)
+      return NextResponse.json({ error: assignError.message }, { status: 500 })
+    }
 
-        console.log(`[Admin] Assigned ${tasks.length} ${mode} tasks to user ${userId}`)
+    console.log(`[Admin] Assigned ${tasks.length} ${mode} tasks to user ${userId}`)
 
-        return NextResponse.json({ 
-          assigned: tasks.length,
-          mode,
-          userId
+    return NextResponse.json({ 
+      assigned: tasks.length,
+      mode,
+      userId
         })
       }
     }

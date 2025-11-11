@@ -237,9 +237,19 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
     dishIndex: number | null,
     isError: boolean = false
   ) => {
-    if (!pendingBBox) return
+    if (!pendingBBox) {
+      console.error('[DishValidation] finishAnnotationCreate called but pendingBBox is null')
+      return
+    }
 
-    await createAnnotation({
+    console.log('[DishValidation] Creating annotation:', {
+      objectType,
+      objectSubtype,
+      dishIndex,
+      pendingBBox,
+    })
+
+    const result = await createAnnotation({
       image_id: pendingBBox.image_id,
       object_type: objectType,
       object_subtype: objectSubtype,
@@ -252,6 +262,8 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
       is_bottle_up: null,
       is_error: isError,
     })
+
+    console.log('[DishValidation] Annotation created:', result)
 
     setPendingBBox(null)
     setMenuSearch('')
