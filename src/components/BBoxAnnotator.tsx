@@ -482,7 +482,10 @@ export default function BBoxAnnotator({
           const isSelected = selectedAnnotation?.id === annotation.id || 
             (selectedAnnotation && selectedAnnotation.dish_index !== null && 
              selectedAnnotation.dish_index === annotation.dish_index)
-          const isHighlighted = !isSelected && highlightDishIndex !== null && highlightDishIndex !== undefined && annotation.dish_index === highlightDishIndex
+          // Подсветка: для блюд по dish_index, для plates когда highlightDishIndex === -1
+          const isHighlighted = !isSelected && highlightDishIndex !== null && highlightDishIndex !== undefined && 
+            (annotation.dish_index === highlightDishIndex || 
+             (highlightDishIndex === -1 && annotation.object_type === 'plate'))
           const color = getColor(annotation)
           const isPending = annotation.id === -1
 

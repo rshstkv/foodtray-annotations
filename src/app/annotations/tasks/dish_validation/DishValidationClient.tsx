@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { UserNav } from '@/components/UserNav'
 import { useTaskEngine } from '@/hooks/useTaskEngine'
 import { useAnnotations } from '@/hooks/useAnnotations'
@@ -14,6 +15,16 @@ import { DishList } from '@/components/tasks/DishList'
 import type { Image, Annotation } from '@/types/annotations'
 
 const BBoxAnnotator = dynamic(() => import('@/components/BBoxAnnotator'), { ssr: false })
+
+// Non-food объекты (hardcoded)
+const NON_FOOD_OBJECTS = [
+  { id: 'hand', name: 'Рука', icon: '✋' },
+  { id: 'phone', name: 'Телефон', icon: '📱' },
+  { id: 'wallet', name: 'Кошелек', icon: '👛' },
+  { id: 'cards', name: 'Карты', icon: '💳' },
+  { id: 'cutlery', name: 'Столовые приборы', icon: '🍴' },
+  { id: 'other', name: 'Другое', icon: '📦' }
+]
 
 type DishValidationClientProps = {
   mode: 'quick' | 'edit'
@@ -55,6 +66,8 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
   const [highlightedPlate, setHighlightedPlate] = useState(false)
   const [selectedBBoxIndexInDish, setSelectedBBoxIndexInDish] = useState<number>(0)
   const [showAllBBoxes, setShowAllBBoxes] = useState(true)
+  const [localEditMode, setLocalEditMode] = useState(false)
+  const [showInstructions, setShowInstructions] = useState(true)
   const [pendingBBox, setPendingBBox] = useState<{
     bbox_x1: number
     bbox_y1: number
@@ -62,11 +75,55 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
     bbox_y2: number
     image_id: number
   } | null>(null)
+  const [activeTab, setActiveTab] = useState<'check' | 'menu' | 'nonfood' | 'plate' | 'buzzer'>('check')
+  const [menuSearch, setMenuSearch] = useState('')
+  const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
 
   const taskIdRef = useRef<string | null>(null)
   if (taskData && taskData.recognition.recognition_id !== taskIdRef.current) {
     taskIdRef.current = taskData.recognition.recognition_id
     setLocalImages(taskData.images)
+    setLocalEditMode(false) // Сбросить локальный edit mode при новой задаче
+  }
+
+  // Обработчики для draggable модального окна
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        setModalPosition({
+          x: e.clientX - dragOffset.x,
+          y: e.clientY - dragOffset.y
+        })
+      }
+    }
+
+    const handleMouseUp = () => {
+      setIsDragging(false)
+    }
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDragging, dragOffset])
+
+  const handleModalMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const modalEl = e.currentTarget.parentElement
+    if (!modalEl) return
+    
+    const rect = modalEl.getBoundingClientRect()
+    setDragOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    })
+    setIsDragging(true)
   }
 
   const mainImage = images?.find((img: Image) => img.photo_type === 'Main')
@@ -80,6 +137,10 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
       0
     ) || 0
 
+  // Подсчет тарелок
+  const mainPlatesCount = mainImage?.annotations.filter((a) => a.object_type === 'plate').length || 0
+  const qualPlatesCount = qualifyingImage?.annotations.filter((a) => a.object_type === 'plate').length || 0
+
   const checkPerDishAlignment = () => {
     if (!taskData?.recognition?.correct_dishes || !mainImage || !qualifyingImage) return false
 
@@ -90,9 +151,10 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
     })
   }
 
-  const isAligned = mainCount === qualCount && mainCount === expectedCount && checkPerDishAlignment()
+  const isAligned = mainCount === qualCount && mainCount === expectedCount && checkPerDishAlignment() && mainPlatesCount === qualPlatesCount
   const backendMode = (taskData?.recognition?.validation_mode as 'quick' | 'edit' | null) || null
-  const displayMode: 'quick' | 'edit' = backendMode ?? mode
+  // Если localEditMode активен, показываем edit mode независимо от backend
+  const displayMode: 'quick' | 'edit' = localEditMode ? 'edit' : (backendMode ?? mode)
   const modeMismatch = backendMode !== null && backendMode !== mode
 
   console.log('[DishValidation] Task loaded:', {
@@ -100,6 +162,8 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
     mainCount,
     qualCount,
     expectedCount,
+    mainPlatesCount,
+    qualPlatesCount,
     isAligned,
     backendMode,
     displayMode,
@@ -108,33 +172,20 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
   })
 
   const handlePlateClick = useCallback(() => {
-    if (highlightedPlate) {
-      // Если plate уже выделена, переключаемся на следующий plate bbox
-      const currentImage = images.find(img => img.photo_type === activeImage)
-      const plateBBoxes = currentImage?.annotations.filter(ann => ann.object_type === 'plate') || []
-
-      if (plateBBoxes.length > 0) {
-        const nextIndex = (selectedBBoxIndexInDish + 1) % plateBBoxes.length
-        setSelectedBBoxIndexInDish(nextIndex)
-        setSelectedAnnotation(plateBBoxes[nextIndex])
-      }
-    } else {
-      // Первый клик на plate
-      setHighlightedPlate(true)
-      setHighlightedDishIndex(null)
-      setSelectedBBoxIndexInDish(0)
-      setShowAllBBoxes(false)
-      setDrawingMode(false)
-
-      const currentImage = images.find(img => img.photo_type === activeImage)
-      const plateBBoxes = currentImage?.annotations.filter(ann => ann.object_type === 'plate') || []
-      if (plateBBoxes.length > 0) {
-        setSelectedAnnotation(plateBBoxes[0])
-      } else {
-        setSelectedAnnotation(null)
-      }
+    // В quick mode если plates 0:0 - не выделяем (бесполезно)
+    if (displayMode === 'quick' && mainPlatesCount === 0 && qualPlatesCount === 0) {
+      return
     }
-  }, [highlightedPlate, selectedBBoxIndexInDish, images, activeImage])
+    
+    // При клике на plate подсвечиваем все plates на обеих картинках
+    // Используем highlightedDishIndex = -1 как индикатор для plates
+    setHighlightedPlate(true)
+    setHighlightedDishIndex(-1) // -1 означает plates
+    setSelectedBBoxIndexInDish(0)
+    setShowAllBBoxes(false) // Показываем только plates
+    setDrawingMode(false)
+    setSelectedAnnotation(null) // Не выбираем конкретный bbox, просто подсвечиваем все plates
+  }, [displayMode, mainPlatesCount, qualPlatesCount])
 
   const handleDishClick = useCallback((dishIndex: number) => {
     if (!taskData?.recognition?.correct_dishes?.[dishIndex]) {
@@ -180,27 +231,32 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
     setPendingBBox({ ...bbox, image_id: imageId })
   }
 
-  const finishAnnotationCreate = async (dishIndex: number) => {
+  const finishAnnotationCreate = async (
+    objectType: string,
+    objectSubtype: string | null,
+    dishIndex: number | null,
+    isError: boolean = false
+  ) => {
     if (!pendingBBox) return
-
-    // dishIndex = -1 означает plate
-    const isPlate = dishIndex === -1
 
     await createAnnotation({
       image_id: pendingBBox.image_id,
-      object_type: isPlate ? 'plate' : 'food',
-      object_subtype: null,
-      dish_index: isPlate ? null : dishIndex,
+      object_type: objectType,
+      object_subtype: objectSubtype,
+      dish_index: dishIndex,
       bbox_x1: pendingBBox.bbox_x1,
       bbox_y1: pendingBBox.bbox_y1,
       bbox_x2: pendingBBox.bbox_x2,
       bbox_y2: pendingBBox.bbox_y2,
       is_overlapped: false,
       is_bottle_up: null,
-      is_error: false,
+      is_error: isError,
     })
 
     setPendingBBox(null)
+    setMenuSearch('')
+    setActiveTab('check')
+    setModalPosition({ x: 0, y: 0 })
     setDrawingMode(false)
   }
 
@@ -208,16 +264,26 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
     await completeTask()
   }
 
-  const handleBBoxError = async () => {
-    await flagTask('bbox_error', 'Bounding boxes неправильные (границы или привязка к блюду)')
-  }
-
   const handleCheckError = async () => {
     await flagTask('check_error', 'Ошибка в чеке (неверные данные заказа)')
   }
 
-  const handleBuzzerPresent = async () => {
-    await flagTask('buzzer_present', 'На изображениях присутствуют баззеры, требуется разметка')
+  const handleDeferToEdit = async () => {
+    try {
+      const response = await fetch(
+        `/api/annotations/tasks/${taskData?.recognition.recognition_id}/defer-to-edit`,
+        { method: 'POST' }
+      )
+      if (response.ok) {
+        console.log('[DishValidation] Task deferred to edit mode')
+        // Загружаем следующую задачу, остаемся в quick mode
+        skipTask()
+      } else {
+        console.error('[DishValidation] Error deferring task:', await response.text())
+      }
+    } catch (error) {
+      console.error('[DishValidation] Error deferring task:', error)
+    }
   }
 
   useHotkeys([
@@ -277,39 +343,90 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
       },
     },
     {
+      key: 'Tab',
+      handler: (e) => {
+        e.preventDefault()
+        if (displayMode === 'edit') {
+          setActiveImage(prev => prev === 'Main' ? 'Qualifying' : 'Main')
+        }
+      },
+    },
+    {
       key: 'ArrowLeft',
       handler: (e) => {
         e.preventDefault()
-        const currentImage = images.find(img => img.photo_type === activeImage)
-        const allBBoxes = currentImage?.annotations.filter(ann => ann.dish_index !== null) || []
-        if (allBBoxes.length === 0) return
-
-        const currentIndex = selectedAnnotation
-          ? allBBoxes.findIndex(ann => ann.id === selectedAnnotation.id)
-          : 0
-
-        const prevIndex = currentIndex <= 0 ? allBBoxes.length - 1 : currentIndex - 1
-        setSelectedAnnotation(allBBoxes[prevIndex])
-        setHighlightedDishIndex(allBBoxes[prevIndex].dish_index)
-        setShowAllBBoxes(false)
+        
+        // Перебираем все объекты: plates (-1) + блюда (0, 1, 2...)
+        const hasPlates = mainPlatesCount > 0 || qualPlatesCount > 0
+        const dishCount = taskData?.recognition?.correct_dishes?.length || 0
+        
+        if (!hasPlates && dishCount === 0) return
+        
+        // Текущий индекс: -1 для plates, 0+ для блюд, null если ничего не выбрано
+        let currentIdx = highlightedDishIndex
+        if (currentIdx === null) {
+          // Ничего не выбрано - начинаем с первого
+          currentIdx = hasPlates ? -1 : 0
+        }
+        
+        // Переход к предыдущему
+        let prevIdx: number
+        if (currentIdx === -1) {
+          // С plates -> на последнее блюдо
+          prevIdx = dishCount - 1
+        } else if (currentIdx === 0) {
+          // С первого блюда -> на plates (если есть) или последнее блюдо
+          prevIdx = hasPlates ? -1 : dishCount - 1
+        } else {
+          // Просто предыдущее блюдо
+          prevIdx = currentIdx - 1
+        }
+        
+        // Применяем
+        if (prevIdx === -1) {
+          handlePlateClick()
+        } else {
+          handleDishClick(prevIdx)
+        }
       },
     },
     {
       key: 'ArrowRight',
       handler: (e) => {
         e.preventDefault()
-        const currentImage = images.find(img => img.photo_type === activeImage)
-        const allBBoxes = currentImage?.annotations.filter(ann => ann.dish_index !== null) || []
-        if (allBBoxes.length === 0) return
-
-        const currentIndex = selectedAnnotation
-          ? allBBoxes.findIndex(ann => ann.id === selectedAnnotation.id)
-          : -1
-
-        const nextIndex = (currentIndex + 1) % allBBoxes.length
-        setSelectedAnnotation(allBBoxes[nextIndex])
-        setHighlightedDishIndex(allBBoxes[nextIndex].dish_index)
-        setShowAllBBoxes(false)
+        
+        // Перебираем все объекты: plates (-1) + блюда (0, 1, 2...)
+        const hasPlates = mainPlatesCount > 0 || qualPlatesCount > 0
+        const dishCount = taskData?.recognition?.correct_dishes?.length || 0
+        
+        if (!hasPlates && dishCount === 0) return
+        
+        // Текущий индекс: -1 для plates, 0+ для блюд, null если ничего не выбрано
+        let currentIdx = highlightedDishIndex
+        if (currentIdx === null) {
+          // Ничего не выбрано - начинаем с первого
+          currentIdx = hasPlates ? -1 : 0
+        }
+        
+        // Переход к следующему
+        let nextIdx: number
+        if (currentIdx === -1) {
+          // С plates -> на первое блюдо (если есть) или обратно на plates
+          nextIdx = dishCount > 0 ? 0 : -1
+        } else if (currentIdx >= dishCount - 1) {
+          // С последнего блюда -> на plates (если есть) или первое блюдо
+          nextIdx = hasPlates ? -1 : 0
+        } else {
+          // Просто следующее блюдо
+          nextIdx = currentIdx + 1
+        }
+        
+        // Применяем
+        if (nextIdx === -1) {
+          handlePlateClick()
+        } else {
+          handleDishClick(nextIdx)
+        }
       },
     },
     {
@@ -321,12 +438,18 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
 
         if (highlightedDishIndex !== null) {
           const newImage = images.find(img => img.photo_type === newActiveImage)
-          const dishBBoxes = newImage?.annotations.filter(ann => ann.dish_index === highlightedDishIndex) || []
-          if (dishBBoxes.length > 0) {
-            setSelectedBBoxIndexInDish(0)
-            setSelectedAnnotation(dishBBoxes[0])
-          } else {
+          if (highlightedDishIndex === -1) {
+            // Для plates не выбираем конкретный bbox
             setSelectedAnnotation(null)
+          } else {
+            // Для блюд выбираем первый bbox
+            const dishBBoxes = newImage?.annotations.filter(ann => ann.dish_index === highlightedDishIndex) || []
+            if (dishBBoxes.length > 0) {
+              setSelectedBBoxIndexInDish(0)
+              setSelectedAnnotation(dishBBoxes[0])
+            } else {
+              setSelectedAnnotation(null)
+            }
           }
         }
       },
@@ -347,9 +470,13 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
         if (pendingBBox) {
           // В режиме рисования - создать plate bbox
           finishAnnotationCreate(-1) // -1 означает plate
-        } else {
+        } else if (displayMode === 'edit' || mainPlatesCount > 0 || qualPlatesCount > 0) {
+          // Выделять plates только если:
+          // - В edit mode (можно рисовать)
+          // - ИЛИ есть plates для просмотра
           handlePlateClick()
         }
+        // В quick mode с 0:0 - игнорируем
       },
     },
     // Клавиши "2-9" для блюд из чека
@@ -411,20 +538,36 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
                 </p>
               </div>
               
-              {/* Счетчики */}
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-500">Ожидается:</span>
-                <span className="font-bold">{expectedCount}</span>
-                <span className="text-gray-400">=</span>
-                <span className="text-gray-500">Main:</span>
-                <span className={`font-bold ${mainCount === expectedCount ? 'text-green-600' : 'text-red-600'}`}>
-                  {mainCount}
-                </span>
-                <span className="text-gray-400">&</span>
-                <span className="text-gray-500">Qual:</span>
-                <span className={`font-bold ${qualCount === expectedCount ? 'text-green-600' : 'text-red-600'}`}>
-                  {qualCount}
-                </span>
+              {/* Счетчики раздельно: блюда и тарелки */}
+              <div className="flex items-center gap-4 text-sm">
+                {/* Блюда */}
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600 font-medium">🍽️ Блюда:</span>
+                  <span className="font-bold">{expectedCount}</span>
+                  <span className="text-gray-400">=</span>
+                  <span className={`font-bold ${mainCount === expectedCount ? 'text-green-600' : 'text-red-600'}`}>
+                    {mainCount}
+                  </span>
+                  <span className="text-gray-400">&</span>
+                  <span className={`font-bold ${qualCount === expectedCount ? 'text-green-600' : 'text-red-600'}`}>
+                    {qualCount}
+                  </span>
+                </div>
+                
+                {/* Разделитель */}
+                <div className="h-4 w-px bg-gray-300"></div>
+                
+                {/* Тарелки */}
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600 font-medium">🍽 Тарелки:</span>
+                  <span className={`font-bold ${mainPlatesCount === qualPlatesCount ? 'text-green-600' : 'text-red-600'}`}>
+                    {mainPlatesCount}
+                  </span>
+                  <span className="text-gray-400">&</span>
+                  <span className={`font-bold ${mainPlatesCount === qualPlatesCount ? 'text-green-600' : 'text-red-600'}`}>
+                    {qualPlatesCount}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -433,26 +576,31 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
                 <>
                   <Button
                     variant="outline"
-                    onClick={async () => {
-                      try {
-                        await fetch(`/api/annotations/tasks/${taskData?.recognition.recognition_id}/move-to-edit`, {
-                          method: 'POST'
-                        })
-                        skipTask()
-                      } catch (error) {
-                        console.error('[DishValidation] Error moving to edit:', error)
-                      }
-                    }}
+                    onClick={handleCheckError}
                     disabled={completing}
                   >
-                    ❌ Неверные bbox
+                    ⚠️ Ошибка в чеке
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleDeferToEdit}
+                    disabled={completing}
+                  >
+                    ⏭️ Отложить в Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setLocalEditMode(true)}
+                    disabled={completing}
+                  >
+                    ✏️ Править
                   </Button>
                   <Button
                     onClick={handleComplete}
                     disabled={completing}
                     className="bg-green-600 hover:bg-green-700"
                   >
-                    {completing ? 'Сохранение...' : '✅ ВСЁ ВЕРНО'}
+                    {completing ? 'Сохранение...' : displayMode === 'edit' ? '✅ Готово' : '✅ ВСЁ ВЕРНО'}
                   </Button>
                 </>
               ) : (
@@ -468,7 +616,7 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
                     </Button>
                   )}
                   <Button variant="outline" onClick={skipTask}>
-                    Пропустить
+                    ⏭️ Пропустить
                   </Button>
                   {isAligned && (
                     <Button
@@ -496,56 +644,48 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
         </Card>
       )}
 
-      <Card className="max-w-[1920px] mx-auto mx-6 mt-4 p-3 bg-blue-50 border-blue-200">
-        <div className="text-sm">
-          <span className="font-medium">Hotkeys:</span> H - показать все bbox |
-          {displayMode === 'edit' && 'D - рисовать | Del - удалить | '}
-          1 - тарелки | 2-9 - блюда (повтор = след. bbox) | ← → - навигация по bbox |
-          Tab - переключить Main/Qualifying | Enter - завершить | Esc - отмена
-        </div>
-      </Card>
+      {/* Компактная инструкция - Apple стиль */}
+      <div className="max-w-[1920px] mx-auto mx-6 mt-4">
+        <button
+          onClick={() => setShowInstructions(!showInstructions)}
+          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+        >
+          <span className="text-lg">ℹ️</span>
+          <span className="font-medium">
+            {showInstructions ? 'Скрыть инструкцию' : 'Показать инструкцию'}
+          </span>
+        </button>
+        
+        {showInstructions && (
+          <Card className="mt-2 p-3 bg-blue-50 border-blue-200 animate-in slide-in-from-top duration-200">
+            <div className="text-xs text-blue-900">
+              {displayMode === 'quick' ? (
+                <div className="flex items-start gap-4">
+                  <div className="flex-1">
+                    <strong>Проверьте:</strong> Блюда совпадают с чеком • Тарелки на обеих картинках • Границы bbox правильные
+                  </div>
+                  <div className="flex-shrink-0">
+                    <strong>Кнопки:</strong> ✅ Всё верно • ⏭️ Отложить в Edit • ✏️ Править • ⚠️ Ошибка в чеке
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <strong>Edit:</strong> D - рисовать • 1 - тарелки • 2-9 - блюда • Del - удалить • ✅ Готово когда всё совпадает
+                </div>
+              )}
+              <div className="mt-2 pt-2 border-t border-blue-300 text-blue-700">
+                <strong>Hotkeys:</strong> H - показать все bbox |
+                {displayMode === 'edit' && 'D - рисовать | Del - удалить | '}
+                1 - тарелки | 2-9 - блюда | ← → - навигация | Tab - переключить картинку | Enter - готово | Esc - отмена
+              </div>
+            </div>
+          </Card>
+        )}
+      </div>
 
       <div className="max-w-[1920px] mx-auto p-6">
         <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-3 space-y-4">
-            {/* Кнопка "Ошибка в чеке" */}
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleCheckError}
-              disabled={completing}
-            >
-              ⚠️ Ошибка в чеке
-            </Button>
-            
-            {/* Чекбоксы для особых случаев */}
-            <Card className="p-3 space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4"
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      handleBuzzerPresent()
-                    }
-                  }}
-                />
-                <span className="text-sm">🔔 Есть баззер</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4"
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      flagTask('other_items', 'Есть другие предметы (non-food items)')
-                    }
-                  }}
-                />
-                <span className="text-sm">📦 Есть другие предметы</span>
-              </label>
-            </Card>
-            
+          <div className="col-span-3">
             {/* Список объектов (plates + блюда) */}
             <DishList
               dishes={taskData.recognition.correct_dishes}
@@ -554,71 +694,68 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
               onPlateClick={handlePlateClick}
               highlightedIndex={highlightedDishIndex}
               highlightedPlate={highlightedPlate}
-              className="h-[calc(100vh-380px)] overflow-y-auto"
+              className="max-h-[calc(100vh-280px)] overflow-y-auto pr-2"
             />
           </div>
 
           <div className="col-span-9">
-            <div className="grid grid-cols-2 gap-4">
-              <Card className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">Main (45°)</h3>
-                    {!showAllBBoxes && selectedAnnotation && selectedAnnotation.dish_index !== null && activeImage === 'Main' && mainImage && (
-                      <Badge variant="outline" className="text-xs">
-                        bbox {selectedBBoxIndexInDish + 1} / {mainImage.annotations.filter(ann => ann.dish_index === selectedAnnotation.dish_index).length || 0}
-                      </Badge>
-                    )}
+            {/* Toolbar для edit mode */}
+            {displayMode === 'edit' && (
+              <Card className="p-4 mb-4">
+                <div className="flex gap-2 items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Активное изображение для рисования: <Badge variant={activeImage === 'Main' ? 'default' : 'secondary'}>{activeImage} ({activeImage === 'Main' ? '45°' : '90°'})</Badge>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      className={
-                        mainCount === expectedCount
-                          ? 'bg-green-500'
-                          : 'bg-red-500'
+                  <Button
+                    variant={drawingMode ? 'default' : 'outline'}
+                    onClick={() => {
+                      const newDrawingMode = !drawingMode
+                      setDrawingMode(newDrawingMode)
+                      if (!newDrawingMode) {
+                        setSelectedAnnotation(null)
                       }
-                    >
-                      {mainCount} bbox
-                    </Badge>
-                    {!isAligned && (
-                      <Button
-                        size="sm"
-                        variant={
-                          activeImage === 'Main' && drawingMode
-                            ? 'default'
-                            : 'outline'
-                        }
-                        onClick={() => {
-                          setActiveImage('Main')
-                          setDrawingMode(true)
-                        }}
-                      >
-                        Рисовать (D)
-                      </Button>
-                    )}
-                  </div>
+                    }}
+                  >
+                    {drawingMode ? 'Отменить рисование' : 'Нарисовать bbox'}
+                  </Button>
                 </div>
-                <div
-                  className="h-[calc(100vh-320px)] rounded border relative bg-gray-100 cursor-pointer"
-                  onClick={() => setActiveImage('Main')}
+              </Card>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-center text-sm font-semibold mb-2 text-gray-700">
+                  Main (45°) {activeImage === 'Main' && displayMode === 'edit' && <Badge variant="default" className="ml-2">Активно</Badge>}
+                </div>
+                <div 
+                  className="h-[calc(100vh-320px)] rounded overflow-hidden border-2 cursor-pointer" 
+                  style={{ borderColor: activeImage === 'Main' && displayMode === 'edit' ? '#3b82f6' : '#e5e7eb' }}
+                  onClick={() => displayMode === 'edit' && setActiveImage('Main')}
                 >
                   {mainImage && (
                     <BBoxAnnotator
                       imageUrl={`/api/bbox-images/${mainImage.storage_path}`}
                       annotations={
-                        !showAllBBoxes && selectedAnnotation && selectedAnnotation.dish_index !== null
-                          ? mainImage.annotations.filter(ann =>
-                              ann.dish_index === selectedAnnotation.dish_index ||
-                              ann.dish_index === null
-                            )
+                        !showAllBBoxes && selectedAnnotation
+                          ? selectedAnnotation.dish_index !== null
+                            ? mainImage.annotations.filter(ann =>
+                                ann.dish_index === selectedAnnotation.dish_index
+                              )
+                            : mainImage.annotations.filter(ann => ann.object_type === 'plate')
+                          : !showAllBBoxes && highlightedDishIndex !== null
+                          ? highlightedDishIndex === -1
+                            ? mainImage.annotations.filter(ann => ann.object_type === 'plate')
+                            : mainImage.annotations.filter(ann =>
+                                ann.dish_index === highlightedDishIndex
+                              )
+                          : !showAllBBoxes && highlightedPlate
+                          ? mainImage.annotations.filter(ann => ann.object_type === 'plate')
                           : mainImage.annotations
                       }
                       originalAnnotations={mainImage.original_annotations}
                       imageId={mainImage.id}
                       highlightDishIndex={highlightedDishIndex}
-                      onAnnotationCreate={(bbox) =>
-                        handleAnnotationCreate(mainImage.id, bbox)
-                      }
+                      onAnnotationCreate={displayMode === 'edit' && activeImage === 'Main' ? (bbox) => handleAnnotationCreate(mainImage.id, bbox) : undefined}
                       onAnnotationUpdate={updateAnnotation}
                       onAnnotationSelect={setSelectedAnnotation}
                       selectedAnnotation={selectedAnnotation}
@@ -631,67 +768,41 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
                     />
                   )}
                 </div>
-              </Card>
+              </div>
 
-              <Card className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">Qualifying (90°)</h3>
-                    {!showAllBBoxes && selectedAnnotation && selectedAnnotation.dish_index !== null && activeImage === 'Qualifying' && qualifyingImage && (
-                      <Badge variant="outline" className="text-xs">
-                        bbox {selectedBBoxIndexInDish + 1} / {qualifyingImage.annotations.filter(ann => ann.dish_index === selectedAnnotation.dish_index).length || 0}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      className={
-                        qualCount === expectedCount
-                          ? 'bg-green-500'
-                          : 'bg-red-500'
-                      }
-                    >
-                      {qualCount} bbox
-                    </Badge>
-                    {!isAligned && (
-                      <Button
-                        size="sm"
-                        variant={
-                          activeImage === 'Qualifying' && drawingMode
-                            ? 'default'
-                            : 'outline'
-                        }
-                        onClick={() => {
-                          setActiveImage('Qualifying')
-                          setDrawingMode(true)
-                        }}
-                      >
-                        Рисовать (D)
-                      </Button>
-                    )}
-                  </div>
+              <div>
+                <div className="text-center text-sm font-semibold mb-2 text-gray-700">
+                  Qualifying (90°) {activeImage === 'Qualifying' && displayMode === 'edit' && <Badge variant="default" className="ml-2">Активно</Badge>}
                 </div>
                 <div
-                  className="h-[calc(100vh-320px)] rounded border relative bg-gray-100 cursor-pointer"
-                  onClick={() => setActiveImage('Qualifying')}
+                  className="h-[calc(100vh-320px)] rounded overflow-hidden border-2 cursor-pointer"
+                  style={{ borderColor: activeImage === 'Qualifying' && displayMode === 'edit' ? '#3b82f6' : '#e5e7eb' }}
+                  onClick={() => displayMode === 'edit' && setActiveImage('Qualifying')}
                 >
                   {qualifyingImage && (
                     <BBoxAnnotator
                       imageUrl={`/api/bbox-images/${qualifyingImage.storage_path}`}
                       annotations={
-                        !showAllBBoxes && selectedAnnotation && selectedAnnotation.dish_index !== null
-                          ? qualifyingImage.annotations.filter(ann =>
-                              ann.dish_index === selectedAnnotation.dish_index ||
-                              ann.dish_index === null
-                            )
+                        !showAllBBoxes && selectedAnnotation
+                          ? selectedAnnotation.dish_index !== null
+                            ? qualifyingImage.annotations.filter(ann =>
+                                ann.dish_index === selectedAnnotation.dish_index
+                              )
+                            : qualifyingImage.annotations.filter(ann => ann.object_type === 'plate')
+                          : !showAllBBoxes && highlightedDishIndex !== null
+                          ? highlightedDishIndex === -1
+                            ? qualifyingImage.annotations.filter(ann => ann.object_type === 'plate')
+                            : qualifyingImage.annotations.filter(ann =>
+                                ann.dish_index === highlightedDishIndex
+                              )
+                          : !showAllBBoxes && highlightedPlate
+                          ? qualifyingImage.annotations.filter(ann => ann.object_type === 'plate')
                           : qualifyingImage.annotations
                       }
                       originalAnnotations={qualifyingImage.original_annotations}
                       imageId={qualifyingImage.id}
                       highlightDishIndex={highlightedDishIndex}
-                      onAnnotationCreate={(bbox) =>
-                        handleAnnotationCreate(qualifyingImage.id, bbox)
-                      }
+                      onAnnotationCreate={displayMode === 'edit' && activeImage === 'Qualifying' ? (bbox) => handleAnnotationCreate(qualifyingImage.id, bbox) : undefined}
                       onAnnotationUpdate={updateAnnotation}
                       onAnnotationSelect={setSelectedAnnotation}
                       selectedAnnotation={selectedAnnotation}
@@ -704,44 +815,204 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
                     />
                   )}
                 </div>
-              </Card>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {pendingBBox && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="p-6 max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Выберите блюдо:</h3>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {taskData.recognition.correct_dishes.map((dish, index) => (
-                <button
-                  key={index}
-                  className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center gap-3 text-sm rounded border"
-                  onClick={() => finishAnnotationCreate(index)}
-                >
-                  <div className="flex-1">
-                    <span className="font-medium text-gray-700">
-                      [{index + 1}]
-                    </span>
-                    <span className="text-gray-900 ml-2">
-                      {dish.Dishes[0]?.Name}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <Button
-              variant="outline"
-              className="w-full mt-4"
-              onClick={() => setPendingBBox(null)}
+      {/* Draggable popup для выбора типа объекта (табы) */}
+      {pendingBBox && (() => {
+        const dropdownWidth = 500
+        const dropdownHeight = 600
+        
+        // Центрируем по экрану при первом открытии
+        const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920
+        const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080
+        
+        // Если modalPosition не установлена, центрируем
+        const left = modalPosition.x || Math.max(20, (screenWidth - dropdownWidth) / 2)
+        const top = modalPosition.y || Math.max(20, (screenHeight - dropdownHeight) / 2)
+        
+        // Инициализируем позицию если она еще не установлена
+        if (modalPosition.x === 0 && modalPosition.y === 0) {
+          setTimeout(() => {
+            setModalPosition({
+              x: Math.max(20, (screenWidth - dropdownWidth) / 2),
+              y: Math.max(20, (screenHeight - dropdownHeight) / 2)
+            })
+          }, 0)
+        }
+        
+        return (
+          <div 
+            className="fixed bg-white rounded-lg shadow-2xl border border-gray-300 flex flex-col"
+            style={{ 
+              left: `${left}px`, 
+              top: `${top}px`,
+              width: `${dropdownWidth}px`,
+              height: `${dropdownHeight}px`,
+              zIndex: 100
+            }}
+          >
+            {/* Header - Draggable */}
+            <div 
+              className="p-3 border-b bg-white flex-shrink-0 cursor-move select-none"
+              onMouseDown={handleModalMouseDown}
             >
-              Отмена (Esc)
-            </Button>
-          </Card>
-        </div>
-      )}
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700">
+                  Что вы добавили?
+                </h3>
+                <button
+                  className="text-gray-400 hover:text-gray-600"
+                  onClick={() => {
+                    setPendingBBox(null)
+                    setMenuSearch('')
+                    setActiveTab('check')
+                    setModalPosition({ x: 0, y: 0 })
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          
+            {/* Табы */}
+            <div className="flex border-b bg-gray-50 flex-shrink-0">
+              <button
+                className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'check' 
+                    ? 'bg-white border-b-2 border-blue-500 text-blue-600' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+                onClick={() => setActiveTab('check')}
+              >
+                📋 Из чека
+              </button>
+              <button
+                className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'nonfood' 
+                    ? 'bg-white border-b-2 border-blue-500 text-blue-600' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+                onClick={() => setActiveTab('nonfood')}
+              >
+                📦 Предметы
+              </button>
+              <button
+                className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'plate' 
+                    ? 'bg-white border-b-2 border-blue-500 text-blue-600' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+                onClick={() => setActiveTab('plate')}
+              >
+                🍽️ Тарелки
+              </button>
+              <button
+                className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'buzzer' 
+                    ? 'bg-white border-b-2 border-blue-500 text-blue-600' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+                onClick={() => setActiveTab('buzzer')}
+              >
+                🔔 Баззер
+              </button>
+            </div>
+          
+            <div className="flex-1 overflow-y-auto p-4">
+              {/* Таб: Из чека */}
+              {activeTab === 'check' && (
+                <div className="space-y-2">
+                  {taskData.recognition.correct_dishes.map((dish, index) => {
+                    const allDishes = dish.Dishes || []
+                    const displayName = allDishes[0]?.Name || allDishes[0]?.product_name || 'Unknown'
+                    const hasMultiple = allDishes.length > 1
+                    
+                    return (
+                      <div key={index} className="border rounded p-3 bg-gray-50">
+                        <button
+                          className="w-full text-left hover:bg-blue-50 transition-colors p-2 rounded"
+                          onClick={() => finishAnnotationCreate('food', null, index, false)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-700">#{index + 1}</span>
+                            <span className="text-gray-900">{displayName}</span>
+                            {hasMultiple && (
+                              <span className="text-xs text-orange-600">
+                                [{allDishes.length} вар.]
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                        
+                        {/* Если несколько вариантов - показываем список */}
+                        {hasMultiple && (
+                          <div className="mt-2 ml-4 space-y-1">
+                            {allDishes.map((variant, varIdx) => (
+                              <button
+                                key={varIdx}
+                                className="w-full text-left px-3 py-1 hover:bg-blue-50 transition-colors text-sm rounded"
+                                onClick={() => finishAnnotationCreate('food', null, index, false)}
+                              >
+                                • {variant.Name || variant.product_name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Таб: Предметы */}
+              {activeTab === 'nonfood' && (
+                <div className="space-y-2">
+                  {NON_FOOD_OBJECTS.map((obj) => (
+                    <button
+                      key={obj.id}
+                      className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center gap-3 rounded border"
+                      onClick={() => finishAnnotationCreate('non_food', obj.id, null, false)}
+                    >
+                      <span className="text-2xl">{obj.icon}</span>
+                      <span className="text-gray-900">{obj.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Таб: Тарелки */}
+              {activeTab === 'plate' && (
+                <div className="space-y-2">
+                  <button
+                    className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center gap-3 rounded border"
+                    onClick={() => finishAnnotationCreate('plate', null, null, false)}
+                  >
+                    <span className="text-2xl">🍽️</span>
+                    <span className="text-gray-900">Тарелка</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Таб: Баззер */}
+              {activeTab === 'buzzer' && (
+                <div className="space-y-2">
+                  <button
+                    className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center gap-3 rounded border"
+                    onClick={() => finishAnnotationCreate('buzzer', null, null, false)}
+                  >
+                    <span className="text-2xl">🔔</span>
+                    <span className="text-gray-900">Баззер</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

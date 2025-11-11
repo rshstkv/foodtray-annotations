@@ -46,6 +46,17 @@ export function useDishValidation({ images, taskData }: UseDishValidationProps) 
     [taskData?.recognition?.correct_dishes]
   )
 
+  // Подсчет plates
+  const mainPlatesCount = useMemo(
+    () => mainImage?.annotations.filter((a) => a.object_type === 'plate').length || 0,
+    [mainImage]
+  )
+
+  const qualPlatesCount = useMemo(
+    () => qualifyingImage?.annotations.filter((a) => a.object_type === 'plate').length || 0,
+    [qualifyingImage]
+  )
+
   // Проверка посблюдового совпадения
   // Для каждого блюда из чека проверяем что количество bbox на обеих картинках = Count
   const checkPerDishAlignment = useMemo(() => {
@@ -67,12 +78,15 @@ export function useDishValidation({ images, taskData }: UseDishValidationProps) 
 
   // Определение выравнивания и режима
   // Критерии для Quick Validation:
-  // 1. Суммарное совпадение: Expected = Main = Qualifying
+  // 1. Суммарное совпадение блюд: Expected = Main = Qualifying
   // 2. Посблюдовое совпадение: для каждого блюда количество bbox совпадает с Count
-  const isAligned = useMemo(
-    () => mainCount === qualCount && mainCount === expectedCount && checkPerDishAlignment,
-    [mainCount, qualCount, expectedCount, checkPerDishAlignment]
-  )
+  // 3. Plates: должны совпадать по количеству (в т.ч. 0:0)
+  const isAligned = useMemo(() => {
+    const dishesAligned = mainCount === qualCount && mainCount === expectedCount && checkPerDishAlignment
+    const platesAligned = mainPlatesCount === qualPlatesCount
+    
+    return dishesAligned && platesAligned
+  }, [mainCount, qualCount, expectedCount, checkPerDishAlignment, mainPlatesCount, qualPlatesCount])
   
   const mode = useMemo(
     () => isAligned ? 'quick_validation' as const : 'edit_mode' as const,
@@ -134,6 +148,8 @@ export function useDishValidation({ images, taskData }: UseDishValidationProps) 
     mainCount,
     qualCount,
     expectedCount,
+    mainPlatesCount,
+    qualPlatesCount,
     isAligned,
     mode,
     createDishClickHandler,
