@@ -23,6 +23,7 @@ export interface Annotation {
   source: 'qwen_auto' | 'manual'
   qwen_detection_index?: number | null
   qwen_detection_type?: string | null
+  selected_dish_variant_index?: number | null
   created_at?: string
   updated_at?: string
 }
@@ -210,6 +211,7 @@ export interface CreateAnnotationPayload {
   is_overlapped?: boolean
   is_bottle_up?: boolean | null
   is_error?: boolean
+  selected_dish_variant_index?: number | null
 }
 
 export interface UpdateAnnotationPayload {
@@ -223,6 +225,7 @@ export interface UpdateAnnotationPayload {
   is_overlapped?: boolean
   is_bottle_up?: boolean | null
   is_error?: boolean
+  selected_dish_variant_index?: number | null
   current_bbox_x1?: number
   current_bbox_y1?: number
   current_bbox_x2?: number

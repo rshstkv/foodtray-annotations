@@ -68,12 +68,9 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabaseServer.auth.getUser()
 
     // Строим запрос для поиска recognition
-    // УПРОЩЕННАЯ ЛОГИКА:
-    // Ищем задачи которые:
-    // 1. В нужной очереди (task_queue)
-    // 2. В состоянии pending
-    // 3. С нужным validation_mode (если указан)
-    // 4. Назначены текущему пользователю (assigned_to = user.id)
+    // ЛОГИКА:
+    // - Для dish_validation: ищем в recognitions (старая логика)
+    // - Для специализированных очередей: ищем в recognition_task_progress
     
     if (!user) {
       return NextResponse.json(
@@ -82,24 +79,62 @@ export async function GET(request: NextRequest) {
       )
     }
     
-    let query = supabase
-      .from('recognitions')
-      .select('*')
-      .eq('workflow_state', 'pending')
-      .eq('task_queue', taskQueue)
-      .eq('current_stage_id', stage.id)
-      .eq('assigned_to', user.id) // Только назначенные текущему пользователю
+    let recognitions: any[] = []
+    let recognitionError: any = null
+    
+    // Специализированные очереди используют recognition_task_progress
+    const specializedQueues = ['bottle_orientation', 'other_items', 'overlap_marking', 'non_food_objects']
+    
+    if (specializedQueues.includes(taskQueue)) {
+      // Ищем в recognition_task_progress
+      const { data: taskProgress, error: tpError } = await supabase
+        .from('recognition_task_progress')
+        .select('recognition_id')
+        .eq('task_queue', taskQueue)
+        .eq('workflow_state', 'pending')
+        .eq('assigned_to', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      
+      if (tpError) {
+        recognitionError = tpError
+      } else if (taskProgress && taskProgress.length > 0) {
+        // Получаем полный recognition по recognition_id
+        const { data: recData, error: recError } = await supabase
+          .from('recognitions')
+          .select('*')
+          .eq('recognition_id', taskProgress[0].recognition_id)
+          .single()
+        
+        if (recError) {
+          recognitionError = recError
+        } else if (recData) {
+          recognitions = [recData]
+        }
+      }
+    } else {
+      // Для dish_validation используем старую логику
+      let query = supabase
+        .from('recognitions')
+        .select('*')
+        .eq('workflow_state', 'pending')
+        .eq('task_queue', taskQueue)
+        .eq('current_stage_id', stage.id)
+        .eq('assigned_to', user.id)
 
-    // КРИТИЧНО: Фильтр по validation_mode если mode указан
-    if (modeParam) {
-      query = query.eq('validation_mode', modeParam)
+      // КРИТИЧНО: Фильтр по validation_mode если mode указан
+      if (modeParam) {
+        query = query.eq('validation_mode', modeParam)
+      }
+
+      query = query
+        .order('recognition_date', { ascending: false })
+        .limit(1)
+
+      const result = await query
+      recognitions = result.data || []
+      recognitionError = result.error
     }
-
-    query = query
-      .order('recognition_date', { ascending: false })
-      .limit(1)
-
-    const { data: recognitions, error: recognitionError } = await query
 
     if (recognitionError) {
       console.error('Error fetching recognition:', recognitionError)

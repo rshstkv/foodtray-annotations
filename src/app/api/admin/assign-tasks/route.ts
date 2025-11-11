@@ -57,53 +57,97 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Найти свободные задачи нужного типа
-    let query = supabase
-      .from('recognitions')
-      .select('recognition_id')
-      .eq('validation_mode', mode)
-      .eq('workflow_state', 'pending')
-      .is('assigned_to', null)
+    // Определяем специализированные очереди
+    const specializedQueues = ['bottle_orientation', 'other_items', 'overlap_marking', 'non_food_objects']
     
-    // Фильтр по task_queue (если указан)
-    if (taskQueue) {
-      query = query.eq('task_queue', taskQueue)
+    let tasks: any[] = []
+    let fetchError: any = null
+    
+    if (taskQueue && specializedQueues.includes(taskQueue)) {
+      // Для специализированных очередей ищем в recognition_task_progress
+      const { data, error } = await supabase
+        .from('recognition_task_progress')
+        .select('id, recognition_id')
+        .eq('task_queue', taskQueue)
+        .eq('workflow_state', 'pending')
+        .is('assigned_to', null)
+        .limit(count)
+      
+      tasks = data || []
+      fetchError = error
+      
+      if (!fetchError && tasks.length > 0) {
+        // Назначаем задачи пользователю в recognition_task_progress
+        const taskIds = tasks.map(t => t.id)
+        const { error: assignError } = await supabase
+          .from('recognition_task_progress')
+          .update({ assigned_to: userId })
+          .in('id', taskIds)
+
+        if (assignError) {
+          console.error('[Admin] Error assigning specialized tasks:', assignError.message)
+          return NextResponse.json({ error: assignError.message }, { status: 500 })
+        }
+
+        console.log(`[Admin] Assigned ${tasks.length} ${taskQueue} tasks to user ${userId}`)
+
+        return NextResponse.json({ 
+          assigned: tasks.length,
+          task_queue: taskQueue,
+          userId
+        })
+      }
+    } else {
+      // Для dish_validation используем recognitions
+      let query = supabase
+        .from('recognitions')
+        .select('recognition_id')
+        .eq('validation_mode', mode)
+        .eq('workflow_state', 'pending')
+        .is('assigned_to', null)
+      
+      // Фильтр по task_queue (если указан)
+      if (taskQueue) {
+        query = query.eq('task_queue', taskQueue)
+      }
+      
+      query = query.limit(count)
+      
+      const { data, error } = await query
+      tasks = data || []
+      fetchError = error
+
+      if (!fetchError && tasks.length > 0) {
+        // Назначить задачи пользователю
+        const recognitionIds = tasks.map(t => t.recognition_id)
+        const { error: assignError } = await supabase
+          .from('recognitions')
+          .update({ assigned_to: userId })
+          .in('recognition_id', recognitionIds)
+
+        if (assignError) {
+          console.error('[Admin] Error assigning tasks:', assignError.message)
+          return NextResponse.json({ error: assignError.message }, { status: 500 })
+        }
+
+        console.log(`[Admin] Assigned ${tasks.length} ${mode} tasks to user ${userId}`)
+
+        return NextResponse.json({ 
+          assigned: tasks.length,
+          mode,
+          userId
+        })
+      }
     }
-    
-    query = query.limit(count)
-    
-    const { data: tasks, error: fetchError } = await query
 
     if (fetchError) {
       console.error('[Admin] Error fetching tasks:', fetchError.message)
       return NextResponse.json({ error: fetchError.message }, { status: 500 })
     }
 
-    if (!tasks || tasks.length === 0) {
-      return NextResponse.json({ 
-        message: 'No available tasks to assign',
-        assigned: 0
-      })
-    }
-
-    // Назначить задачи пользователю
-    const recognitionIds = tasks.map(t => t.recognition_id)
-    const { error: assignError } = await supabase
-      .from('recognitions')
-      .update({ assigned_to: userId })
-      .in('recognition_id', recognitionIds)
-
-    if (assignError) {
-      console.error('[Admin] Error assigning tasks:', assignError.message)
-      return NextResponse.json({ error: assignError.message }, { status: 500 })
-    }
-
-    console.log(`[Admin] Assigned ${tasks.length} ${mode} tasks to user ${userId}`)
-
     return NextResponse.json({ 
-      assigned: tasks.length,
-      mode,
-      userId
+      message: 'No available tasks to assign',
+      assigned: 0
     })
   } catch (error) {
     console.error('[Admin] Unexpected error:', error)

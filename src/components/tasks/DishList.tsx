@@ -13,6 +13,7 @@ interface DishListProps {
   images?: Image[]
   onDishClick?: (dishIndex: number) => void
   onPlateClick?: (plateType: 'plate') => void
+  onVariantSelect?: (dishIndex: number, variantIndex: number) => void
   highlightedIndex?: number | null
   highlightedPlate?: boolean
   className?: string
@@ -23,6 +24,7 @@ export function DishList({
   images = [],
   onDishClick,
   onPlateClick,
+  onVariantSelect,
   highlightedIndex,
   highlightedPlate,
   className = '',
@@ -113,8 +115,11 @@ export function DishList({
               
               const { mainBboxes, qualBboxes } = getDishBBoxes(index)
               
-              // Показываем варианты только если bbox'ов больше чем ожидается
-              // Например: Count=1, но bbox=2 -> показываем "[2 вар.]"
+              // Показываем варианты если в чеке несколько возможных блюд (Dishes.length > 1)
+              // Это означает неоднозначность - пользователь должен выбрать конкретный вариант
+              const hasMultipleVariants = allDishes.length > 1
+              
+              // Показываем badge с количеством bbox если их больше чем ожидается
               const hasMultipleBboxes = mainBboxes.length > count || qualBboxes.length > count
               
               // Определяем статус блюда
@@ -151,9 +156,14 @@ export function DishList({
                       <span className="text-xs font-mono text-gray-500">
                         #{hasPlates ? index + 2 : index + 1}
                       </span>
-                      {hasMultipleBboxes && (
+                      {hasMultipleVariants && (
                         <span className="text-xs text-orange-600 font-medium">
-                          [{Math.max(mainBboxes.length, qualBboxes.length)} вар.]
+                          [{allDishes.length} вар.]
+                        </span>
+                      )}
+                      {hasMultipleBboxes && (
+                        <span className="text-xs text-red-600 font-medium">
+                          [bbox: {Math.max(mainBboxes.length, qualBboxes.length)}]
                         </span>
                       )}
                     </div>
@@ -167,13 +177,21 @@ export function DishList({
                     {displayName}
                   </p>
                   
-                  {/* Если bbox'ов больше чем Count - показываем названия вариантов */}
-                  {hasMultipleBboxes && allDishes.length > 1 && (
-                    <div className="space-y-1 mt-2">
-                      {allDishes.slice(0, Math.max(mainBboxes.length, qualBboxes.length)).map((variant, varIdx) => (
-                        <p key={varIdx} className="text-xs text-gray-700 ml-2">
+                  {/* Если есть несколько вариантов - показываем список для выбора */}
+                  {hasMultipleVariants && (
+                    <div className="space-y-1 mt-2 border-t pt-2">
+                      <p className="text-xs text-gray-500 font-medium mb-1">Выберите вариант:</p>
+                      {allDishes.map((variant, varIdx) => (
+                        <button
+                          key={varIdx}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onVariantSelect?.(index, varIdx)
+                          }}
+                          className="w-full text-left text-xs text-gray-700 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                        >
                           • {variant.Name || variant.product_name}
-                        </p>
+                        </button>
                       ))}
                     </div>
                   )}

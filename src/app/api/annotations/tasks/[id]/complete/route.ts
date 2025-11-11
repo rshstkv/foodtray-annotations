@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase-server'
  * Body:
  * {
  *   changes: object (optional) - изменения в данных recognition
+ *   task_queue: string (optional) - тип очереди для специализированных задач
  * }
  */
 export async function POST(
@@ -20,7 +21,7 @@ export async function POST(
     const recognitionId = id
     const body = await request.json()
     
-    const { changes } = body
+    const { changes, task_queue } = body
 
     // Получить текущего пользователя для записи completed_by
     const supabaseServer = await createClient()
@@ -79,33 +80,63 @@ export async function POST(
       // Не прерываем, продолжаем
     }
 
-    // Обновляем recognition - просто переводим в completed
-    const { error: updateError } = await supabase
-      .from('recognitions')
-      .update({
-        workflow_state: 'completed',
-        current_stage_id: null,
-        completed_at: new Date().toISOString(),
-        completed_by: user?.id || null, // Записываем кто завершил задачу
-        assigned_to: null, // Очищаем назначение
-        started_at: null,
-        ...changes // Применяем дополнительные изменения если есть
+    // Определяем специализированные очереди
+    const specializedQueues = ['bottle_orientation', 'other_items', 'overlap_marking', 'non_food_objects']
+    
+    if (task_queue && specializedQueues.includes(task_queue)) {
+      // Для специализированных задач обновляем recognition_task_progress
+      const { error: updateError } = await supabase
+        .from('recognition_task_progress')
+        .update({
+          workflow_state: 'completed',
+          completed_at: new Date().toISOString()
+        })
+        .eq('recognition_id', recognitionId)
+        .eq('task_queue', task_queue)
+
+      if (updateError) {
+        console.error('Error updating recognition_task_progress:', updateError)
+        return NextResponse.json(
+          { error: 'Failed to complete specialized task' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        recognition_id: recognitionId,
+        task_queue,
+        workflow_state: 'completed'
       })
-      .eq('recognition_id', recognitionId)
+    } else {
+      // Для dish_validation обновляем recognition
+      const { error: updateError } = await supabase
+        .from('recognitions')
+        .update({
+          workflow_state: 'completed',
+          current_stage_id: null,
+          completed_at: new Date().toISOString(),
+          completed_by: user?.id || null, // Записываем кто завершил задачу
+          assigned_to: null, // Очищаем назначение
+          started_at: null,
+          ...changes // Применяем дополнительные изменения если есть
+        })
+        .eq('recognition_id', recognitionId)
 
-    if (updateError) {
-      console.error('Error updating recognition:', updateError)
-      return NextResponse.json(
-        { error: 'Failed to complete task' },
-        { status: 500 }
-      )
+      if (updateError) {
+        console.error('Error updating recognition:', updateError)
+        return NextResponse.json(
+          { error: 'Failed to complete task' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        recognition_id: recognitionId,
+        workflow_state: 'completed'
+      })
     }
-
-    return NextResponse.json({
-      success: true,
-      recognition_id: recognitionId,
-      workflow_state: 'completed'
-    })
 
   } catch (error) {
     console.error('Error in complete endpoint:', error)
