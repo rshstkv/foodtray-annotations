@@ -182,6 +182,13 @@ export function useAnnotations(initialImages: Image[] = []) {
     []
   )
 
+  /**
+   * Установить images напрямую (для инициализации)
+   */
+  const setImages = useCallback((newImages: Image[]) => {
+    setImages(newImages)
+  }, [])
+
   return {
     images,
     loading,
@@ -191,6 +198,7 @@ export function useAnnotations(initialImages: Image[] = []) {
     deleteAnnotation,
     setLocalImages,
     updateAnnotationLocally,
+    setImages,
   }
 }
 
