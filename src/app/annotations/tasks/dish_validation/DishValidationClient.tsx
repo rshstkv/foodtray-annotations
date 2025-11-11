@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
@@ -126,20 +126,20 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
     setIsDragging(true)
   }
 
-  const mainImage = images?.find((img: Image) => img.photo_type === 'Main')
-  const qualifyingImage = images?.find((img: Image) => img.photo_type === 'Qualifying')
+  const mainImage = useMemo(() => images?.find((img: Image) => img.photo_type === 'Main'), [images])
+  const qualifyingImage = useMemo(() => images?.find((img: Image) => img.photo_type === 'Qualifying'), [images])
 
-  const mainCount = mainImage?.annotations.filter((a) => a.dish_index !== null).length || 0
-  const qualCount = qualifyingImage?.annotations.filter((a) => a.dish_index !== null).length || 0
-  const expectedCount =
+  const mainCount = useMemo(() => mainImage?.annotations.filter((a) => a.dish_index !== null).length || 0, [mainImage])
+  const qualCount = useMemo(() => qualifyingImage?.annotations.filter((a) => a.dish_index !== null).length || 0, [qualifyingImage])
+  const expectedCount = useMemo(() =>
     taskData?.recognition?.correct_dishes?.reduce(
       (sum, dish) => sum + dish.Count,
       0
-    ) || 0
+    ) || 0, [taskData?.recognition?.correct_dishes])
 
   // Подсчет тарелок
-  const mainPlatesCount = mainImage?.annotations.filter((a) => a.object_type === 'plate').length || 0
-  const qualPlatesCount = qualifyingImage?.annotations.filter((a) => a.object_type === 'plate').length || 0
+  const mainPlatesCount = useMemo(() => mainImage?.annotations.filter((a) => a.object_type === 'plate').length || 0, [mainImage])
+  const qualPlatesCount = useMemo(() => qualifyingImage?.annotations.filter((a) => a.object_type === 'plate').length || 0, [qualifyingImage])
 
   const checkPerDishAlignment = () => {
     if (!taskData?.recognition?.correct_dishes || !mainImage || !qualifyingImage) return false
