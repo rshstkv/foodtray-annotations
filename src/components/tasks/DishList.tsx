@@ -6,7 +6,8 @@
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getDishColor } from '@/types/annotations'
-import type { CorrectDish, Image } from '@/types/annotations'
+import type { CorrectDish, Image, Annotation } from '@/types/annotations'
+import { AnnotationControls } from '@/components/AnnotationControls'
 
 interface DishListProps {
   dishes: CorrectDish[]
@@ -14,8 +15,11 @@ interface DishListProps {
   onDishClick?: (dishIndex: number) => void
   onPlateClick?: (plateType: 'plate') => void
   onVariantSelect?: (dishIndex: number, variantIndex: number) => void
+  onAnnotationUpdate?: (id: number, updates: Partial<Annotation>) => void
+  onAnnotationDelete?: (id: number) => void
   highlightedIndex?: number | null
   highlightedPlate?: boolean
+  showControls?: boolean
   className?: string
 }
 
@@ -25,8 +29,11 @@ export function DishList({
   onDishClick,
   onPlateClick,
   onVariantSelect,
+  onAnnotationUpdate,
+  onAnnotationDelete,
   highlightedIndex,
   highlightedPlate,
+  showControls = false,
   className = '',
 }: DishListProps) {
   const getDishAnnotationCount = (dishIndex: number, photoType: string) => {
@@ -96,6 +103,48 @@ export function DishList({
               <p className="text-sm font-medium text-gray-900">
                 🍽️ Тарелки
               </p>
+              
+              {/* Показываем bbox тарелок с контролами если включен showControls */}
+              {showControls && (
+                <div className="mt-2 space-y-1 border-t pt-2">
+                  {images.find(i => i.photo_type === 'Main')?.annotations
+                    .filter(a => a.object_type === 'plate')
+                    .map((bbox, bboxIdx) => (
+                      <div key={`plate-main-${bbox.id}`} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded">
+                        <span className="text-gray-600">Main #{bboxIdx + 1}</span>
+                        <AnnotationControls
+                          annotation={bbox}
+                          compact={false}
+                          showEdit={false}
+                          showOverlapped={true}
+                          showOrientation={false}
+                          showError={true}
+                          showDelete={true}
+                          onUpdate={onAnnotationUpdate}
+                          onDelete={onAnnotationDelete}
+                        />
+                      </div>
+                    ))}
+                  {images.find(i => i.photo_type === 'Qualifying')?.annotations
+                    .filter(a => a.object_type === 'plate')
+                    .map((bbox, bboxIdx) => (
+                      <div key={`plate-qual-${bbox.id}`} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded">
+                        <span className="text-gray-600">Qual #{bboxIdx + 1}</span>
+                        <AnnotationControls
+                          annotation={bbox}
+                          compact={false}
+                          showEdit={false}
+                          showOverlapped={true}
+                          showOrientation={false}
+                          showError={true}
+                          showDelete={true}
+                          onUpdate={onAnnotationUpdate}
+                          onDelete={onAnnotationDelete}
+                        />
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -176,6 +225,44 @@ export function DishList({
                   <p className="text-sm font-medium text-gray-900">
                     {displayName}
                   </p>
+                  
+                  {/* Показываем bbox с контролами если включен showControls */}
+                  {showControls && [...mainBboxes, ...qualBboxes].length > 0 && (
+                    <div className="mt-2 space-y-1 border-t pt-2">
+                      {mainBboxes.map((bbox, bboxIdx) => (
+                        <div key={`main-${bbox.id}`} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded">
+                          <span className="text-gray-600">Main #{bboxIdx + 1}</span>
+                          <AnnotationControls
+                            annotation={bbox}
+                            compact={false}
+                            showEdit={false}
+                            showOverlapped={true}
+                            showOrientation={true}
+                            showError={true}
+                            showDelete={true}
+                            onUpdate={onAnnotationUpdate}
+                            onDelete={onAnnotationDelete}
+                          />
+                        </div>
+                      ))}
+                      {qualBboxes.map((bbox, bboxIdx) => (
+                        <div key={`qual-${bbox.id}`} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded">
+                          <span className="text-gray-600">Qual #{bboxIdx + 1}</span>
+                          <AnnotationControls
+                            annotation={bbox}
+                            compact={false}
+                            showEdit={false}
+                            showOverlapped={true}
+                            showOrientation={true}
+                            showError={true}
+                            showDelete={true}
+                            onUpdate={onAnnotationUpdate}
+                            onDelete={onAnnotationDelete}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   
                   {/* Если есть несколько вариантов - показываем список для выбора */}
                   {hasMultipleVariants && (

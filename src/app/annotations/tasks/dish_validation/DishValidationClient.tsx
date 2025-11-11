@@ -753,8 +753,11 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
               onDishClick={handleDishClick}
               onPlateClick={handlePlateClick}
               onVariantSelect={handleVariantSelect}
+              onAnnotationUpdate={updateAnnotation}
+              onAnnotationDelete={deleteAnnotation}
               highlightedIndex={highlightedDishIndex}
               highlightedPlate={highlightedPlate}
+              showControls={displayMode === 'edit'}
               className="max-h-[calc(100vh-280px)] overflow-y-auto pr-2"
             />
           </div>
