@@ -544,6 +544,201 @@ annotations (
 
 ---
 
+## Система сохранения и экспорта аннотаций
+
+### ✅ Как сохраняются аннотации
+
+**Система версионирования работает правильно!**
+
+1. **Оригинальные аннотации (QWEN)**:
+   - Сохраняются в `recognition_images.original_annotations` (JSONB)
+   - Структура: `{ qwen_dishes_detections: [...], qwen_plates_detections: [...] }`
+   - **Никогда не изменяются** - это backup для отката
+
+2. **Текущие аннотации** (таблица `annotations`):
+   - Все операции пользователя сохраняются здесь
+   - Поле `source`:
+     - `'qwen_auto'` - создана автоматически QWEN
+     - `'manual'` - создана пользователем вручную
+   - Поле `qwen_detection_index` - связь с оригиналом (для отката)
+
+3. **Все операции сохраняются**:
+   - ✅ **Создание bbox**: `source='manual'`, сохраняется в `annotations`
+   - ✅ **Движение bbox**: Обновляются `bbox_x1, bbox_y1, bbox_x2, bbox_y2` в `annotations`
+   - ✅ **Toggle overlapped**: Обновляется `is_overlapped` в `annotations`
+   - ✅ **Toggle bottle up/down**: Обновляется `is_bottle_up` в `annotations`
+   - ✅ **Toggle error**: Обновляется `is_error` в `annotations`
+   - ✅ **Удаление bbox**: Удаляется из `annotations` (но остается в `original_annotations`)
+   - ✅ **Изменение dish_index**: Обновляется `dish_index` в `annotations`
+   - ✅ **Изменение object_type**: Обновляется `object_type` в `annotations`
+
+4. **Флаг модификаций**:
+   - `recognitions.has_modifications = true` - если есть хотя бы одна аннотация с `source='manual'`
+   - Обновляется автоматически при создании/удалении аннотаций
+
+### ✅ Экспорт данных
+
+**API Endpoint**: `/api/annotations/export`
+
+**Параметры**:
+- `format`: `json` | `csv` (default: json)
+- `workflow_state`: `pending` | `in_progress` | `completed` (опционально)
+- `tier`: 1-5 (опционально)
+- `from_date`, `to_date`: ISO date (опционально)
+- `include_history`: `true` | `false` (default: false)
+
+**Пример запроса**:
+```bash
+# Экспорт всех завершенных задач в JSON
+curl "http://localhost:3000/api/annotations/export?workflow_state=completed&format=json" > dataset.json
+
+# Экспорт в CSV
+curl "http://localhost:3000/api/annotations/export?workflow_state=completed&format=csv" > dataset.csv
+```
+
+**Структура JSON**:
+```json
+{
+  "exported_at": "2025-11-11T15:30:00.000Z",
+  "filters": {
+    "workflow_state": "completed",
+    "tier": null,
+    "from_date": null,
+    "to_date": null
+  },
+  "total_count": 1234,
+  "data": [
+    {
+      "recognition": {
+        "recognition_id": "109734",
+        "recognition_date": "2025-10-12",
+        "workflow_state": "completed",
+        "tier": 2,
+        "correct_dishes": [...],
+        "has_modifications": true
+      },
+      "images": [
+        {
+          "id": 12345,
+          "photo_type": "Main",
+          "storage_path": "...",
+          "original_annotations": {
+            "qwen_dishes_detections": [...],
+            "qwen_plates_detections": [...]
+          },
+          "annotations": [
+            {
+              "id": 1,
+              "bbox_x1": 100,
+              "bbox_y1": 200,
+              "bbox_x2": 300,
+              "bbox_y2": 400,
+              "object_type": "food",
+              "dish_index": 0,
+              "is_overlapped": false,
+              "is_bottle_up": null,
+              "is_error": false,
+              "source": "qwen_auto"
+            },
+            {
+              "id": 2,
+              "bbox_x1": 500,
+              "bbox_y1": 600,
+              "bbox_x2": 700,
+              "bbox_y2": 800,
+              "object_type": "plate",
+              "dish_index": null,
+              "is_overlapped": false,
+              "is_bottle_up": null,
+              "is_error": false,
+              "source": "manual"
+            }
+          ]
+        },
+        {
+          "id": 12346,
+          "photo_type": "Qualifying",
+          "annotations": [...]
+        }
+      ],
+      "history": null
+    }
+  ]
+}
+```
+
+**Что экспортируется**:
+- ✅ **Финальные аннотации** (из таблицы `annotations`) - это то что нужно для датасета
+- ✅ **Оригинальные аннотации** (из `original_annotations`) - для сравнения с QWEN
+- ✅ **Метаданные**: recognition_id, date, tier, workflow_state, has_modifications
+- ✅ **Все свойства bbox**: координаты, тип, флаги (overlapped, bottle_up, error)
+- ✅ **Источник**: `source='manual'` или `source='qwen_auto'`
+
+**Подсчет объектов**:
+```javascript
+// Пример обработки JSON для подсчета
+const dataset = JSON.parse(fs.readFileSync('dataset.json'))
+
+dataset.data.forEach(item => {
+  const recognition_id = item.recognition.recognition_id
+  
+  item.images.forEach(image => {
+    const photo_type = image.photo_type
+    const annotations = image.annotations
+    
+    const dishes = annotations.filter(a => a.object_type === 'food')
+    const plates = annotations.filter(a => a.object_type === 'plate')
+    const buzzers = annotations.filter(a => a.object_type === 'buzzer')
+    const non_food = annotations.filter(a => a.object_type === 'non_food')
+    
+    console.log(`${recognition_id} ${photo_type}: dishes=${dishes.length}, plates=${plates.length}, buzzers=${buzzers.length}, non_food=${non_food.length}`)
+  })
+})
+```
+
+**CSV формат**:
+```csv
+recognition_id,recognition_date,tier,workflow_state,photo_type,annotation_id,bbox_x1,bbox_y1,bbox_x2,bbox_y2,object_type,object_subtype,dish_index,is_overlapped,is_bottle_up,is_error,source
+109734,2025-10-12,2,completed,Main,1,100,200,300,400,food,,0,false,,false,qwen_auto
+109734,2025-10-12,2,completed,Main,2,500,600,700,800,plate,,,false,,false,manual
+109734,2025-10-12,2,completed,Qualifying,3,150,250,350,450,food,,0,false,,false,qwen_auto
+```
+
+### 🔍 Проверка целостности данных
+
+**Endpoint для восстановления**: `/api/annotations/recognitions/[id]/restore`
+
+Позволяет откатить recognition к оригинальным QWEN аннотациям, если что-то пошло не так.
+
+**Проверка has_modifications**:
+```sql
+-- Проверить что флаг has_modifications установлен правильно
+SELECT 
+  r.recognition_id,
+  r.has_modifications,
+  COUNT(CASE WHEN a.source = 'manual' THEN 1 END) as manual_annotations_count
+FROM recognitions r
+JOIN recognition_images ri ON r.recognition_id = ri.recognition_id
+LEFT JOIN annotations a ON ri.id = a.image_id
+WHERE r.workflow_state = 'completed'
+GROUP BY r.recognition_id, r.has_modifications
+HAVING (r.has_modifications = true AND COUNT(CASE WHEN a.source = 'manual' THEN 1 END) = 0)
+    OR (r.has_modifications = false AND COUNT(CASE WHEN a.source = 'manual' THEN 1 END) > 0);
+```
+
+### ✅ Итог по экспорту
+
+**Да, все сохраняется правильно!**
+
+1. ✅ Финальные аннотации (после всех правок пользователя) экспортируются из таблицы `annotations`
+2. ✅ Оригинальные QWEN аннотации сохранены отдельно в `original_annotations`
+3. ✅ Все операции (создание, движение, toggle свойств, удаление) сохраняются
+4. ✅ Легко скачать JSON с полной информацией
+5. ✅ Легко посчитать количество объектов каждого типа
+6. ✅ Можно откатить к оригиналу если нужно
+
+---
+
 **Последний рабочий коммит**: `aabca52` (fix: исправлены вызовы finishAnnotationCreate для plates и dishes)
 
 **Ветка**: `feature/annotation-workflow`
