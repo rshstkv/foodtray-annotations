@@ -203,7 +203,7 @@ export function DishList({
                     style={{ backgroundColor: getDishColor(index) }}
                   />
                   <span className="text-xs font-mono text-gray-500">
-                        #{index + 2}
+                        #{hasPlates ? index + 2 : index + 1}
                       </span>
                       {hasMultipleVariants && (
                         <span className="text-xs text-orange-600 font-medium">
