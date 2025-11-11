@@ -665,16 +665,6 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
                 </>
               ) : (
                 <>
-                  {selectedAnnotation && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => deleteAnnotation(selectedAnnotation.id)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      🗑️ Удалить bbox
-                    </Button>
-                  )}
                   <Button variant="outline" onClick={skipTask}>
                     ⏭️ Пропустить
                   </Button>

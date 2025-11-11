@@ -104,8 +104,8 @@ export function DishList({
                 🍽️ Тарелки
               </p>
               
-              {/* Показываем bbox тарелок с контролами если включен showControls */}
-              {showControls && (
+              {/* Показываем bbox тарелок с контролами если включен showControls или тарелки выбраны */}
+              {(showControls || highlightedPlate) && (
                 <div className="mt-2 space-y-1 border-t pt-2">
                   {images.find(i => i.photo_type === 'Main')?.annotations
                     .filter(a => a.object_type === 'plate')
@@ -226,8 +226,8 @@ export function DishList({
                     {displayName}
                   </p>
                   
-                  {/* Показываем bbox с контролами если включен showControls */}
-                  {showControls && [...mainBboxes, ...qualBboxes].length > 0 && (
+                  {/* Показываем bbox с контролами если включен showControls или блюдо выбрано */}
+                  {(showControls || isHighlighted) && [...mainBboxes, ...qualBboxes].length > 0 && (
                     <div className="mt-2 space-y-1 border-t pt-2">
                       {mainBboxes.map((bbox, bboxIdx) => (
                         <div key={`main-${bbox.id}`} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded">
