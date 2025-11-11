@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase-server'
  * Query params:
  *   - task_type: код типа задачи (dish_validation, etc)
  *   - mode: режим валидации ('quick' | 'edit'), опционально
- *   - queue: тип очереди ('pending' | 'requires_correction'), default: 'pending'
+ *   - task_queue: тип очереди ('dish_validation' | 'check_error' | 'buzzer' | 'other_items'), default: 'dish_validation'
  * 
  * Возвращает следующий доступный recognition с:
  * - recognition данными
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const taskTypeCode = searchParams.get('task_type')
     const modeParam = searchParams.get('mode') as 'quick' | 'edit' | null
-    const queueType = searchParams.get('queue') || 'pending' // 'pending' | 'requires_correction'
+    const taskQueue = searchParams.get('task_queue') || 'dish_validation' // 'dish_validation' | 'check_error' | 'buzzer' | 'other_items'
     
     if (!taskTypeCode) {
       return NextResponse.json(
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    console.log(`[TIMING] Request started for ${taskTypeCode}, mode=${modeParam}, queue=${queueType}`)
+    console.log(`[TIMING] Request started for ${taskTypeCode}, mode=${modeParam}, task_queue=${taskQueue}`)
 
     // Получаем task_type и соответствующий stage
     const { data: taskType, error: taskTypeError } = await supabase
@@ -68,30 +68,32 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabaseServer.auth.getUser()
 
     // Строим запрос для поиска recognition
+    // УПРОЩЕННАЯ ЛОГИКА:
     // Ищем задачи которые:
-    // 1. В нужной очереди (workflow_state)
-    // 2. С нужным validation_mode (если указан)
-    // 3. Либо не назначены (assigned_to IS NULL), либо назначены текущему пользователю
-    // 4. Либо назначены давно (started_at старше 15 минут) - автоосвобождение
-    const workflowState = queueType === 'requires_correction' ? 'requires_correction' : 'pending'
+    // 1. В нужной очереди (task_queue)
+    // 2. В состоянии pending
+    // 3. С нужным validation_mode (если указан)
+    // 4. Назначены текущему пользователю (assigned_to = user.id)
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
     
     let query = supabase
       .from('recognitions')
       .select('*')
-      .eq('workflow_state', workflowState)
+      .eq('workflow_state', 'pending')
+      .eq('task_queue', taskQueue)
       .eq('current_stage_id', stage.id)
+      .eq('assigned_to', user.id) // Только назначенные текущему пользователю
 
     // КРИТИЧНО: Фильтр по validation_mode если mode указан
     if (modeParam) {
       query = query.eq('validation_mode', modeParam)
     }
-
-    // Фильтр по assignment: либо не назначена, либо назначена текущему пользователю, либо просрочена
-    if (user) {
-      query = query.or(`assigned_to.is.null,assigned_to.eq.${user.id},started_at.lt.${new Date(Date.now() - 15 * 60 * 1000).toISOString()}`)
-    } else {
-      query = query.or(`assigned_to.is.null,started_at.lt.${new Date(Date.now() - 15 * 60 * 1000).toISOString()}`)
-        }
 
     query = query
       .order('recognition_date', { ascending: false })

@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,39 +10,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-
-interface User {
-  id: string
-  email: string
-  role: 'admin' | 'annotator'
-  full_name?: string
-}
+import { useUser } from '@/hooks/useUser'
 
 export function UserNav() {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { user, loading } = useUser()
   const router = useRouter()
-
-  useEffect(() => {
-    fetchUser()
-  }, [])
-
-  const fetchUser = async () => {
-    try {
-      const res = await fetch('/api/auth/session', {
-        cache: 'no-store',
-        credentials: 'include',
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setUser(data.user)
-      }
-    } catch (error) {
-      console.error('Failed to fetch user:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleLogout = async () => {
     try {

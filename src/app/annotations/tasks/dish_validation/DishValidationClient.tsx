@@ -17,10 +17,11 @@ const BBoxAnnotator = dynamic(() => import('@/components/BBoxAnnotator'), { ssr:
 
 type DishValidationClientProps = {
   mode: 'quick' | 'edit'
+  taskQueue?: 'dish_validation' | 'check_error' | 'buzzer' | 'other_items'
 }
 
-export function DishValidationClient({ mode }: DishValidationClientProps) {
-  console.log('[DishValidationClient] Rendering with mode:', mode)
+export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: DishValidationClientProps) {
+  console.log('[DishValidationClient] Rendering with mode:', mode, 'taskQueue:', taskQueue)
   const router = useRouter()
 
   const {
@@ -32,7 +33,7 @@ export function DishValidationClient({ mode }: DishValidationClientProps) {
     flagTask,
   } = useTaskEngine({
     taskType: 'dish_validation',
-    queue: 'pending',
+    taskQueue,
     mode,
   })
   
@@ -537,7 +538,7 @@ export function DishValidationClient({ mode }: DishValidationClientProps) {
                   className="w-4 h-4"
                   onChange={(e) => {
                     if (e.target.checked) {
-                      flagTask('manual_review', 'Есть другие предметы')
+                      flagTask('other_items', 'Есть другие предметы (non-food items)')
                     }
                   }}
                 />

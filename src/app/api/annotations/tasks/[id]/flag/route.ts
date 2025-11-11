@@ -10,18 +10,21 @@ import { supabase } from '@/lib/supabase'
  *   - flag_type: 'bbox_error' | 'check_error' | 'manual_review' | 'buzzer_present'
  *   - reason?: string (опциональное описание проблемы)
  * 
- * Флаги:
- *   - bbox_error: Неправильные bbox (границы или привязка к блюду) → requires_correction
- *   - check_error: Исходные данные (чек) неполные/неверные → check_error_pending
- *   - manual_review: Сложный случай, требует ручного ревью → manual_review_pending
- *   - buzzer_present: На изображениях есть баззеры → buzzer_pending
+ * Флаги (меняют task_queue и/или validation_mode):
+ *   - bbox_error: → task_queue='dish_validation', validation_mode='edit'
+ *   - check_error: Ошибка в чеке → task_queue='check_error' (edit mode)
+ *   - other_items: Есть другие предметы → task_queue='other_items' (edit mode)
+ *   - buzzer_present: Есть баззеры → task_queue='buzzer' (edit mode)
+ * 
+ * Задача всегда возвращается в workflow_state='pending'
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const recognitionId = params.id
+    const { id } = await params
+    const recognitionId = id
     const body = await request.json()
     const { flag_type, reason } = body
 
@@ -32,9 +35,9 @@ export async function POST(
       )
     }
 
-    if (!['bbox_error', 'check_error', 'manual_review', 'buzzer_present'].includes(flag_type)) {
+    if (!['bbox_error', 'check_error', 'other_items', 'buzzer_present'].includes(flag_type)) {
       return NextResponse.json(
-        { error: 'Invalid flag_type. Must be: bbox_error, check_error, manual_review, or buzzer_present' },
+        { error: 'Invalid flag_type. Must be: bbox_error, check_error, other_items, or buzzer_present' },
         { status: 400 }
       )
     }

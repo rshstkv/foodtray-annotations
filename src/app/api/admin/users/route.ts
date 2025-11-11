@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 
 /**
@@ -40,8 +41,9 @@ export async function GET() {
       return NextResponse.json({ error: authCheck.error }, { status: authCheck.status })
     }
 
-    // Получить всех пользователей
-    const { data: profiles, error } = await supabase
+    // Получить всех пользователей (используем admin client для обхода RLS)
+    const adminClient = createAdminClient()
+    const { data: profiles, error } = await adminClient
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false })

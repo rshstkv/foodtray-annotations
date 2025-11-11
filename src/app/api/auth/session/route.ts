@@ -22,34 +22,22 @@ export async function GET() {
       )
     }
 
-    // Используем обычный клиент с RLS - пользователь может читать свой профиль
+    // Пытаемся получить профиль
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('role, is_active, email, full_name')
+      .select('role, full_name')
       .eq('id', user.id)
       .single()
 
-    if (profileError) {
-      console.error('[Auth] Profile fetch error:', profileError.message)
-      return NextResponse.json(
-        { error: 'Failed to fetch user profile' },
-        { status: 500 }
-      )
-    }
+    console.log('[Auth] Profile loaded:', profile, 'Error:', profileError?.message)
 
-    if (!profile?.is_active) {
-      return NextResponse.json(
-        { error: 'Account is not active' },
-        { status: 403 }
-      )
-    }
-
+    // Fallback: используем данные из auth если профиля нет
     return NextResponse.json({
       user: {
         id: user.id,
-        email: user.email,
-        role: profile.role,
-        full_name: profile.full_name
+        email: user.email || '',
+        role: profile?.role || 'annotator',
+        full_name: profile?.full_name || null
       }
     })
   } catch (error) {

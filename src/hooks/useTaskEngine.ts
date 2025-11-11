@@ -8,14 +8,14 @@ import type { TaskData } from '@/types/annotations'
 
 interface UseTaskEngineOptions {
   taskType: string
-  queue?: 'pending' | 'requires_correction'
+  taskQueue?: 'dish_validation' | 'check_error' | 'buzzer' | 'other_items'
   mode?: 'quick' | 'edit'
   autoFetch?: boolean
 }
 
 export function useTaskEngine({
   taskType,
-  queue = 'pending',
+  taskQueue = 'dish_validation',
   mode,
   autoFetch = true,
 }: UseTaskEngineOptions) {
@@ -29,7 +29,7 @@ export function useTaskEngine({
       setLoading(true)
       setError(null)
       
-      const response = await annotationClient.getNextTask(taskType, queue, mode)
+      const response = await annotationClient.getNextTask(taskType, taskQueue, mode)
       
       if (response.error) {
         if (response.error.includes('404') || response.error.includes('No tasks')) {

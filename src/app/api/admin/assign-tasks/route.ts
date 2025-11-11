@@ -29,7 +29,7 @@ async function checkAdminRole(supabase: any) {
  * POST /api/admin/assign-tasks
  * 
  * Назначить задачи пользователю (только для admin)
- * Body: { mode: 'quick' | 'edit', count: number, userId: string }
+ * Body: { mode: 'quick' | 'edit', count: number, userId: string, taskQueue?: string }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: authCheck.error }, { status: authCheck.status })
     }
 
-    const { mode, count, userId } = await request.json()
+    const { mode, count, userId, taskQueue } = await request.json()
 
     if (!mode || !count || !userId) {
       return NextResponse.json(
@@ -58,13 +58,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Найти свободные задачи нужного типа
-    const { data: tasks, error: fetchError } = await supabase
+    let query = supabase
       .from('recognitions')
       .select('recognition_id')
       .eq('validation_mode', mode)
       .eq('workflow_state', 'pending')
       .is('assigned_to', null)
-      .limit(count)
+    
+    // Фильтр по task_queue (если указан)
+    if (taskQueue) {
+      query = query.eq('task_queue', taskQueue)
+    }
+    
+    query = query.limit(count)
+    
+    const { data: tasks, error: fetchError } = await query
 
     if (fetchError) {
       console.error('[Admin] Error fetching tasks:', fetchError.message)

@@ -7,21 +7,58 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { UserNav } from '@/components/UserNav'
+import { useUser } from '@/hooks/useUser'
 import type { TaskStats } from '@/types/annotations'
+
+interface User {
+  id: string
+  email: string
+  full_name?: string
+}
 
 export default function TasksListPage() {
   const router = useRouter()
+  const { user, isAdmin, loading: userLoading } = useUser()
   const [stats, setStats] = useState<TaskStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [users, setUsers] = useState<User[]>([])
+  const [filter, setFilter] = useState<string>('my') // my | unassigned | user_id
 
   useEffect(() => {
-    fetchStats()
-  }, [])
+    if (!userLoading && user) {
+      if (isAdmin) {
+        fetchUsers()
+      }
+      fetchStats()
+    }
+  }, [userLoading, user, isAdmin])
+
+  useEffect(() => {
+    if (user) {
+      fetchStats()
+    }
+  }, [filter, user])
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch('/api/admin/users')
+      if (res.ok) {
+        const data = await res.json()
+        setUsers(data.users || [])
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    }
+  }
 
   const fetchStats = async () => {
     try {
       setLoading(true)
-      const res = await fetch('/api/annotations/tasks/stats')
+      const url = filter === 'my' || filter === 'unassigned' 
+        ? `/api/annotations/tasks/stats-detailed?filter=${filter}`
+        : `/api/annotations/tasks/stats-detailed?user_id=${filter}`
+      
+      const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
         setStats(data)
@@ -59,6 +96,23 @@ export default function TasksListPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {isAdmin && (
+                <select
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="my">Мои задачи</option>
+                  <option value="unassigned">Неназначенные</option>
+                  <optgroup label="По пользователям">
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.email} {u.full_name ? `(${u.full_name})` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              )}
               <Button variant="outline" onClick={() => router.push('/annotations')}>
                 Список recognitions →
               </Button>
@@ -103,15 +157,14 @@ export default function TasksListPage() {
                   {stats?.quick_validation || 0}
                 </div>
                 <div className="text-xs text-gray-500 mb-3">задач</div>
-                <Link href="/annotations/tasks/dish_validation?mode=quick">
-                  <Button 
-                    size="lg"
-                    className="bg-green-600 hover:bg-green-700"
-                    disabled={!stats?.quick_validation || stats.quick_validation === 0}
-                  >
-                    Начать проверку →
-                  </Button>
-                </Link>
+                <Button 
+                  size="lg"
+                  className="bg-green-600 hover:bg-green-700"
+                  disabled={filter !== 'my' || !stats?.quick_validation || stats.quick_validation === 0}
+                  onClick={() => router.push('/annotations/tasks/dish_validation?mode=quick')}
+                >
+                  Начать проверку →
+                </Button>
               </div>
             </div>
           </Card>
@@ -150,15 +203,14 @@ export default function TasksListPage() {
                   {stats?.edit_mode || 0}
                 </div>
                 <div className="text-xs text-gray-500 mb-3">задач</div>
-                <Link href="/annotations/tasks/dish_validation?mode=edit">
-                  <Button 
-                    size="lg"
-                    className="bg-blue-600 hover:bg-blue-700"
-                    disabled={!stats?.edit_mode || stats.edit_mode === 0}
-                  >
-                    Начать редактирование →
-                  </Button>
-                </Link>
+                <Button 
+                  size="lg"
+                  className="bg-blue-600 hover:bg-blue-700"
+                  disabled={filter !== 'my' || !stats?.edit_mode || stats.edit_mode === 0}
+                  onClick={() => router.push('/annotations/tasks/dish_validation?mode=edit')}
+                >
+                  Начать редактирование →
+                </Button>
               </div>
             </div>
           </Card>
@@ -199,9 +251,9 @@ export default function TasksListPage() {
                 <div className="text-xs text-gray-500 mb-3">задач</div>
                   <Button 
                     size="lg"
-                  variant="outline"
-                  disabled={!stats?.check_errors || stats.check_errors === 0}
-                  onClick={() => router.push('/annotations?workflow_state=check_error')}
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                    disabled={filter !== 'my' || !stats?.check_errors || stats.check_errors === 0}
+                    onClick={() => router.push('/annotations/tasks/dish_validation?task_queue=check_error')}
                   >
                     Исправить →
                   </Button>
@@ -253,14 +305,14 @@ export default function TasksListPage() {
                   <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
                     {stats?.buzzer_annotation || 0} задач
                   </Badge>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      disabled={!stats?.buzzer_annotation || stats.buzzer_annotation === 0}
-                    onClick={() => router.push('/annotations?workflow_state=buzzer_present')}
-                    >
-                      Начать →
-                    </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    disabled={filter !== 'my' || !stats?.buzzer_annotation || stats.buzzer_annotation === 0}
+                    onClick={() => router.push('/annotations/tasks/dish_validation?task_queue=buzzer')}
+                  >
+                    Начать →
+                  </Button>
                 </div>
               </div>
             </Card>
@@ -279,14 +331,14 @@ export default function TasksListPage() {
                   <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">
                     {stats?.non_food_objects || 0} задач
                   </Badge>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      disabled={!stats?.non_food_objects || stats.non_food_objects === 0}
-                    onClick={() => router.push('/annotations?workflow_state=manual_review')}
-                    >
-                      Начать →
-                    </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    disabled={filter !== 'my' || !stats?.non_food_objects || stats.non_food_objects === 0}
+                    onClick={() => router.push('/annotations/tasks/dish_validation?task_queue=other_items')}
+                  >
+                    Начать →
+                  </Button>
                 </div>
               </div>
             </Card>
@@ -326,10 +378,10 @@ export default function TasksListPage() {
               <div className="text-xs text-gray-500">В очереди</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">
-                {stats?.requires_correction || 0}
+              <div className="text-2xl font-bold text-yellow-600">
+                {stats?.check_errors || 0}
               </div>
-              <div className="text-xs text-gray-500">На исправлении</div>
+              <div className="text-xs text-gray-500">Ошибки в чеке</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">

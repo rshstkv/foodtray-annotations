@@ -4,84 +4,84 @@ import { supabase } from '@/lib/supabase'
 /**
  * GET /api/annotations/tasks/stats
  * 
- * Возвращает статистику по всем типам задач
+ * Возвращает статистику по task_queue и validation_mode
  * 
  * Response:
  * {
- *   quick_validation: number,  // M=Q=expected, pending
- *   edit_mode: number,          // M≠Q or M≠expected, pending
- *   requires_correction: number,
- *   bottle_orientation: number,
- *   buzzer_annotation: number,
- *   non_food_objects: number,
- *   completed: number
+ *   quick_validation: number,  // dish_validation + quick mode
+ *   edit_mode: number,          // dish_validation + edit mode
+ *   check_errors: number,       // check_error queue
+ *   buzzer_annotation: number,  // buzzer queue
+ *   non_food_objects: number,   // other_items queue
+ *   completed: number           // всего completed
  * }
  */
 export async function GET() {
   try {
-    // Используем RPC функцию для быстрого подсчета
-    const { data, error } = await supabase.rpc('get_task_stats_grouped')
-
-    if (error) {
-      console.error('Error fetching stats:', error)
-      // Fallback to simple counts
-      return getFallbackStats()
-    }
-
-    return NextResponse.json(data || {
-      quick_validation: 0,
-      edit_mode: 0,
-      requires_correction: 0,
-      bottle_orientation: 0,
-      buzzer_annotation: 0,
-      non_food_objects: 0,
-      completed: 0,
-    })
-
-  } catch (error) {
-    console.error('Unexpected error in stats endpoint:', error)
-    return getFallbackStats()
-  }
-}
-
-/**
- * Fallback stats если RPC функция не работает
- */
-async function getFallbackStats() {
-  try {
-    // Простые подсчеты по workflow_state
-    const { count: correctionCount } = await supabase
+    // Получаем детальную статистику: всего, назначено, не назначено
+    const { data: stats } = await supabase
       .from('recognitions')
-      .select('*', { count: 'exact', head: true })
-      .eq('workflow_state', 'requires_correction')
+      .select('task_queue, validation_mode, assigned_to, workflow_state')
+      .eq('workflow_state', 'pending')
 
-    const { count: completedCount } = await supabase
+    const { data: completed } = await supabase
       .from('recognitions')
       .select('*', { count: 'exact', head: true })
       .eq('workflow_state', 'completed')
 
-    // Для dish_validation задач - просто считаем все pending
-    // (точное разделение на quick/edit требует RPC функции)
-    const { count: pendingCount } = await supabase
-      .from('recognitions')
-      .select('*', { count: 'exact', head: true })
-      .eq('workflow_state', 'pending')
+    // Подсчет по категориям
+    const quickTotal = stats?.filter(r => r.task_queue === 'dish_validation' && r.validation_mode === 'quick').length || 0
+    const quickAssigned = stats?.filter(r => r.task_queue === 'dish_validation' && r.validation_mode === 'quick' && r.assigned_to).length || 0
+    const quickUnassigned = quickTotal - quickAssigned
+
+    const editTotal = stats?.filter(r => r.task_queue === 'dish_validation' && r.validation_mode === 'edit').length || 0
+    const editAssigned = stats?.filter(r => r.task_queue === 'dish_validation' && r.validation_mode === 'edit' && r.assigned_to).length || 0
+    const editUnassigned = editTotal - editAssigned
+
+    const checkTotal = stats?.filter(r => r.task_queue === 'check_error').length || 0
+    const checkAssigned = stats?.filter(r => r.task_queue === 'check_error' && r.assigned_to).length || 0
+    const checkUnassigned = checkTotal - checkAssigned
+
+    const buzzerTotal = stats?.filter(r => r.task_queue === 'buzzer').length || 0
+    const buzzerAssigned = stats?.filter(r => r.task_queue === 'buzzer' && r.assigned_to).length || 0
+    const buzzerUnassigned = buzzerTotal - buzzerAssigned
+
+    const otherTotal = stats?.filter(r => r.task_queue === 'other_items').length || 0
+    const otherAssigned = stats?.filter(r => r.task_queue === 'other_items' && r.assigned_to).length || 0
+    const otherUnassigned = otherTotal - otherAssigned
 
     return NextResponse.json({
-      quick_validation: pendingCount || 0, // Fallback: все pending как quick
-      edit_mode: 0,
-      requires_correction: correctionCount || 0,
+      quick_validation: quickTotal,
+      quick_validation_assigned: quickAssigned,
+      quick_validation_unassigned: quickUnassigned,
+      
+      edit_mode: editTotal,
+      edit_mode_assigned: editAssigned,
+      edit_mode_unassigned: editUnassigned,
+      
+      check_errors: checkTotal,
+      check_errors_assigned: checkAssigned,
+      check_errors_unassigned: checkUnassigned,
+      
+      buzzer_annotation: buzzerTotal,
+      buzzer_annotation_assigned: buzzerAssigned,
+      buzzer_annotation_unassigned: buzzerUnassigned,
+      
+      non_food_objects: otherTotal,
+      non_food_objects_assigned: otherAssigned,
+      non_food_objects_unassigned: otherUnassigned,
+      
       bottle_orientation: 0,
-      buzzer_annotation: 0,
-      non_food_objects: 0,
-      completed: completedCount || 0,
+      completed: completed?.count || 0,
     })
+
   } catch (error) {
-    console.error('Fallback stats error:', error)
+    console.error('Unexpected error in stats endpoint:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
   }
 }
+
 

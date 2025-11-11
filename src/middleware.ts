@@ -1,5 +1,5 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -13,57 +13,68 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll()
+        get(name: string) {
+          return request.cookies.get(name)?.value
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({
-            request,
+        set(name: string, value: string, options: any) {
+          request.cookies.set({
+            name,
+            value,
+            ...options,
           })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          )
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+        },
+        remove(name: string, options: any) {
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
         },
       },
     }
   )
 
-  // Проверка авторизации
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Защита /annotations/* роутов - требуется авторизация
-  if (request.nextUrl.pathname.startsWith('/annotations') && !user) {
+  const isLoginPage = request.nextUrl.pathname === '/login'
+  const isPublicRoute = request.nextUrl.pathname.startsWith('/api/auth/login')
+
+  // Если пользователь не авторизован и пытается зайти на защищенную страницу
+  if (!user && !isLoginPage && !isPublicRoute) {
     const redirectUrl = new URL('/login', request.url)
-    redirectUrl.searchParams.set('redirect', request.nextUrl.pathname)
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Защита /admin/* роутов - требуется роль admin
-  if (request.nextUrl.pathname.startsWith('/admin')) {
-    if (!user) {
-      const redirectUrl = new URL('/login', request.url)
-      redirectUrl.searchParams.set('redirect', request.nextUrl.pathname)
-      return NextResponse.redirect(redirectUrl)
-    }
-
-    // Проверка роли admin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (profile?.role !== 'admin') {
-      // Не админ - редирект на главную страницу задач
-      return NextResponse.redirect(new URL('/annotations/tasks', request.url))
-    }
+  // Если пользователь авторизован и пытается зайти на страницу логина
+  if (user && isLoginPage) {
+    const redirectUrl = new URL('/annotations/tasks', request.url)
+    return NextResponse.redirect(redirectUrl)
   }
 
-  // Редирект с /login на /annotations/tasks если уже авторизован
-  if (request.nextUrl.pathname === '/login' && user) {
-    const redirect = request.nextUrl.searchParams.get('redirect')
-    return NextResponse.redirect(new URL(redirect || '/annotations/tasks', request.url))
+  // Перенаправляем с главной на задачи если залогинен
+  if (user && request.nextUrl.pathname === '/') {
+    const redirectUrl = new URL('/annotations/tasks', request.url)
+    return NextResponse.redirect(redirectUrl)
   }
 
   return response
@@ -71,9 +82,12 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/annotations/:path*',
-    '/admin/:path*',
-    '/login'
-  ]
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }
-

@@ -62,11 +62,11 @@ class AnnotationClient {
    */
   async getNextTask(
     taskType: string, 
-    queue?: 'pending' | 'requires_correction',
+    taskQueue?: 'dish_validation' | 'check_error' | 'buzzer' | 'other_items',
     mode?: 'quick' | 'edit'
   ): Promise<APIResponse<TaskData>> {
     const params = new URLSearchParams({ task_type: taskType })
-    if (queue) params.append('queue', queue)
+    if (taskQueue) params.append('task_queue', taskQueue)
     if (mode) params.append('mode', mode)
     
     return this.fetch<TaskData>(`/tasks/next?${params.toString()}`)
