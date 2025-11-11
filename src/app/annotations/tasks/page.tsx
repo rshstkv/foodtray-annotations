@@ -47,15 +47,20 @@ export default function TasksListPage() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Задачи для аннотаторов</h1>
-              <p className="text-gray-600 mt-2">
-                Выберите тип задачи для работы
-              </p>
+            <div className="flex items-center gap-4">
+              <Button variant="outline" onClick={() => router.push('/')}>
+                ← Главная
+              </Button>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Задачи для аннотаторов</h1>
+                <p className="text-gray-600 mt-2">
+                  Выберите тип задачи для работы
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <Button variant="outline" onClick={() => router.push('/annotations')}>
-                ← К списку recognitions
+                Список recognitions →
               </Button>
               <UserNav />
             </div>
@@ -192,14 +197,14 @@ export default function TasksListPage() {
                   {stats?.check_errors || 0}
                 </div>
                 <div className="text-xs text-gray-500 mb-3">задач</div>
-                <Button 
-                  size="lg"
+                  <Button 
+                    size="lg"
                   variant="outline"
                   disabled={!stats?.check_errors || stats.check_errors === 0}
                   onClick={() => router.push('/annotations?workflow_state=check_error')}
-                >
-                  Исправить →
-                </Button>
+                  >
+                    Исправить →
+                  </Button>
               </div>
             </div>
           </Card>
@@ -223,13 +228,13 @@ export default function TasksListPage() {
                   <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100">
                     {stats?.bottle_orientation || 0} задач
                   </Badge>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
+                    <Button 
+                      size="sm" 
+                      variant="outline"
                     onClick={() => router.push('/admin')}
-                  >
+                    >
                     Настроить →
-                  </Button>
+                    </Button>
                 </div>
               </div>
             </Card>
@@ -248,14 +253,14 @@ export default function TasksListPage() {
                   <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
                     {stats?.buzzer_annotation || 0} задач
                   </Badge>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    disabled={!stats?.buzzer_annotation || stats.buzzer_annotation === 0}
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      disabled={!stats?.buzzer_annotation || stats.buzzer_annotation === 0}
                     onClick={() => router.push('/annotations?workflow_state=buzzer_present')}
-                  >
-                    Начать →
-                  </Button>
+                    >
+                      Начать →
+                    </Button>
                 </div>
               </div>
             </Card>
@@ -274,14 +279,14 @@ export default function TasksListPage() {
                   <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">
                     {stats?.non_food_objects || 0} задач
                   </Badge>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    disabled={!stats?.non_food_objects || stats.non_food_objects === 0}
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      disabled={!stats?.non_food_objects || stats.non_food_objects === 0}
                     onClick={() => router.push('/annotations?workflow_state=manual_review')}
-                  >
-                    Начать →
-                  </Button>
+                    >
+                      Начать →
+                    </Button>
                 </div>
               </div>
             </Card>

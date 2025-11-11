@@ -4,8 +4,10 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { UserNav } from '@/components/UserNav'
 
 interface Recognition {
   id: number
@@ -141,11 +143,22 @@ export default function AnnotationsListPage() {
       <div className="sticky top-0 z-10 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Аннотации Bounding Box</h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Всего распознаваний: {total}
-              </p>
+            <div className="flex items-center gap-4">
+              <Button variant="outline" onClick={() => router.push('/')}>
+                ← Главная
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Аннотации Bounding Box</h1>
+                <p className="text-sm text-gray-600 mt-1">
+                  Всего распознаваний: {total}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" onClick={() => router.push('/annotations/tasks')}>
+                Задачи →
+              </Button>
+              <UserNav />
             </div>
           </div>
 

@@ -1444,7 +1444,7 @@ def main():
         metrics["phase6_validation_mode"] = {
             "updated": updated_count,
             "duration_sec": round(calc_duration, 3),
-        }
+    }
     
     # ============================================================
     # Восстановление индексов

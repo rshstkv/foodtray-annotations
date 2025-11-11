@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
       query = query.or(`assigned_to.is.null,assigned_to.eq.${user.id},started_at.lt.${new Date(Date.now() - 15 * 60 * 1000).toISOString()}`)
     } else {
       query = query.or(`assigned_to.is.null,started_at.lt.${new Date(Date.now() - 15 * 60 * 1000).toISOString()}`)
-    }
+        }
 
     query = query
       .order('recognition_date', { ascending: false })

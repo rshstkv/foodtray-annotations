@@ -88,50 +88,27 @@ export function useAnnotations(initialImages: Image[] = []) {
           current_bbox_y2: currentAnnotation.bbox_y2,
         }
 
+        console.log('[useAnnotations] Sending update to server:', { id, payload })
+
         const response = await annotationClient.updateAnnotation(id, payload)
 
         if (response.error || !response.data) {
+          console.error('[useAnnotations] Server error:', response.error)
           setError(response.error || 'Failed to update annotation')
           return null
         }
 
         const updatedAnnotation = response.data
-
         console.log('[useAnnotations] Server response:', updatedAnnotation)
 
-        // Обновляем локальное состояние ТОЛЬКО если данные отличаются
-        // (оптимистичное обновление могло уже применить изменения)
-        setImages((prev) => {
-          const currentAnn = prev
-            .flatMap((img) => img.annotations)
-            .find((a) => a.id === id)
-          
-          console.log('[useAnnotations] Current annotation in state:', currentAnn)
-          
-          // Если текущие координаты уже совпадают с обновлёнными, не обновляем
-          if (
-            currentAnn &&
-            currentAnn.bbox_x1 === updatedAnnotation.bbox_x1 &&
-            currentAnn.bbox_y1 === updatedAnnotation.bbox_y1 &&
-            currentAnn.bbox_x2 === updatedAnnotation.bbox_x2 &&
-            currentAnn.bbox_y2 === updatedAnnotation.bbox_y2
-          ) {
-            console.log('[useAnnotations] Coordinates match, skipping update')
-            return prev
-          }
-
-          console.log('[useAnnotations] Coordinates differ, updating from server')
-          return prev.map((img) => ({
-            ...img,
-            annotations: img.annotations.map((ann) =>
-              ann.id === id ? updatedAnnotation : ann
-            ),
-          }))
-        })
+        // НЕ ОБНОВЛЯЕМ состояние из сервера, т.к. оптимистичное обновление уже применено
+        // Сервер нужен только для сохранения в БД
+        console.log('[useAnnotations] Skipping state update - relying on optimistic update')
 
         return updatedAnnotation
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error'
+        console.error('[useAnnotations] Exception:', message)
         setError(message)
         return null
       } finally {
