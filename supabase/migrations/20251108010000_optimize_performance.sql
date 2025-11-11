@@ -4,8 +4,7 @@
 
 -- 1. Индексы для быстрого поиска задач
 CREATE INDEX IF NOT EXISTS idx_recognitions_workflow_state_stage 
-  ON recognitions(workflow_state, current_stage_id, tier) 
-  WHERE assigned_to IS NULL OR started_at < NOW() - INTERVAL '15 minutes';
+  ON recognitions(workflow_state, current_stage_id, tier, assigned_to, started_at);
 
 CREATE INDEX IF NOT EXISTS idx_recognitions_tier_pending 
   ON recognitions(tier, workflow_state, current_stage_id)

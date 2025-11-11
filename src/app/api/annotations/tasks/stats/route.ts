@@ -55,36 +55,25 @@ async function getFallbackStats() {
       .select('*', { count: 'exact', head: true })
       .eq('workflow_state', 'requires_correction')
 
-    const { count: buzzerCount } = await supabase
-      .from('recognitions')
-      .select('*', { count: 'exact', head: true })
-      .eq('workflow_state', 'buzzer_pending')
-
     const { count: completedCount } = await supabase
       .from('recognitions')
       .select('*', { count: 'exact', head: true })
       .eq('workflow_state', 'completed')
 
-    // Для dish_validation задач (tier 1 = quick, остальные = edit)
-    const { count: tier1Count } = await supabase
+    // Для dish_validation задач - просто считаем все pending
+    // (точное разделение на quick/edit требует RPC функции)
+    const { count: pendingCount } = await supabase
       .from('recognitions')
       .select('*', { count: 'exact', head: true })
       .eq('workflow_state', 'pending')
-      .eq('tier', 1)
-
-    const { count: otherTiersCount } = await supabase
-      .from('recognitions')
-      .select('*', { count: 'exact', head: true })
-      .eq('workflow_state', 'pending')
-      .gt('tier', 1)
 
     return NextResponse.json({
-      quick_validation: tier1Count || 0,
-      edit_mode: otherTiersCount || 0,
+      quick_validation: pendingCount || 0, // Fallback: все pending как quick
+      edit_mode: 0,
       requires_correction: correctionCount || 0,
-      bottle_orientation: 0, // TODO: посчитать
-      buzzer_annotation: buzzerCount || 0,
-      non_food_objects: 0, // TODO: посчитать
+      bottle_orientation: 0,
+      buzzer_annotation: 0,
+      non_food_objects: 0,
       completed: completedCount || 0,
     })
   } catch (error) {

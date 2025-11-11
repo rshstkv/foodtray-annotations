@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { UserNav } from '@/components/UserNav'
 import type { TaskStats } from '@/types/annotations'
 
 export default function TasksListPage() {
@@ -52,9 +53,12 @@ export default function TasksListPage() {
                 Выберите тип задачи для работы
               </p>
             </div>
-            <Button variant="outline" onClick={() => router.push('/annotations')}>
-              ← К списку recognitions
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" onClick={() => router.push('/annotations')}>
+                ← К списку recognitions
+              </Button>
+              <UserNav />
+            </div>
           </div>
         </div>
 
@@ -154,46 +158,48 @@ export default function TasksListPage() {
             </div>
           </Card>
 
-          {/* 3. Требуют исправления */}
-          <Card className="p-6 hover:shadow-lg transition-shadow border-red-200">
+          {/* 3. Ошибки в чеке */}
+          <Card className="p-6 hover:shadow-lg transition-shadow border-yellow-200">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
                     <span className="text-2xl">⚠️</span>
                   </div>
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900">
-                      Требуют исправления
+                      Ошибки в чеке
                     </h2>
                     <p className="text-sm text-gray-600">
-                      Задачи с ошибками bbox, требующие повторной проверки
+                      Задачи с неверными данными заказа в чеке
                     </p>
                   </div>
                 </div>
                 <div className="ml-13 mt-3 space-y-1">
                   <div className="text-xs text-gray-500">
-                    • Bbox перепутаны или неверно привязаны к блюдам
+                    • Неправильное количество блюд в чеке
                   </div>
                   <div className="text-xs text-gray-500">
-                    • Отмечены аннотаторами как требующие исправления
+                    • Неверные названия блюд
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    • Требуется ручная корректировка данных чека
                   </div>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-4xl font-bold text-red-600">
-                  {stats?.requires_correction || 0}
+                <div className="text-4xl font-bold text-yellow-600">
+                  {stats?.check_errors || 0}
                 </div>
                 <div className="text-xs text-gray-500 mb-3">задач</div>
-                <Link href="/annotations/tasks/dish_validation?queue=requires_correction">
-                  <Button 
-                    size="lg"
-                    variant="destructive"
-                    disabled={!stats?.requires_correction || stats.requires_correction === 0}
-                  >
-                    Исправить →
-                  </Button>
-                </Link>
+                <Button 
+                  size="lg"
+                  variant="outline"
+                  disabled={!stats?.check_errors || stats.check_errors === 0}
+                  onClick={() => router.push('/annotations?workflow_state=check_error')}
+                >
+                  Исправить →
+                </Button>
               </div>
             </div>
           </Card>
@@ -211,21 +217,19 @@ export default function TasksListPage() {
                   <h3 className="text-md font-semibold">Ориентация бутылок</h3>
                 </div>
                 <p className="text-xs text-gray-600 mb-3 flex-1">
-                  Определение вертикальной/горизонтальной ориентации напитков
+                  Админ добавляет EAN бутылок для разметки ориентации
                 </p>
                 <div className="flex items-center justify-between">
                   <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100">
                     {stats?.bottle_orientation || 0} задач
                   </Badge>
-                  <Link href="/annotations/tasks/bottle_orientation">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      disabled={!stats?.bottle_orientation || stats.bottle_orientation === 0}
-                    >
-                      Начать →
-                    </Button>
-                  </Link>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => router.push('/admin')}
+                  >
+                    Настроить →
+                  </Button>
                 </div>
               </div>
             </Card>
@@ -238,21 +242,20 @@ export default function TasksListPage() {
                   <h3 className="text-md font-semibold">Разметка баззеров</h3>
                 </div>
                 <p className="text-xs text-gray-600 mb-3 flex-1">
-                  Рисование bounding boxes для баззеров и выбор их цвета
+                  Задачи где аннотатор отметил "🔔 Есть баззер"
                 </p>
                 <div className="flex items-center justify-between">
                   <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
                     {stats?.buzzer_annotation || 0} задач
                   </Badge>
-                  <Link href="/annotations/tasks/buzzer_annotation">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      disabled={!stats?.buzzer_annotation || stats.buzzer_annotation === 0}
-                    >
-                      Начать →
-                    </Button>
-                  </Link>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    disabled={!stats?.buzzer_annotation || stats.buzzer_annotation === 0}
+                    onClick={() => router.push('/annotations?workflow_state=buzzer_present')}
+                  >
+                    Начать →
+                  </Button>
                 </div>
               </div>
             </Card>
@@ -265,21 +268,20 @@ export default function TasksListPage() {
                   <h3 className="text-md font-semibold">Другие объекты</h3>
                 </div>
                 <p className="text-xs text-gray-600 mb-3 flex-1">
-                  Разметка не-еды (руки, телефоны, кошельки)
+                  Задачи где аннотатор отметил "📦 Есть другие предметы"
                 </p>
                 <div className="flex items-center justify-between">
                   <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">
                     {stats?.non_food_objects || 0} задач
                   </Badge>
-                  <Link href="/annotations/tasks/non_food_objects">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      disabled={!stats?.non_food_objects || stats.non_food_objects === 0}
-                    >
-                      Начать →
-                    </Button>
-                  </Link>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    disabled={!stats?.non_food_objects || stats.non_food_objects === 0}
+                    onClick={() => router.push('/annotations?workflow_state=manual_review')}
+                  >
+                    Начать →
+                  </Button>
                 </div>
               </div>
             </Card>

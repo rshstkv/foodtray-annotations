@@ -151,3 +151,4 @@ COMMENT ON VIEW recognitions_with_stats IS 'Статистика по recognitio
 
 
 
+

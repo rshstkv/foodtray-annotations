@@ -184,24 +184,37 @@ def prepare_recognition_data(recognition_dir: Path, qwen_data: Dict) -> Optional
     }
 
 
-def upload_file_to_storage(supabase_url: str, supabase_key: str, local_path: Path, storage_path: str) -> Tuple[bool, str]:
-    """Загружает один файл в Storage. Создает свой клиент для thread-safety."""
-    try:
-        # Создаем новый клиент для каждого потока
-        from supabase import create_client
-        client = create_client(supabase_url, supabase_key)
-        
-        with open(local_path, 'rb') as f:
-            client.storage().from_('bbox-images').upload(
-                storage_path,
-                f.read(),
-                {'content-type': 'image/jpeg'}
-            )
-        return True, storage_path
-    except Exception as e:
-        if 'duplicate' not in str(e).lower() and 'already exists' not in str(e).lower():
-            return False, f"Error uploading {storage_path}: {e}"
-        return True, storage_path  # Считаем дубликат успехом
+def upload_file_to_storage(supabase_url: str, supabase_key: str, local_path: Path, storage_path: str, max_retries: int = 3) -> Tuple[bool, str]:
+    """Загружает один файл в Storage с retry механизмом."""
+    
+    for attempt in range(max_retries):
+        try:
+            # Создаем новый клиент для каждого потока
+            client = create_client(supabase_url, supabase_key)
+            
+            with open(local_path, 'rb') as f:
+                file_data = f.read()
+                response = client.storage().from_('bbox-images').upload(
+                    path=storage_path,
+                    file=file_data,
+                    file_options={'content-type': 'image/jpeg', 'upsert': 'true'}
+                )
+            return True, storage_path
+        except Exception as e:
+            error_str = str(e).lower()
+            
+            # Дубликаты - это успех
+            if 'duplicate' in error_str or 'already exists' in error_str or 'resource already exists' in error_str:
+                return True, storage_path
+            
+            # Если это последняя попытка - возвращаем ошибку
+            if attempt == max_retries - 1:
+                return False, f"Error uploading {storage_path} after {max_retries} attempts: {e}"
+            
+            # Ждем перед следующей попыткой (exponential backoff)
+            time.sleep(0.5 * (attempt + 1))
+    
+    return False, f"Error uploading {storage_path}: max retries exceeded"
 
 
 def _time_budget_exceeded(start_time: Optional[float], time_budget_sec: Optional[int]) -> bool:
@@ -291,21 +304,35 @@ def _pg_insert_rec_batch_worker(db_url: str, batch_data: List[Dict], upsert: boo
     try:
         conn = psycopg2.connect(db_url, connect_timeout=30)
         conn.autocommit = True
+        
+        # Получаем ID dish_validation stage
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT ws.id FROM workflow_stages ws
+                JOIN task_types tt ON ws.task_type_id = tt.id
+                WHERE tt.code = 'dish_validation'
+                LIMIT 1
+            """)
+            result = cur.fetchone()
+            dish_val_stage_id = result[0] if result else None
+        
         insert_sql = (
-            "INSERT INTO recognitions (recognition_id, recognition_date, status, has_modifications, is_mistake, correct_dishes, menu_all, annotator_notes) "
+            "INSERT INTO recognitions (recognition_id, recognition_date, status, has_modifications, is_mistake, correct_dishes, menu_all, annotator_notes, workflow_state, current_stage_id) "
             "VALUES %s "
             "ON CONFLICT (recognition_id) DO UPDATE SET "
             "recognition_date=EXCLUDED.recognition_date, status=EXCLUDED.status, has_modifications=EXCLUDED.has_modifications, "
-            "is_mistake=EXCLUDED.is_mistake, correct_dishes=EXCLUDED.correct_dishes, menu_all=EXCLUDED.menu_all, annotator_notes=EXCLUDED.annotator_notes"
+            "is_mistake=EXCLUDED.is_mistake, correct_dishes=EXCLUDED.correct_dishes, menu_all=EXCLUDED.menu_all, annotator_notes=EXCLUDED.annotator_notes, "
+            "workflow_state=EXCLUDED.workflow_state, current_stage_id=EXCLUDED.current_stage_id"
         )
         plain_insert_sql = (
-            "INSERT INTO recognitions (recognition_id, recognition_date, status, has_modifications, is_mistake, correct_dishes, menu_all, annotator_notes) "
+            "INSERT INTO recognitions (recognition_id, recognition_date, status, has_modifications, is_mistake, correct_dishes, menu_all, annotator_notes, workflow_state, current_stage_id) "
             "VALUES %s"
         )
         tuples = [
             (
                 d['recognition_id'], d['recognition_date'], 'not_started', False, False,
-                json.dumps(d['correct_dishes']), json.dumps(d.get('menu_all', [])), None
+                json.dumps(d['correct_dishes']), json.dumps(d.get('menu_all', [])), None,
+                'pending', dish_val_stage_id
             )
             for d in batch_data
         ]
@@ -398,6 +425,20 @@ def pg_copy_insert_recognitions(
             deleted_count = cur.rowcount
             print(f"   Deleted {deleted_count} existing recognitions")
     
+    # Получаем ID dish_validation stage
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT ws.id FROM workflow_stages ws
+            JOIN task_types tt ON ws.task_type_id = tt.id
+            WHERE tt.code = 'dish_validation'
+            LIMIT 1
+        """)
+        result = cur.fetchone()
+        dish_val_stage_id = result[0] if result else None
+    
+    if not dish_val_stage_id:
+        print("⚠️  Warning: dish_validation stage not found, recognitions will not have current_stage_id")
+    
     # Подготовка CSV в памяти
     print(f"📝 Preparing CSV buffer for {len(recognitions_data)} recognitions...")
     csv_buffer = io.StringIO()
@@ -417,7 +458,9 @@ def pg_copy_insert_recognitions(
             False,  # is_mistake
             correct_dishes_json,
             menu_all_json,
-            None  # annotator_notes
+            None,  # annotator_notes
+            'pending',  # workflow_state
+            dish_val_stage_id  # current_stage_id
         ])
     
     # Перемещаем указатель в начало буфера
@@ -433,7 +476,7 @@ def pg_copy_insert_recognitions(
             COPY recognitions (
                 recognition_id, recognition_date, status, 
                 has_modifications, is_mistake, correct_dishes, 
-                menu_all, annotator_notes
+                menu_all, annotator_notes, workflow_state, current_stage_id
             )
             FROM STDIN WITH (FORMAT CSV)
             """,
@@ -1379,6 +1422,29 @@ def main():
         "duration_sec": round(time.monotonic() - t5, 3),
         **_timings_summary(ann_timings),
     }
+    
+    # ============================================================
+    # Вычисление validation_mode для recognitions
+    # ============================================================
+    if args.pg_direct and not args.dry_run:
+        print("\n" + "="*60)
+        print("CALCULATING VALIDATION_MODE...")
+        print("="*60)
+        t6 = time.monotonic()
+        with pg_conn.cursor() as cur:
+            # Обновляем validation_mode для всех pending recognitions
+            cur.execute("""
+                UPDATE recognitions 
+                SET validation_mode = calculate_validation_mode(recognition_id)
+                WHERE workflow_state = 'pending'
+            """)
+            updated_count = cur.rowcount
+        calc_duration = time.monotonic() - t6
+        print(f"✅ Updated validation_mode for {updated_count} recognitions in {calc_duration:.2f}s")
+        metrics["phase6_validation_mode"] = {
+            "updated": updated_count,
+            "duration_sec": round(calc_duration, 3),
+        }
     
     # ============================================================
     # Восстановление индексов

@@ -97,15 +97,37 @@ export function useAnnotations(initialImages: Image[] = []) {
 
         const updatedAnnotation = response.data
 
-        // Обновляем локальное состояние
-        setImages((prev) =>
-          prev.map((img) => ({
+        console.log('[useAnnotations] Server response:', updatedAnnotation)
+
+        // Обновляем локальное состояние ТОЛЬКО если данные отличаются
+        // (оптимистичное обновление могло уже применить изменения)
+        setImages((prev) => {
+          const currentAnn = prev
+            .flatMap((img) => img.annotations)
+            .find((a) => a.id === id)
+          
+          console.log('[useAnnotations] Current annotation in state:', currentAnn)
+          
+          // Если текущие координаты уже совпадают с обновлёнными, не обновляем
+          if (
+            currentAnn &&
+            currentAnn.bbox_x1 === updatedAnnotation.bbox_x1 &&
+            currentAnn.bbox_y1 === updatedAnnotation.bbox_y1 &&
+            currentAnn.bbox_x2 === updatedAnnotation.bbox_x2 &&
+            currentAnn.bbox_y2 === updatedAnnotation.bbox_y2
+          ) {
+            console.log('[useAnnotations] Coordinates match, skipping update')
+            return prev
+          }
+
+          console.log('[useAnnotations] Coordinates differ, updating from server')
+          return prev.map((img) => ({
             ...img,
             annotations: img.annotations.map((ann) =>
               ann.id === id ? updatedAnnotation : ann
             ),
           }))
-        )
+        })
 
         return updatedAnnotation
       } catch (err) {
@@ -167,14 +189,18 @@ export function useAnnotations(initialImages: Image[] = []) {
    */
   const updateAnnotationLocally = useCallback(
     (id: number, updates: Partial<Annotation>) => {
-      setImages((prev) =>
-        prev.map((img) => ({
+      console.log('[useAnnotations] updateAnnotationLocally called:', id, updates)
+      setImages((prev) => {
+        console.log('[useAnnotations] Current images before update:', prev.flatMap(img => img.annotations).find(a => a.id === id))
+        const newImages = prev.map((img) => ({
           ...img,
           annotations: img.annotations.map((ann) =>
             ann.id === id ? { ...ann, ...updates } : ann
           ),
         }))
-      )
+        console.log('[useAnnotations] New images after update:', newImages.flatMap(img => img.annotations).find(a => a.id === id))
+        return newImages
+      })
     },
     []
   )

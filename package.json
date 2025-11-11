@@ -7,7 +7,12 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "db:migrate": "supabase db reset",
+    "db:migrate": "supabase migration up",
+    "db:reset": "./scripts/db_reset_wrapper.sh",
+    "db:reset:dangerous": "echo '⚠️  WARNING: This will delete ALL data! Use db:reset instead for safety checks.' && supabase db reset",
+    "db:restore:quick": "python3 scripts/quick_restore.py --count 100",
+    "db:restore:full": "python3 scripts/quick_restore.py --count 1000",
+    "db:check": "python3 scripts/check_storage.py",
     "import:clarifications": "tsx scripts/import-clarifications.ts",
     "import:clarification-states": "tsx scripts/import-clarification-states.ts",
     "import:menu": "tsx scripts/import-menu.ts"

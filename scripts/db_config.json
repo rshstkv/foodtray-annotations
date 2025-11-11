@@ -1,0 +1,18 @@
+{
+  "production": {
+    "allow_reset": false,
+    "require_confirmation": true,
+    "warning_message": "⛔️ DANGER: Production database reset is DISABLED for safety!\nThis would delete ALL data and images in production.\nIf you really need to reset production, contact the database administrator."
+  },
+  "local": {
+    "allow_reset": true,
+    "require_confirmation": true,
+    "warning_message": "⚠️  WARNING: This will delete ALL local data including images in Storage.\nYou will need to re-seed the database after reset."
+  },
+  "dataset_paths": {
+    "default_dataset_dir": "/Users/romanshestakov/Downloads/RRS_Dataset 2",
+    "default_qwen_json": "/Users/romanshestakov/Downloads/qwen_annotations.json"
+  }
+}
+
+

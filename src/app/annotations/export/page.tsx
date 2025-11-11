@@ -12,8 +12,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 export default function ExportPage() {
   const router = useRouter()
   const [format, setFormat] = useState<'csv' | 'json'>('csv')
-  const [tier, setTier] = useState<string>('')
-  const [workflowState, setWorkflowState] = useState<string>('')
+  const [validationMode, setValidationMode] = useState<string>('all')
+  const [workflowState, setWorkflowState] = useState<string>('all')
   const [fromDate, setFromDate] = useState<string>('')
   const [toDate, setToDate] = useState<string>('')
   const [includeHistory, setIncludeHistory] = useState(false)
@@ -24,8 +24,8 @@ export default function ExportPage() {
       setExporting(true)
       
       const params = new URLSearchParams({ format })
-      if (tier) params.append('tier', tier)
-      if (workflowState) params.append('workflow_state', workflowState)
+      if (validationMode !== 'all') params.append('validation_mode', validationMode)
+      if (workflowState !== 'all') params.append('workflow_state', workflowState)
       if (fromDate) params.append('from_date', fromDate)
       if (toDate) params.append('to_date', toDate)
       if (includeHistory) params.append('include_history', 'true')
@@ -112,20 +112,17 @@ export default function ExportPage() {
               <Label className="text-base font-semibold mb-3 block">Фильтры (опционально)</Label>
               
               <div className="grid grid-cols-2 gap-4">
-                {/* Tier */}
+                {/* Validation Mode */}
                 <div>
-                  <Label htmlFor="tier" className="text-sm mb-2 block">Уровень сложности</Label>
-                  <Select value={tier} onValueChange={setTier}>
+                  <Label htmlFor="validation_mode" className="text-sm mb-2 block">Режим валидации</Label>
+                  <Select value={validationMode} onValueChange={setValidationMode}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Все tier'ы" />
+                      <SelectValue placeholder="Все режимы" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Все tier'ы</SelectItem>
-                      <SelectItem value="1">Tier 1</SelectItem>
-                      <SelectItem value="2">Tier 2</SelectItem>
-                      <SelectItem value="3">Tier 3</SelectItem>
-                      <SelectItem value="4">Tier 4</SelectItem>
-                      <SelectItem value="5">Tier 5</SelectItem>
+                      <SelectItem value="all">Все режимы</SelectItem>
+                      <SelectItem value="quick">Быстрая проверка</SelectItem>
+                      <SelectItem value="edit">Требует правки</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -138,11 +135,13 @@ export default function ExportPage() {
                       <SelectValue placeholder="Все статусы" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Все статусы</SelectItem>
+                      <SelectItem value="all">Все статусы</SelectItem>
                       <SelectItem value="pending">В очереди</SelectItem>
                       <SelectItem value="in_progress">В работе</SelectItem>
                       <SelectItem value="completed">Завершено</SelectItem>
-                      <SelectItem value="requires_correction">Требует исправления</SelectItem>
+                      <SelectItem value="check_error">Ошибка в чеке</SelectItem>
+                      <SelectItem value="buzzer_present">Баззер</SelectItem>
+                      <SelectItem value="manual_review">Другие объекты</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

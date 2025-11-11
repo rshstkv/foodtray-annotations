@@ -21,6 +21,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { UserNav } from '@/components/UserNav'
 
 interface FilterOptions {
   device_canteen_names: string[]
@@ -144,8 +145,10 @@ export function FilterHeader({
             </nav>
           </div>
 
-          {/* Правая часть: быстрые ссылки */}
-          <div className="flex items-center gap-3" />
+          {/* Правая часть: быстрые ссылки и пользователь */}
+          <div className="flex items-center gap-3">
+            <UserNav />
+          </div>
         </div>
       </div>
 

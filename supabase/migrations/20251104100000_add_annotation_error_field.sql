@@ -17,3 +17,4 @@ COMMENT ON COLUMN annotations.is_error IS 'Флаг ошибки распозн�
 
 
 
+

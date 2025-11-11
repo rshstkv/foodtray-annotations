@@ -23,3 +23,4 @@ COMMENT ON COLUMN recognitions.has_modifications IS 'Флаг наличия п�
 
 
 
+

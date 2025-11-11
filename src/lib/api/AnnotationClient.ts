@@ -62,16 +62,12 @@ class AnnotationClient {
    */
   async getNextTask(
     taskType: string, 
-    tier?: number, 
     queue?: 'pending' | 'requires_correction',
-    minTier?: number,
-    maxTier?: number
+    mode?: 'quick' | 'edit'
   ): Promise<APIResponse<TaskData>> {
     const params = new URLSearchParams({ task_type: taskType })
-    if (tier) params.append('tier', tier.toString())
     if (queue) params.append('queue', queue)
-    if (minTier) params.append('min_tier', minTier.toString())
-    if (maxTier) params.append('max_tier', maxTier.toString())
+    if (mode) params.append('mode', mode)
     
     return this.fetch<TaskData>(`/tasks/next?${params.toString()}`)
   }

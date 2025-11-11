@@ -60,13 +60,14 @@ export interface Recognition {
   is_mistake?: boolean
   correct_dishes: CorrectDish[]
   menu_all?: unknown[]
-  tier: number
+  validation_mode?: 'quick' | 'edit' | null
   workflow_state: WorkflowState
   current_stage_id: number | null
   completed_stages: number[]
   assigned_to: string | null
   started_at: string | null
   completed_at: string | null
+  completed_by?: string | null
   annotator_notes?: string | null
   created_at?: string
   updated_at?: string

@@ -47,7 +47,7 @@ interface BBoxAnnotatorProps {
     is_overlapped?: boolean
     is_bottle_up?: boolean | null
     is_error?: boolean
-  }) => void
+  }) => Promise<void> | void
   onAnnotationSelect?: (annotation: Annotation | null) => void
   selectedAnnotation?: Annotation | null
   drawingMode?: boolean
@@ -318,13 +318,30 @@ export default function BBoxAnnotator({
 
     // Если было drag/resize - отправляем финальные координаты
     if (tempBBox && draggedAnnotation !== null && !readOnly && onAnnotationUpdate) {
+      // Сохраняем временные координаты для отображения
+      const finalBBox = tempBBox.bbox
+      const annotationId = tempBBox.id
+      
+      console.log('[BBoxAnnotator] mouseUp - updating bbox:', annotationId, finalBBox)
+      
       // ОПТИМИСТИЧНОЕ ОБНОВЛЕНИЕ: сначала обновляем локально
       if (updateAnnotationLocally) {
-        updateAnnotationLocally(tempBBox.id, tempBBox.bbox)
+        console.log('[BBoxAnnotator] Calling updateAnnotationLocally')
+        updateAnnotationLocally(annotationId, finalBBox)
       }
       
-      // Затем отправляем на сервер
-      onAnnotationUpdate(tempBBox.id, tempBBox.bbox)
+      // НЕ ОЧИЩАЕМ tempBBox сразу - оставляем на 100мс для плавности
+      setTimeout(() => {
+        setTempBBox(null)
+      }, 100)
+      
+      // Затем отправляем на сервер (асинхронно, не блокируя UI)
+      Promise.resolve(onAnnotationUpdate(annotationId, finalBBox)).catch((error) => {
+        console.error('[BBoxAnnotator] Failed to update annotation:', error)
+        // В случае ошибки можно откатить изменения или показать уведомление
+      })
+    } else {
+      // Если не было drag/resize, просто очищаем tempBBox
       setTempBBox(null)
     }
 
