@@ -260,7 +260,67 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
     setDrawingMode(false)
   }
 
+  const handleVariantSelect = async (dishIndex: number, variantIndex: number) => {
+    // Обновляем все bbox для этого блюда, устанавливая selected_dish_variant_index
+    const mainImage = images?.find((img: Image) => img.photo_type === 'Main')
+    const qualImage = images?.find((img: Image) => img.photo_type === 'Qualifying')
+    
+    const bboxesToUpdate = [
+      ...(mainImage?.annotations.filter(a => a.dish_index === dishIndex) || []),
+      ...(qualImage?.annotations.filter(a => a.dish_index === dishIndex) || [])
+    ]
+    
+    for (const bbox of bboxesToUpdate) {
+      await updateAnnotation(bbox.id, { selected_dish_variant_index: variantIndex })
+    }
+    
+    console.log(`[DishValidation] Selected variant ${variantIndex} for dish ${dishIndex}`)
+  }
+
+  const checkVariantsSelected = (): { valid: boolean; missingDishes: number[] } => {
+    if (!taskData?.recognition?.correct_dishes) {
+      return { valid: true, missingDishes: [] }
+    }
+    
+    const missingDishes: number[] = []
+    
+    taskData.recognition.correct_dishes.forEach((dish, dishIndex) => {
+      const allDishes = dish.Dishes || []
+      
+      // Если есть несколько вариантов, проверяем что хотя бы один bbox имеет выбранный вариант
+      if (allDishes.length > 1) {
+        const mainImage = images?.find((img: Image) => img.photo_type === 'Main')
+        const qualImage = images?.find((img: Image) => img.photo_type === 'Qualifying')
+        
+        const dishBboxes = [
+          ...(mainImage?.annotations.filter(a => a.dish_index === dishIndex) || []),
+          ...(qualImage?.annotations.filter(a => a.dish_index === dishIndex) || [])
+        ]
+        
+        // Если есть bbox для этого блюда, но ни у одного не выбран вариант
+        if (dishBboxes.length > 0 && !dishBboxes.some(bbox => bbox.selected_dish_variant_index !== null && bbox.selected_dish_variant_index !== undefined)) {
+          missingDishes.push(dishIndex)
+        }
+      }
+    })
+    
+    return { valid: missingDishes.length === 0, missingDishes }
+  }
+
   const handleComplete = async () => {
+    // Проверяем что все варианты выбраны
+    const { valid, missingDishes } = checkVariantsSelected()
+    
+    if (!valid) {
+      const dishNames = missingDishes.map(idx => {
+        const dish = taskData?.recognition?.correct_dishes[idx]
+        return `#${idx + 1}: ${dish?.Dishes[0]?.Name || 'Unknown'}`
+      }).join(', ')
+      
+      alert(`Пожалуйста, выберите конкретный вариант для блюд с неоднозначностью:\n${dishNames}`)
+      return
+    }
+    
     await completeTask()
   }
 
@@ -692,6 +752,7 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
               images={images}
               onDishClick={handleDishClick}
               onPlateClick={handlePlateClick}
+              onVariantSelect={handleVariantSelect}
               highlightedIndex={highlightedDishIndex}
               highlightedPlate={highlightedPlate}
               className="max-h-[calc(100vh-280px)] overflow-y-auto pr-2"
@@ -699,27 +760,30 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
           </div>
 
           <div className="col-span-9">
-            {/* Toolbar для edit mode */}
+            {/* Компактный toolbar для edit mode */}
             {displayMode === 'edit' && (
-              <Card className="p-4 mb-4">
-                <div className="flex gap-2 items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    Активное изображение для рисования: <Badge variant={activeImage === 'Main' ? 'default' : 'secondary'}>{activeImage} ({activeImage === 'Main' ? '45°' : '90°'})</Badge>
-                  </div>
-                  <Button
-                    variant={drawingMode ? 'default' : 'outline'}
-                    onClick={() => {
-                      const newDrawingMode = !drawingMode
-                      setDrawingMode(newDrawingMode)
-                      if (!newDrawingMode) {
-                        setSelectedAnnotation(null)
-                      }
-                    }}
-                  >
-                    {drawingMode ? 'Отменить рисование' : 'Нарисовать bbox'}
-                  </Button>
+              <div className="flex gap-2 items-center justify-between mb-3 px-2">
+                <div className="flex gap-2 items-center text-sm text-gray-600">
+                  <span>Активное:</span>
+                  <Badge variant={activeImage === 'Main' ? 'default' : 'secondary'} className="text-xs">
+                    {activeImage}
+                  </Badge>
+                  <span className="text-xs text-gray-400">(Tab для переключения)</span>
                 </div>
-              </Card>
+                <Button
+                  size="sm"
+                  variant={drawingMode ? 'default' : 'outline'}
+                  onClick={() => {
+                    const newDrawingMode = !drawingMode
+                    setDrawingMode(newDrawingMode)
+                    if (!newDrawingMode) {
+                      setSelectedAnnotation(null)
+                    }
+                  }}
+                >
+                  {drawingMode ? '✓ Рисование' : 'Нарисовать bbox'}
+                </Button>
+              </div>
             )}
 
             <div className="grid grid-cols-2 gap-4">
