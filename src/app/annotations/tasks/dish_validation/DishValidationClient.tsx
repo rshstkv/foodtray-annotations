@@ -529,7 +529,7 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
       handler: () => {
         if (pendingBBox) {
           // В режиме рисования - создать plate bbox
-          finishAnnotationCreate(-1) // -1 означает plate
+          finishAnnotationCreate('plate', null, null, false)
         } else if (displayMode === 'edit' || mainPlatesCount > 0 || qualPlatesCount > 0) {
           // Выделять plates только если:
           // - В edit mode (можно рисовать)
@@ -544,7 +544,7 @@ export function DishValidationClient({ mode, taskQueue = 'dish_validation' }: Di
       key: String(i + 2),
       handler: () => {
         if (pendingBBox) {
-          finishAnnotationCreate(i)
+          finishAnnotationCreate('food', null, i, false)
         } else {
           handleDishClick(i)
         }
