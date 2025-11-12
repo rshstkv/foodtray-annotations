@@ -49,15 +49,18 @@ function getBreadcrumbItems(pathname: string): BreadcrumbItem[] {
       { label: 'Задачи', href: '/tasks' },
       { label: `Задача #${shortId}` }
     )
+  } else if (pathname === '/admin/statistics') {
+    // Статистика доступна всем, показываем без "Админ"
+    items.push({ label: 'Статистика' })
   } else if (pathname.startsWith('/admin')) {
     items.push({ label: 'Админ', href: '/admin' })
     
     if (pathname === '/admin/users') {
       items.push({ label: 'Пользователи' })
-    } else if (pathname === '/admin/statistics') {
-      items.push({ label: 'Статистика' })
     } else if (pathname === '/admin/export') {
       items.push({ label: 'Экспорт' })
+    } else if (pathname === '/admin/assign') {
+      items.push({ label: 'Назначение задач' })
     } else if (pathname.match(/\/admin\/users\/[^/]+$/)) {
       const userId = pathname.split('/')[3]
       items.push(

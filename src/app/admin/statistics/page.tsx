@@ -34,6 +34,13 @@ export default function AdminStatisticsPage() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Инициализируем selectedUserId для обычного пользователя
+  useEffect(() => {
+    if (user && !isAdmin) {
+      setSelectedUserId(user.id)
+    }
+  }, [user, isAdmin])
+
   useEffect(() => {
     if (isAdmin) {
       loadUsers()
@@ -75,7 +82,7 @@ export default function AdminStatisticsPage() {
     }
   }
 
-  if (!user || !isAdmin) {
+  if (!user) {
     return <div>Loading...</div>
   }
 
@@ -83,27 +90,31 @@ export default function AdminStatisticsPage() {
     <div className="p-6">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900 mb-1">Статистика</h1>
-            <p className="text-gray-600">Аналитика выполнения задач</p>
+            <p className="text-gray-600">
+              {isAdmin ? 'Аналитика выполнения задач' : 'Ваша статистика выполнения задач'}
+            </p>
           </div>
 
-          {/* User filter */}
-          <div className="mb-6">
-            <div className="w-64">
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Все пользователи" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Все пользователи</SelectItem>
-                  {users.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* User filter - только для админа */}
+          {isAdmin && (
+            <div className="mb-6">
+              <div className="w-64">
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Все пользователи" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все пользователи</SelectItem>
+                    {users.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Stats */}
           {loading ? (

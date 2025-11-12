@@ -56,11 +56,22 @@ export function AppHeader({ isAdmin, userName, userEmail }: AppHeaderProps) {
                 Задачи
               </Link>
               
+              <Link
+                href="/admin/statistics"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  pathname === '/admin/statistics'
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                Статистика
+              </Link>
+              
               {isAdmin && (
                 <Link
                   href="/admin"
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    pathname.startsWith('/admin')
+                    pathname.startsWith('/admin') && pathname !== '/admin/statistics'
                       ? 'bg-blue-50 text-blue-600'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
