@@ -19,22 +19,48 @@ from supabase import create_client
 from PIL import Image
 
 def main():
-    # Параметры
-    if len(sys.argv) < 3:
-        print("Usage: python3 import_simple.py <dataset_dir> <qwen_json> [--limit N] [--skip-storage]")
-        sys.exit(1)
+    # Параметры (с дефолтными путями)
+    DEFAULT_DATASET = Path("/Users/romanshestakov/Downloads/RRS_Dataset 2")
+    DEFAULT_QWEN = Path("/Users/romanshestakov/Downloads/qwen_annotations.json")
     
-    dataset_dir = Path(sys.argv[1])
-    qwen_json = Path(sys.argv[2])
+    # Проверяем есть ли позиционные аргументы (не флаги)
+    has_positional = len(sys.argv) >= 3 and not sys.argv[1].startswith('--') and not sys.argv[2].startswith('--')
+    
+    using_defaults = False
+    if not has_positional:
+        if DEFAULT_DATASET.exists() and DEFAULT_QWEN.exists():
+            print(f"Using default paths:")
+            print(f"  Dataset: {DEFAULT_DATASET}")
+            print(f"  Qwen JSON: {DEFAULT_QWEN}")
+            dataset_dir = DEFAULT_DATASET
+            qwen_json = DEFAULT_QWEN
+            using_defaults = True
+        else:
+            print("Usage: python3 import_simple.py <dataset_dir> <qwen_json> [--limit N] [--skip-storage]")
+            print(f"Default paths not found:")
+            print(f"  Dataset: {DEFAULT_DATASET} (exists: {DEFAULT_DATASET.exists()})")
+            print(f"  Qwen JSON: {DEFAULT_QWEN} (exists: {DEFAULT_QWEN.exists()})")
+            sys.exit(1)
+    else:
+        dataset_dir = Path(sys.argv[1])
+        qwen_json = Path(sys.argv[2])
     
     limit = None
     skip_storage = False
     
-    for arg in sys.argv[3:]:
-        if arg.startswith('--limit'):
-            limit = int(sys.argv[sys.argv.index(arg) + 1])
-        if arg == '--skip-storage':
+    # Парсим аргументы начиная с правильного индекса
+    start_idx = 1 if using_defaults else 3
+    i = start_idx
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg == '--limit' and i + 1 < len(sys.argv):
+            limit = int(sys.argv[i + 1])
+            i += 2
+        elif arg == '--skip-storage':
             skip_storage = True
+            i += 1
+        else:
+            i += 1
     
     # Load .env.local
     env_path = Path(__file__).parent.parent / '.env.local'

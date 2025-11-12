@@ -17,6 +17,7 @@ import { BuzzerAnnotationPanel } from '@/components/task/BuzzerAnnotationPanel'
 import { PlateAnnotationPanel } from '@/components/task/PlateAnnotationPanel'
 import { OverlapAnnotationPanel } from '@/components/task/OverlapAnnotationPanel'
 import { MenuSearchPanel } from '@/components/task/MenuSearchPanel'
+import { ImageAnnotationInfo } from '@/components/task/ImageAnnotationInfo'
 import BBoxAnnotator from '@/components/BBoxAnnotator'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -38,8 +39,13 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
     if (taskManager.task?.images) {
       const allAnnotations = taskManager.task.images.flatMap(img => img.annotations || [])
       annotationManager.setAnnotations(allAnnotations)
+      
+      // Set first image as active by default
+      if (!activeImageId && taskManager.task.images.length > 0) {
+        setActiveImageId(taskManager.task.images[0].id)
+      }
     }
-  }, [taskManager.task?.images])
+  }, [taskManager.task?.images, activeImageId])
 
   // Initialize modified_dishes from task_scope
   useEffect(() => {
@@ -93,12 +99,80 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
     annotationManager.setHasUnsavedChanges(true)
   }, [modifiedDishes, taskManager.task, annotationManager])
 
+  // Handler for resolving ambiguity (selecting correct dish variant)
+  const handleResolveAmbiguity = useCallback(async (dishIndex: number, selectedDishName: string) => {
+    console.log('[handleResolveAmbiguity] START:', { dishIndex, selectedDishName })
+    
+    // Находим все bbox с этим dish_index
+    const annotationsToUpdate = annotationManager.annotations.filter(
+      a => a.object_type === 'dish' && 
+          a.dish_index === dishIndex && 
+          !a.is_deleted &&
+          a.bbox_x1 !== undefined &&
+          a.bbox_y1 !== undefined
+    )
+    
+    console.log('[handleResolveAmbiguity] Found annotations:', annotationsToUpdate.length)
+    
+    // Группируем по координатам для обнаружения дубликатов
+    const coordGroups = new Map<string, typeof annotationsToUpdate>()
+    annotationsToUpdate.forEach(ann => {
+      const coordKey = `${ann.bbox_x1},${ann.bbox_y1},${ann.bbox_x2},${ann.bbox_y2}`
+      const existing = coordGroups.get(coordKey) || []
+      coordGroups.set(coordKey, [...existing, ann])
+    })
+    
+    console.log('[handleResolveAmbiguity] Coordinate groups:', coordGroups.size)
+    
+    // Для каждой группы координат: оставляем 1, остальные удаляем
+    coordGroups.forEach((group, coordKey) => {
+      console.log('[handleResolveAmbiguity] Processing group:', coordKey, 'count:', group.length)
+      
+      if (group.length > 1) {
+        // Оставляем первую аннотацию, остальные удаляем
+        console.log('[handleResolveAmbiguity] Deleting duplicates:', group.length - 1)
+        group.slice(1).forEach(ann => {
+          annotationManager.deleteAnnotation(ann.id)
+        })
+      }
+      
+      // Обновляем оставшуюся аннотацию
+      if (group.length > 0) {
+        console.log('[handleResolveAmbiguity] Updating annotation:', group[0].id.substring(0, 8), 'with custom_dish_name:', selectedDishName)
+        annotationManager.updateAnnotation(group[0].id, {
+          custom_dish_name: selectedDishName
+        })
+      }
+    })
+    
+    // Сохраняем изменения автоматически
+    if (annotationsToUpdate.length > 0) {
+      console.log('[handleResolveAmbiguity] Saving progress...')
+      await taskManager.saveProgress(annotationManager.annotations, modifiedDishes)
+      console.log('[handleResolveAmbiguity] Progress saved!')
+    }
+  }, [annotationManager, taskManager, modifiedDishes])
+
+  // Handler for switching between images
+  const handleSwitchImage = useCallback(() => {
+    if (!taskManager.task?.images || taskManager.task.images.length < 2) return
+    
+    const currentIndex = taskManager.task.images.findIndex(img => img.id === activeImageId)
+    const nextIndex = (currentIndex + 1) % taskManager.task.images.length
+    setActiveImageId(taskManager.task.images[nextIndex].id)
+    
+    // Clear selection when switching images
+    annotationManager.setSelectedAnnotationId(null)
+  }, [taskManager.task?.images, activeImageId, annotationManager])
+
   // Setup hotkeys (AFTER all handlers to avoid initialization errors)
   useHotkeys({
     taskManager,
     annotationManager,
     onToggleVisibility: () => setShowAllBBoxes(prev => !prev),
     onSelectDish: handleSelectDish,
+    onSwitchImage: handleSwitchImage,
+    activeImageId,
     modifiedDishes,
     enabled: !taskManager.loading && !!taskManager.task,
   })
@@ -163,6 +237,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
               <StepIndicator
                 steps={taskManager.allSteps}
                 currentStepIndex={taskManager.currentStepIndex}
+                onStepClick={taskManager.goToStep}
               />
             </div>
 
@@ -179,6 +254,8 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                     onSelectDish={handleSelectDish}
                     onAddFromMenu={handleAddFromMenu}
                     onDishCountChange={handleDishCountChange}
+                    onResolveAmbiguity={handleResolveAmbiguity}
+                    onDeleteAnnotation={annotationManager.deleteAnnotation}
                   />
                 )}
 
@@ -219,6 +296,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                     images={task.images}
                     annotations={annotationManager.annotations}
                     selectedAnnotationId={annotationManager.selectedAnnotationId}
+                    activeImageId={activeImageId}
                     dishNames={(() => {
                       const dishes = modifiedDishes || task.recognition.correct_dishes
                       return dishes.reduce((acc: Record<number, string>, dish: any, idx: number) => {
@@ -242,7 +320,11 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
               </TaskSidebar>
 
               {/* Images */}
-              <ImageGrid images={task.images}>
+              <ImageGrid 
+                images={task.images}
+                activeImageId={activeImageId}
+                onImageSelect={setActiveImageId}
+              >
                 {(image) => {
                   // Фильтруем аннотации по типу в зависимости от текущего шага
                   const getRelevantObjectTypes = () => {
@@ -275,42 +357,55 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                       )
                   
                   return (
-                  <BBoxAnnotator
-                    imageUrl={`/api/bbox-images/${image.storage_path}`}
-                    annotations={filteredAnnotations}
-                    selectedAnnotation={selectedForThisImage || null}
-                    highlightDishIndex={null}
-                    drawingMode={annotationManager.isDrawing}
-                    showControls={true}
-                    onAnnotationCreate={(bbox) => {
-                      const objectType = annotationManager.drawingObjectType || 'dish'
-                      const metadata = annotationManager.drawingMetadata || {}
-                      
-                      annotationManager.createAnnotation({
-                        image_id: image.id,
-                        ...bbox,
-                        object_type: objectType,
-                        object_subtype: objectType === 'buzzer' ? metadata.color : null,
-                        dish_index: selectedDishIndex,
-                        custom_dish_name: null,
-                        is_overlapped: false,
-                        is_deleted: false,
-                        is_bottle_up: objectType === 'bottle' ? false : null,
-                        is_error: false,
-                        source: 'manual',
-                        created_by: user.id,
-                        updated_by: user.id,
-                      })
-                      annotationManager.stopDrawing()
-                    }}
-                    onAnnotationUpdate={(id, updates) => {
-                      annotationManager.updateAnnotation(String(id), updates)
-                    }}
-                    onAnnotationSelect={(annotation) => {
-                      annotationManager.setSelectedAnnotationId(annotation?.id ? String(annotation.id) : null)
-                    }}
-                    readOnly={false}
-                  />
+                  <div className="relative h-full">
+                    {/* Информация об аннотациях над изображением */}
+                    {currentStep.step.id === 'validate_dishes' && (
+                      <ImageAnnotationInfo
+                        image={image}
+                        dishesFromReceipt={modifiedDishes || task.recognition.correct_dishes}
+                        annotations={filteredAnnotations}
+                        selectedDishIndex={selectedDishIndex}
+                        onDeleteAnnotation={annotationManager.deleteAnnotation}
+                      />
+                    )}
+                    
+                    <BBoxAnnotator
+                      imageUrl={`/api/bbox-images/${image.storage_path}`}
+                      annotations={filteredAnnotations}
+                      selectedAnnotation={selectedForThisImage || null}
+                      highlightDishIndex={null}
+                      drawingMode={annotationManager.isDrawing}
+                      showControls={true}
+                      onAnnotationCreate={(bbox) => {
+                        const objectType = annotationManager.drawingObjectType || 'dish'
+                        const metadata = annotationManager.drawingMetadata || {}
+                        
+                        annotationManager.createAnnotation({
+                          image_id: image.id,
+                          ...bbox,
+                          object_type: objectType,
+                          object_subtype: objectType === 'buzzer' ? metadata.color : null,
+                          dish_index: selectedDishIndex,
+                          custom_dish_name: null,
+                          is_overlapped: false,
+                          is_deleted: false,
+                          is_bottle_up: objectType === 'bottle' ? false : null,
+                          is_error: false,
+                          source: 'manual',
+                          created_by: user.id,
+                          updated_by: user.id,
+                        })
+                        annotationManager.stopDrawing()
+                      }}
+                      onAnnotationUpdate={(id, updates) => {
+                        annotationManager.updateAnnotation(String(id), updates)
+                      }}
+                      onAnnotationSelect={(annotation) => {
+                        annotationManager.setSelectedAnnotationId(annotation?.id ? String(annotation.id) : null)
+                      }}
+                      readOnly={false}
+                    />
+                  </div>
                   )
                 }}
               </ImageGrid>

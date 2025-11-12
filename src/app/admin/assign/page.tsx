@@ -74,18 +74,18 @@ export default function AdminAssignPage() {
       ])
 
       if (recognitionRes.ok) {
-        const data = await recognitionRes.json()
-        setRecognitionStats(data)
+        const response = await recognitionRes.json()
+        setRecognitionStats(response.data || response)
       }
 
       if (userStatsRes.ok) {
-        const data = await userStatsRes.json()
-        setUserStats(data.user_stats || [])
+        const response = await userStatsRes.json()
+        setUserStats(response.data?.user_stats || response.user_stats || [])
       }
 
       if (usersRes.ok) {
-        const data = await usersRes.json()
-        setUsers(data.users || [])
+        const response = await usersRes.json()
+        setUsers(response.data?.users || response.users || [])
       }
     } catch (error) {
       console.error('Error loading data:', error)

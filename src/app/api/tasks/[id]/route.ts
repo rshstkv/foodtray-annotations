@@ -75,6 +75,15 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to load annotations' }, { status: 500 })
     }
 
+    // DEBUG: Проверяем аннотации для dish_index 3 (блюдо #4)
+    const dish4Annotations = (annotations || []).filter(a => a.object_type === 'dish' && a.dish_index === 3)
+    console.log('[API GET task] Dish #4 annotations:', dish4Annotations.map(a => ({
+      id: a.id.substring(0, 8),
+      dish_index: a.dish_index,
+      custom_dish_name: a.custom_dish_name,
+      is_deleted: a.is_deleted
+    })))
+
     return NextResponse.json({
       task,
       recognition,

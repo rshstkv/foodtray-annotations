@@ -18,19 +18,11 @@ export function ImageGrid({ images, activeImageId, onImageSelect, children }: Im
   return (
     <div className="flex-1 grid grid-cols-2 gap-4 p-6 bg-gray-50">
       {orderedImages.map((image, index) => {
-        const isActive = activeImageId === image.id
-        
         return (
           <div 
             key={image.id} 
             onClick={() => onImageSelect(image.id)}
-            className={`
-              flex-1 rounded-lg overflow-hidden cursor-pointer transition-all
-              ${isActive 
-                ? 'ring-4 ring-blue-500 shadow-lg' 
-                : 'ring-2 ring-gray-200 opacity-70 hover:opacity-90'
-              }
-            `}
+            className="flex-1 rounded-lg overflow-hidden cursor-pointer relative"
           >
             {children(image, index)}
           </div>

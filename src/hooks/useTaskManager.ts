@@ -52,6 +52,19 @@ export function useTaskManager(taskId: string): UseTaskManagerReturn {
       
       setTask(taskData)
       
+      // Определяем текущий этап из URL или прогресса
+      const urlParams = new URLSearchParams(window.location.search)
+      const stepParam = urlParams.get('step')
+      
+      if (stepParam !== null) {
+        const stepIndex = parseInt(stepParam, 10)
+        if (!isNaN(stepIndex) && stepIndex >= 0) {
+          setCurrentStepIndex(stepIndex)
+          return
+        }
+      }
+      
+      // Если в URL нет параметра - берем из прогресса
       const progress = data.task.progress || { current_step_index: 0 }
       setCurrentStepIndex(progress.current_step_index)
     } catch (err) {
@@ -99,6 +112,10 @@ export function useTaskManager(taskId: string): UseTaskManagerReturn {
   const goToStep = useCallback((stepIndex: number) => {
     if (stepIndex >= 0 && stepIndex < allSteps.length) {
       setCurrentStepIndex(stepIndex)
+      // Обновляем URL
+      const url = new URL(window.location.href)
+      url.searchParams.set('step', stepIndex.toString())
+      window.history.pushState({}, '', url.toString())
     }
   }, [allSteps.length])
 
@@ -131,29 +148,45 @@ export function useTaskManager(taskId: string): UseTaskManagerReturn {
     try {
       setIsSaving(true)
       
-      // Переходим к следующему этапу или завершаем
-      const nextStepIndex = currentStepIndex + 1
+      // Получаем текущий этап
+      const currentStep = allSteps[currentStepIndex]
+      if (!currentStep) {
+        throw new Error('Current step not found')
+      }
       
-      if (nextStepIndex >= allSteps.length) {
-        // Завершаем задачу
-        const res = await fetch(`/api/tasks/${taskId}/complete`, {
-          method: 'POST',
-        })
-        
-        if (!res.ok) throw new Error('Failed to complete task')
-        
+      // Завершаем текущий этап
+      const res = await fetch(`/api/tasks/${taskId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step_id: currentStep.id })
+      })
+      
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(error.error || 'Failed to complete step')
+      }
+      
+      const result = await res.json()
+      
+      // Если задача завершена - редирект
+      if (result.task_completed) {
         router.push('/tasks')
       } else {
         // Переходим к следующему этапу
+        const nextStepIndex = currentStepIndex + 1
         setCurrentStepIndex(nextStepIndex)
-        await saveProgress()
+        // Обновляем URL
+        const url = new URL(window.location.href)
+        url.searchParams.set('step', nextStepIndex.toString())
+        window.history.pushState({}, '', url.toString())
       }
     } catch (err) {
       console.error('Error completing step:', err)
+      alert(err instanceof Error ? err.message : 'Failed to complete step')
     } finally {
       setIsSaving(false)
     }
-  }, [task, taskId, currentStepIndex, allSteps.length, router, saveProgress])
+  }, [task, taskId, currentStepIndex, allSteps, router])
 
   const skipStep = useCallback(async () => {
     if (!task) return

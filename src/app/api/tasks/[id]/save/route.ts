@@ -122,6 +122,8 @@ export async function POST(
     
     // Новый формат: прямое сохранение всех аннотаций (upsert)
     if (annotations && Array.isArray(annotations)) {
+      console.log(`[tasks/save] Saving ${annotations.length} annotations`)
+      
       for (const annotation of annotations) {
         // Пропускаем аннотации, которые не были изменены (нет id или это новые)
         if (!annotation.id) {
@@ -134,9 +136,17 @@ export async function POST(
               source: 'manual',
             })
           
-          if (!error) savedCount++
+          if (error) {
+            console.error('[tasks/save] Error inserting annotation:', error)
+          } else {
+            savedCount++
+          }
         } else {
-          // Обновляем существующую
+          // Обновляем существующую - логируем custom_dish_name для отладки
+          if (annotation.custom_dish_name) {
+            console.log(`[tasks/save] Updating annotation ${annotation.id.substring(0, 8)} with custom_dish_name: ${annotation.custom_dish_name}`)
+          }
+          
           const { error } = await supabaseServer
             .from('annotations')
             .update({
@@ -146,7 +156,11 @@ export async function POST(
             })
             .eq('id', annotation.id)
           
-          if (!error) savedCount++
+          if (error) {
+            console.error('[tasks/save] Error updating annotation:', error)
+          } else {
+            savedCount++
+          }
         }
       }
     }
