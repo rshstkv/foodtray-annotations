@@ -371,11 +371,13 @@ export default function BBoxAnnotator({
       case 'plate': return '#eab308' // yellow-500
       case 'buzzer':
         switch (annotation.object_subtype) {
-          case 'red': return '#ef4444'
-          case 'green': return '#10b981'
-          case 'white': return '#e5e7eb'
-          case 'blue': return '#3b82f6'
-          default: return '#8b5cf6'
+          case 'red': return '#ef4444'    // red-500
+          case 'green': return '#22c55e'  // green-500
+          case 'blue': return '#3b82f6'   // blue-500
+          case 'yellow': return '#eab308' // yellow-500
+          case 'black': return '#1f2937'  // gray-800
+          case 'white': return '#f3f4f6'  // gray-100
+          default: return '#8b5cf6'       // purple-500
         }
       case 'non_food': return '#a855f7' // purple-500 для non-food
       case 'tray': return '#6b7280'

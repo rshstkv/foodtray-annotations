@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { apiFetch } from '@/lib/api-response'
-import { Loader2, Users, Package, CheckCircle2 } from 'lucide-react'
+import { Loader2, Users, Package, CheckCircle2, UtensilsCrossed, Bell, Disc3 } from 'lucide-react'
 
 interface User {
   id: string
@@ -29,38 +29,42 @@ interface TaskStats {
   completed: number
 }
 
-const DEFAULT_SCOPES: TaskScope[] = [
+// Доступные типы проверок
+const STEP_TYPES = [
   {
-    id: 'dishes_only',
-    name: 'Только блюда',
-    steps: [{ id: 'validate_dishes', name: 'Проверка блюд' }]
+    id: 'validate_dishes',
+    name: 'Блюда',
+    description: 'Проверка блюд из чека',
+    icon: UtensilsCrossed,
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50',
+    borderColor: 'border-orange-200',
   },
   {
-    id: 'buzzers_only',
-    name: 'Только buzzers',
-    steps: [{ id: 'validate_buzzers', name: 'Проверка buzzers' }]
+    id: 'validate_buzzers',
+    name: 'Буззеры',
+    description: 'Проверка буззеров',
+    icon: Bell,
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-200',
   },
   {
-    id: 'plates_only',
-    name: 'Только тарелки',
-    steps: [{ id: 'validate_plates', name: 'Проверка тарелок' }]
+    id: 'validate_plates',
+    name: 'Тарелки',
+    description: 'Проверка тарелок',
+    icon: Disc3,
+    color: 'text-green-600',
+    bgColor: 'bg-green-50',
+    borderColor: 'border-green-200',
   },
-  {
-    id: 'full',
-    name: 'Полный цикл',
-    steps: [
-      { id: 'validate_dishes', name: 'Проверка блюд' },
-      { id: 'validate_buzzers', name: 'Проверка buzzers' },
-      { id: 'validate_plates', name: 'Проверка тарелок' }
-    ]
-  }
 ]
 
 export default function AssignTasksPage() {
   const [users, setUsers] = useState<User[]>([])
   const [stats, setStats] = useState<TaskStats | null>(null)
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
-  const [selectedScope, setSelectedScope] = useState<string>('full')
+  const [selectedSteps, setSelectedSteps] = useState<string[]>(['validate_dishes', 'validate_buzzers', 'validate_plates']) // По умолчанию все
   const [taskCount, setTaskCount] = useState<string>('10')
   const [priority, setPriority] = useState<string>('medium')
   const [loading, setLoading] = useState(false)
@@ -100,11 +104,23 @@ export default function AssignTasksPage() {
       return
     }
 
+    if (selectedSteps.length === 0) {
+      alert('Выберите хотя бы один тип проверки')
+      return
+    }
+
     setLoading(true)
     setSuccess(false)
 
     try {
-      const scope = DEFAULT_SCOPES.find(s => s.id === selectedScope)
+      // Строим steps из выбранных типов
+      const steps = selectedSteps.map(stepId => {
+        const stepType = STEP_TYPES.find(s => s.id === stepId)
+        return {
+          id: stepId,
+          name: stepType?.name || stepId
+        }
+      })
       
       const response = await apiFetch('/api/admin/assign-tasks', {
         method: 'POST',
@@ -112,9 +128,7 @@ export default function AssignTasksPage() {
           user_ids: selectedUsers,
           task_count: parseInt(taskCount),
           priority,
-          scope: {
-            steps: scope?.steps || DEFAULT_SCOPES[3].steps
-          }
+          scope: { steps }
         })
       })
 
