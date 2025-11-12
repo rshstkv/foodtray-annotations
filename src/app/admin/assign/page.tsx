@@ -40,8 +40,7 @@ export default function AdminAssignPage() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
 
-  // Фильтры
-  const [filterSteps, setFilterSteps] = useState<string[]>([])
+  // Простая форма
   const [assignSteps, setAssignSteps] = useState<string[]>([])
   const [selectedUser, setSelectedUser] = useState<string>('')
   const [taskCount, setTaskCount] = useState(10)
@@ -74,21 +73,6 @@ export default function AdminAssignPage() {
     }
   }
 
-  const toggleFilterStep = (stepId: string) => {
-    setFilterSteps(prev =>
-      prev.includes(stepId)
-        ? prev.filter(id => id !== stepId)
-        : [...prev, stepId]
-    )
-  }
-
-  const toggleAssignStep = (stepId: string) => {
-    setAssignSteps(prev =>
-      prev.includes(stepId)
-        ? prev.filter(id => id !== stepId)
-        : [...prev, stepId]
-    )
-  }
 
   const handleCreateTasks = async () => {
     if (!selectedUser || assignSteps.length === 0) return
@@ -99,7 +83,7 @@ export default function AdminAssignPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          filter_by_completed_steps: filterSteps,
+          filter_by_completed_steps: [], // Всегда берем новые recognitions
           assign_steps: assignSteps,
           assigned_to: selectedUser,
           limit: taskCount,
@@ -114,8 +98,8 @@ export default function AdminAssignPage() {
         await loadData()
         // Сбрасываем форму
         setAssignSteps([])
-        setFilterSteps([])
         setSelectedUser('')
+        setTaskCount(10)
       } else {
         const error = await response.json()
         alert(`❌ Ошибка: ${error.error}`)
@@ -128,36 +112,6 @@ export default function AdminAssignPage() {
     }
   }
 
-  // Подсчитываем доступные recognitions
-  const getAvailableCount = () => {
-    if (!stats) return 0
-    
-    // Если ничего не выбрано - показываем recognitions без проверок
-    if (assignSteps.length === 0 && filterSteps.length === 0) {
-      return stats.by_completed_steps['none']?.count || 0
-    }
-    
-    let total = 0
-    Object.entries(stats.by_completed_steps).forEach(([key, data]) => {
-      const stepIds = data.step_ids
-      
-      // Проверяем фильтр (по выполненным проверкам)
-      if (filterSteps.length > 0) {
-        const hasAllRequired = filterSteps.every(id => stepIds.includes(id))
-        if (!hasAllRequired) return
-      }
-      
-      // Проверяем что назначаемые проверки еще не выполнены (защита от дублирования)
-      if (assignSteps.length > 0) {
-        const hasConflict = assignSteps.some(id => stepIds.includes(id))
-        if (hasConflict) return
-      }
-      
-      total += data.count
-    })
-    
-    return total
-  }
 
   if (loading) {
     return (
@@ -167,27 +121,51 @@ export default function AdminAssignPage() {
     )
   }
 
-  const availableCount = getAvailableCount()
+  // Доступные recognitions - всегда новые (без проверок)
+  const availableCount = stats?.by_completed_steps['none']?.count || 0
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-8 space-y-6 max-w-6xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Назначение задач</h1>
         <p className="text-gray-600 mt-1">Создание новых проверок для recognitions</p>
       </div>
 
+      {/* Статистика по пользователям */}
+      <Card>
+        <CardContent className="pt-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Задачи по пользователям</h2>
+          <div className="space-y-2">
+            {users.map(user => {
+              const userTasks = stats ? Object.entries(stats.by_completed_steps).reduce((sum, [_, data]) => sum + data.count, 0) : 0
+              return (
+                <div key={user.id} className="flex items-center justify-between p-3 border rounded hover:bg-gray-50">
+                  <div>
+                    <span className="font-medium">{user.email}</span>
+                    {user.role === 'admin' && <Badge className="ml-2" variant="secondary">admin</Badge>}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Задач: <span className="font-mono font-semibold">0</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Статистика recognitions */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-sm text-gray-600">Всего recognitions</p>
-              <p className="text-4xl font-bold text-gray-900">{stats?.total_recognitions || 0}</p>
+              <p className="text-3xl font-bold text-gray-900">{stats?.total_recognitions || 0}</p>
             </div>
             <div className="text-right">
-              <p className="text-sm text-gray-600">Доступно для назначения</p>
-              <p className={`text-4xl font-bold ${availableCount > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                {availableCount}
+              <p className="text-sm text-gray-600">Без задач (доступно)</p>
+              <p className="text-3xl font-bold text-green-600">
+                {stats?.by_completed_steps['none']?.count || 0}
               </p>
             </div>
           </div>
@@ -198,7 +176,7 @@ export default function AdminAssignPage() {
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="text-left p-3 font-medium text-gray-700">Количество</th>
-                  <th className="text-left p-3 font-medium text-gray-700">Выполненные проверки</th>
+                  <th className="text-left p-3 font-medium text-gray-700">Статус проверок</th>
                 </tr>
               </thead>
               <tbody>
@@ -213,7 +191,7 @@ export default function AdminAssignPage() {
                       </td>
                       <td className="p-3">
                         {data.step_names.length === 0 ? (
-                          <span className="text-gray-400">Нет проверок</span>
+                          <span className="text-green-600 font-medium">Новые (без проверок)</span>
                         ) : (
                           <span className="text-gray-700">{data.step_names.join(' + ')}</span>
                         )}
@@ -226,90 +204,46 @@ export default function AdminAssignPage() {
         </CardContent>
       </Card>
 
-      {/* Форма создания задач */}
+      {/* Форма создания задач - УПРОЩЕННАЯ */}
       <Card>
         <CardContent className="pt-6 space-y-6">
           <h2 className="text-xl font-semibold text-gray-900">Создать новые задачи</h2>
 
-          {/* Фильтр */}
+          {/* Выбор проверок */}
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-              <p className="text-sm font-medium text-gray-700">
-                Фильтр: какие проверки УЖЕ выполнены (необязательно)
-              </p>
-            </div>
-            <div className="grid grid-cols-6 gap-2">
-              {STEP_TYPES.map((step) => (
-                <div
-                  key={step.id}
-                  className={`flex items-center gap-2 p-3 border rounded cursor-pointer transition-colors ${
-                    filterSteps.includes(step.id)
-                      ? 'bg-purple-100 border-purple-400'
-                      : 'bg-white border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => toggleFilterStep(step.id)}
-                >
-                  <Checkbox
-                    checked={filterSteps.includes(step.id)}
-                    onCheckedChange={() => toggleFilterStep(step.id)}
-                  />
-                  <span className="text-sm">{step.name}</span>
-                </div>
-              ))}
-            </div>
-            {filterSteps.length === 0 ? (
-              <p className="text-xs text-gray-500 mt-2">Не выбрано → возьмутся любые recognitions</p>
-            ) : (
-              <p className="text-xs text-purple-700 mt-2">
-                ✓ Только recognitions с: {filterSteps.map(id => STEP_TYPES.find(s => s.id === id)?.name).join(' + ')}
-              </p>
-            )}
-          </div>
-
-          {/* Назначить */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <p className="text-sm font-medium text-gray-700">
-                Какие проверки назначить (создать новые задачи)
-              </p>
-            </div>
-            <div className="grid grid-cols-6 gap-2">
-              {STEP_TYPES.map((step) => (
-                <div
-                  key={step.id}
-                  className={`flex items-center gap-2 p-3 border rounded cursor-pointer transition-colors ${
-                    assignSteps.includes(step.id)
-                      ? 'bg-green-100 border-green-400'
-                      : 'bg-white border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => toggleAssignStep(step.id)}
-                >
-                  <Checkbox
-                    checked={assignSteps.includes(step.id)}
-                    onCheckedChange={() => toggleAssignStep(step.id)}
-                  />
-                  <span className="text-sm">{step.name}</span>
-                </div>
-              ))}
-            </div>
+            <label className="text-sm font-medium text-gray-700 mb-3 block">
+              Какие проверки назначить:
+            </label>
+            <Select
+              value={assignSteps.length > 0 ? assignSteps.join(',') : ''}
+              onValueChange={(value) => {
+                if (value) {
+                  setAssignSteps(value.split(','))
+                } else {
+                  setAssignSteps([])
+                }
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Выберите проверки..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="validate_dishes">Блюда</SelectItem>
+                <SelectItem value="validate_plates">Тарелки</SelectItem>
+                <SelectItem value="validate_buzzers">Баззеры</SelectItem>
+                <SelectItem value="check_overlaps">Перекрытия</SelectItem>
+                <SelectItem value="validate_bottles">Бутылки</SelectItem>
+                <SelectItem value="validate_nonfood">Non-food</SelectItem>
+                <SelectItem value="validate_dishes,validate_plates">Блюда + Тарелки</SelectItem>
+                <SelectItem value="validate_dishes,validate_plates,validate_buzzers">Блюда + Тарелки + Баззеры</SelectItem>
+              </SelectContent>
+            </Select>
             {assignSteps.length > 0 && (
               <p className="text-xs text-green-700 mt-2">
-                ✓ Будут созданы задачи с: {assignSteps.map(id => STEP_TYPES.find(s => s.id === id)?.name).join(', ')}
+                ✓ Выбрано: {assignSteps.map(id => STEP_TYPES.find(s => s.id === id)?.name).join(', ')}
               </p>
             )}
           </div>
-
-          {/* Защита от дублирования */}
-          {assignSteps.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-900">
-                <Check className="inline h-4 w-4 mr-1" />
-                <strong>Защита:</strong> Recognitions, где уже есть выбранные проверки, будут автоматически исключены
-              </p>
-            </div>
-          )}
 
           {/* Пользователь и количество */}
           <div className="grid grid-cols-2 gap-4">

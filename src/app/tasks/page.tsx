@@ -17,7 +17,12 @@ import { MainLayout } from '@/components/layout/MainLayout'
 import { useUser } from '@/hooks/useUser'
 import { apiFetch } from '@/lib/api-response'
 import { Badge } from '@/components/ui/badge'
-import { Clock, CheckCircle, XCircle, PlayCircle } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, PlayCircle, ChevronDown } from 'lucide-react'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 
 interface Task {
   id: string
@@ -231,97 +236,96 @@ export default function TasksPage() {
           )}
         </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <div className="p-4 space-y-4">
-            <h3 className="font-medium">Фильтры</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Status filter */}
-              <div>
-                <label className="text-sm text-gray-700 block mb-2">Статус</label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Все статусы" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Все</SelectItem>
-                    <SelectItem value="pending">Ожидает</SelectItem>
-                    <SelectItem value="in_progress">В работе</SelectItem>
-                    <SelectItem value="completed">Завершено</SelectItem>
-                    <SelectItem value="skipped">Пропущено</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {/* Priority filter */}
-              <div>
-                <label className="text-sm text-gray-700 block mb-2">Приоритет</label>
-                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Все приоритеты" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Все</SelectItem>
-                    <SelectItem value="high">Высокий</SelectItem>
-                    <SelectItem value="medium">Средний</SelectItem>
-                    <SelectItem value="low">Низкий</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {/* Assigned filter (admin only) */}
-              {isAdmin && (
-                <div>
-                  <label className="text-sm text-gray-700 block mb-2">Назначено</label>
-                  <Select value={assignedFilter} onValueChange={setAssignedFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Все пользователи" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Все</SelectItem>
-                      <SelectItem value="unassigned">Не назначено</SelectItem>
-                      {allUsers.map(u => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.full_name || u.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-
-            {/* Scope filters - checkboxes */}
-            <div>
-              <label className="text-sm text-gray-700 block mb-2">Типы проверок</label>
-              <div className="grid grid-cols-6 gap-2">
-                {SCOPE_TYPES.map((scope) => (
-                  <div
-                    key={scope.id}
-                    className={`flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors ${
-                      scopeFilters.includes(scope.id)
-                        ? 'bg-blue-100 border-blue-400'
-                        : 'bg-white border-gray-200 hover:border-gray-300'
-                    }`}
-                    onClick={() => toggleScopeFilter(scope.id)}
-                  >
-                    <Checkbox
-                      checked={scopeFilters.includes(scope.id)}
-                      onCheckedChange={() => toggleScopeFilter(scope.id)}
-                    />
-                    <span className="text-sm">{scope.name}</span>
-                  </div>
-                ))}
-              </div>
-              {scopeFilters.length > 0 && (
-                <p className="text-xs text-blue-700 mt-2">
-                  ✓ Показаны задачи с: {scopeFilters.map(id => SCOPE_TYPES.find(s => s.id === id)?.name).join(', ')}
-                </p>
-              )}
-            </div>
+        {/* Filters - Compact */}
+        <div className="mb-6 flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+          {/* Status filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Статус:</span>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все</SelectItem>
+                <SelectItem value="pending">Ожидает</SelectItem>
+                <SelectItem value="in_progress">В работе</SelectItem>
+                <SelectItem value="completed">Завершено</SelectItem>
+                <SelectItem value="skipped">Пропущено</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </Card>
+          
+          {/* Priority filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Приоритет:</span>
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-[120px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все</SelectItem>
+                <SelectItem value="high">Высокий</SelectItem>
+                <SelectItem value="medium">Средний</SelectItem>
+                <SelectItem value="low">Низкий</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {/* Assigned filter (admin only) */}
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Назначено:</span>
+              <Select value={assignedFilter} onValueChange={setAssignedFilter}>
+                <SelectTrigger className="w-[160px] h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все</SelectItem>
+                  <SelectItem value="unassigned">Не назначено</SelectItem>
+                  {allUsers.map(u => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.full_name || u.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Scope filters - dropdown with checkboxes */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Типы:</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="h-8 px-3 text-sm justify-between min-w-[140px]"
+                >
+                  {scopeFilters.length === 0 
+                    ? 'Все типы' 
+                    : `Выбрано: ${scopeFilters.length}`}
+                  <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-3" align="start">
+                <div className="space-y-2">
+                  {SCOPE_TYPES.map((scope) => (
+                    <label
+                      key={scope.id}
+                      className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1.5 rounded"
+                    >
+                      <Checkbox
+                        checked={scopeFilters.includes(scope.id)}
+                        onCheckedChange={() => toggleScopeFilter(scope.id)}
+                      />
+                      <span className="text-sm">{scope.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
 
         {/* Tasks table */}
         {loading ? (

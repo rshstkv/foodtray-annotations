@@ -93,8 +93,15 @@ export async function POST(
         taskCompleted = true
       }
     } else {
-      // Завершаем всю задачу целиком
-      taskCompleted = true
+      // Завершаем всю задачу целиком (только если нет этапов или это одноэтапная задача)
+      if (steps.length === 0 || updatedProgress.current_step_index >= steps.length) {
+        taskCompleted = true
+      } else {
+        return NextResponse.json(
+          { error: 'Cannot complete task without completing all steps. Use step_id to complete individual steps.' },
+          { status: 400 }
+        )
+      }
     }
 
     // Обновляем task

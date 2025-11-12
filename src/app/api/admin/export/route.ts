@@ -32,10 +32,10 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId')
     const status = searchParams.get('status')
 
-    // Построение запроса на задачи
+    // Построение запроса на задачи (с task_scope для получения modified_dishes)
     let tasksQuery = supabase
       .from('tasks')
-      .select('id, recognition_id, status, assigned_to')
+      .select('id, recognition_id, status, assigned_to, task_scope')
 
     if (userId && userId !== 'all') {
       tasksQuery = tasksQuery.eq('assigned_to', userId)
@@ -108,10 +108,16 @@ export async function GET(request: NextRequest) {
       data: (recognitions || []).map(recognition => {
         const recognitionImages = (images || []).filter(img => img.recognition_id === recognition.recognition_id)
         
+        // Найти задачу для этого recognition чтобы получить modified_dishes
+        // Если есть несколько задач для одного recognition, приоритет задаче с modified_dishes
+        const recognitionTasks = tasks.filter(t => t.recognition_id === recognition.recognition_id)
+        const taskWithModifications = recognitionTasks.find(t => t.task_scope?.modified_dishes) || recognitionTasks[0]
+        const modifiedDishes = taskWithModifications?.task_scope?.modified_dishes
+        
         return {
           recognition_id: recognition.recognition_id,
           recognition_date: recognition.recognition_date,
-          correct_dishes: recognition.correct_dishes,
+          correct_dishes: modifiedDishes || recognition.correct_dishes, // Используем измененный чек если есть
           menu_all: recognition.menu_all,
           images: recognitionImages.map(image => {
             const imageAnnotations = (annotations || []).filter(ann => ann.image_id === image.id)

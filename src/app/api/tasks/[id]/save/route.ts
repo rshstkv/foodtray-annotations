@@ -19,10 +19,27 @@ export async function POST(
 
     // Обновляем прогресс задачи, если указан current_step_index
     if (current_step_index !== undefined) {
+      // Сначала получаем текущий progress, чтобы не потерять массив steps
+      const { data: taskData, error: fetchError } = await supabaseServer
+        .from('tasks')
+        .select('progress')
+        .eq('id', taskId)
+        .single()
+      
+      if (fetchError) {
+        console.error('[tasks/save] Error fetching task:', fetchError)
+        return NextResponse.json(
+          { error: 'Failed to fetch task' },
+          { status: 500 }
+        )
+      }
+
+      const currentProgress = taskData.progress || {}
       const { error: progressError } = await supabaseServer
         .from('tasks')
         .update({
           progress: {
+            ...currentProgress,  // Сохраняем существующие данные (включая steps)
             current_step_index,
             updated_at: new Date().toISOString(),
           },
