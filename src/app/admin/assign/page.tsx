@@ -191,16 +191,25 @@ export default function AdminAssignPage() {
                   <span className="font-medium">{user.user_email}</span>
                   {user.role === 'admin' && <Badge variant="secondary">admin</Badge>}
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-6">
                   <div className="text-sm text-gray-600">
                     Задач: <span className="font-mono font-semibold text-lg">{user.total_tasks}</span>
                   </div>
                   {Object.keys(user.by_scope).length > 0 && (
-                    <div className="flex gap-1">
+                    <div className="flex flex-col gap-2">
                       {Object.entries(user.by_scope).map(([scopeKey, scopeData]) => (
-                        <Badge key={scopeKey} variant="outline" className="text-xs">
-                          {scopeData.scope_names.join('+')} ({scopeData.count})
-                        </Badge>
+                        <div key={scopeKey} className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded border border-gray-200">
+                          <div className="flex flex-wrap gap-1">
+                            {scopeData.scope_names.map((name, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs whitespace-nowrap">
+                                {name}
+                              </Badge>
+                            ))}
+                          </div>
+                          <Badge className="ml-1 font-mono font-semibold text-xs bg-blue-500 hover:bg-blue-600">
+                            {scopeData.count}
+                          </Badge>
+                        </div>
                       ))}
                     </div>
                   )}
