@@ -8,7 +8,7 @@ export async function POST(
   try {
     const { id: taskId } = await params
     const body = await request.json()
-    const { changes } = body
+    const { changes, current_step_index } = body
 
     const supabaseServer = await createClient()
     const { data: { user } } = await supabaseServer.auth.getUser()
@@ -17,10 +17,32 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Применяем изменения
+    // Обновляем прогресс задачи, если указан current_step_index
+    if (current_step_index !== undefined) {
+      const { error: progressError } = await supabaseServer
+        .from('tasks')
+        .update({
+          progress: {
+            current_step_index,
+            updated_at: new Date().toISOString(),
+          },
+        })
+        .eq('id', taskId)
+      
+      if (progressError) {
+        console.error('[tasks/save] Error updating progress:', progressError)
+        return NextResponse.json(
+          { error: 'Failed to update progress' },
+          { status: 500 }
+        )
+      }
+    }
+
+    // Применяем изменения аннотаций, если есть
     let savedCount = 0
     
-    for (const change of changes) {
+    if (changes && Array.isArray(changes)) {
+      for (const change of changes) {
       if (change.type === 'create') {
         const { error } = await supabaseServer
           .from('annotations')
@@ -50,11 +72,15 @@ export async function POST(
         
         if (!error) savedCount++
       }
+      }
     }
 
     return NextResponse.json({
       success: true,
       saved_count: savedCount,
+      message: current_step_index !== undefined 
+        ? `Progress saved at step ${current_step_index}` 
+        : `${savedCount} annotation(s) saved`,
     })
 
   } catch (error) {
