@@ -13,6 +13,8 @@ import { ActionButtons } from '@/components/ActionButtons'
 import { TaskSidebar } from '@/components/task/TaskSidebar'
 import { ImageGrid } from '@/components/task/ImageGrid'
 import { DishSelectionPanel } from '@/components/task/DishSelectionPanel'
+import { BuzzerAnnotationPanel } from '@/components/task/BuzzerAnnotationPanel'
+import { PlateAnnotationPanel } from '@/components/task/PlateAnnotationPanel'
 import { MenuSearchPanel } from '@/components/task/MenuSearchPanel'
 import BBoxAnnotator from '@/components/BBoxAnnotator'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -48,23 +50,6 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
     if (dishAnnotations.length > 0) {
       annotationManager.setSelectedAnnotationId(dishAnnotations[0].id)
     }
-  }, [annotationManager])
-
-  // Handler for assigning selected bbox to dish
-  const handleAssignToSelected = useCallback((dishIndex: number) => {
-    if (annotationManager.selectedAnnotationId) {
-      annotationManager.updateAnnotation(annotationManager.selectedAnnotationId, {
-        dish_index: dishIndex,
-        object_type: 'dish',
-      })
-    }
-  }, [annotationManager])
-
-  // Handler for starting to draw for a dish
-  const handleStartDrawing = useCallback((dishIndex: number) => {
-    setSelectedDishIndex(dishIndex)
-    annotationManager.startDrawing('dish')
-    // TODO: Set dish_index for new annotation
   }, [annotationManager])
 
   // Handler for adding dish from menu
@@ -167,28 +152,34 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                     annotations={annotationManager.annotations}
                     selectedDishIndex={selectedDishIndex}
                     onSelectDish={handleSelectDish}
-                    onAssignToSelected={handleAssignToSelected}
-                    onStartDrawing={handleStartDrawing}
                     onAddFromMenu={handleAddFromMenu}
                   />
                 )}
 
                 {currentStep.step.id === 'validate_buzzers' && (
-                  <div className="text-sm text-gray-600">
-                    <p className="mb-4">Отметьте все буззеры на изображении</p>
-                    <p className="text-xs text-gray-500">
-                      Нажмите на кнопку "Рисовать" и выделите буззеры на изображении
-                    </p>
-                  </div>
+                  <BuzzerAnnotationPanel
+                    annotations={annotationManager.annotations.filter(
+                      a => a.object_type === 'buzzer' && !a.is_deleted
+                    )}
+                    onStartDrawing={(color) => {
+                      annotationManager.startDrawing('buzzer')
+                      annotationManager.setDrawingMetadata({ color })
+                    }}
+                    isDrawing={annotationManager.isDrawing}
+                  />
                 )}
 
                 {currentStep.step.id === 'validate_plates' && (
-                  <div className="text-sm text-gray-600">
-                    <p className="mb-4">Отметьте все тарелки на изображении</p>
-                    <p className="text-xs text-gray-500">
-                      Нажмите на кнопку "Рисовать" и выделите тарелки на изображении
-                    </p>
-                  </div>
+                  <PlateAnnotationPanel
+                    annotations={annotationManager.annotations.filter(
+                      a => a.object_type === 'plate' && !a.is_deleted
+                    )}
+                    expectedCount={task.recognition.correct_dishes?.length || 0}
+                    onStartDrawing={() => {
+                      annotationManager.startDrawing('plate')
+                    }}
+                    isDrawing={annotationManager.isDrawing}
+                  />
                 )}
               </TaskSidebar>
 
@@ -235,11 +226,13 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                     showControls={true}
                     onAnnotationCreate={(bbox) => {
                       const objectType = annotationManager.drawingObjectType || 'dish'
+                      const metadata = annotationManager.drawingMetadata || {}
+                      
                       annotationManager.createAnnotation({
                         image_id: image.id,
                         ...bbox,
                         object_type: objectType,
-                        object_subtype: null,
+                        object_subtype: objectType === 'buzzer' ? metadata.color : null,
                         dish_index: selectedDishIndex,
                         custom_dish_name: null,
                         is_overlapped: false,

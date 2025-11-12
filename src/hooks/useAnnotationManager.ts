@@ -11,6 +11,7 @@ export interface UseAnnotationManagerReturn {
   highlightedDishIndex: number | null
   isDrawing: boolean
   drawingObjectType: Annotation['object_type'] | null
+  drawingMetadata: Record<string, any>
   
   // Actions
   setAnnotations: (annotations: Annotation[]) => void
@@ -28,6 +29,7 @@ export interface UseAnnotationManagerReturn {
   // Drawing
   startDrawing: (objectType: Annotation['object_type']) => void
   stopDrawing: () => void
+  setDrawingMetadata: (metadata: Record<string, any>) => void
   
   // Highlight (for sync between menu and images)
   setHighlightedDishIndex: (index: number | null) => void
@@ -45,6 +47,7 @@ export function useAnnotationManager(initialImages: Image[] = []): UseAnnotation
   const [highlightedDishIndex, setHighlightedDishIndex] = useState<number | null>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [drawingObjectType, setDrawingObjectType] = useState<Annotation['object_type'] | null>(null)
+  const [drawingMetadata, setDrawingMetadata] = useState<Record<string, any>>({})
 
   const hasUnsavedChanges = changes.length > 0
 
@@ -164,6 +167,7 @@ export function useAnnotationManager(initialImages: Image[] = []): UseAnnotation
     highlightedDishIndex,
     isDrawing,
     drawingObjectType,
+    drawingMetadata,
     setAnnotations,
     createAnnotation,
     updateAnnotation,
@@ -175,6 +179,7 @@ export function useAnnotationManager(initialImages: Image[] = []): UseAnnotation
     selectPrev,
     startDrawing,
     stopDrawing,
+    setDrawingMetadata,
     setHighlightedDishIndex,
   }
 }

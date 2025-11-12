@@ -26,6 +26,8 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId')
     const status = searchParams.get('status')
     const scope = searchParams.get('scope')
+    const priority = searchParams.get('priority')
+    const assigned = searchParams.get('assigned')
 
     // Build query
     let query = supabase
@@ -37,7 +39,10 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     // Фильтр по пользователю
-    if (userId && isAdmin) {
+    if (assigned === 'false') {
+      // Неназначенные задачи
+      query = query.is('assigned_to', null)
+    } else if (userId && isAdmin) {
       query = query.eq('assigned_to', userId)
     } else if (!isAdmin) {
       // Не-админ видит только свои задачи
@@ -47,6 +52,17 @@ export async function GET(request: NextRequest) {
     // Фильтр по статусу
     if (status) {
       query = query.eq('status', status)
+    }
+
+    // Фильтр по приоритету
+    if (priority) {
+      if (priority === 'high') {
+        query = query.gte('priority', 7)
+      } else if (priority === 'medium') {
+        query = query.gte('priority', 4).lt('priority', 7)
+      } else if (priority === 'low') {
+        query = query.lt('priority', 4)
+      }
     }
 
     // Фильтр по scope (задачи с определенным этапом)

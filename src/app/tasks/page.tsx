@@ -39,6 +39,9 @@ interface Task {
     recognition_date: string
     correct_dishes: unknown[]
   }
+  task_scope: {
+    steps: Array<{ id: string; name: string }>
+  } | null
 }
 
 interface Stats {
@@ -56,12 +59,33 @@ export default function TasksPage() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [priorityFilter, setPriorityFilter] = useState<string>('all')
+  const [scopeFilter, setScopeFilter] = useState<string>('all')
+  const [assignedFilter, setAssignedFilter] = useState<string>('all')
+  const [allUsers, setAllUsers] = useState<Array<{ id: string; email: string; full_name: string | null }>>([])
 
   useEffect(() => {
     if (user) {
       loadTasks()
     }
-  }, [user, statusFilter])
+  }, [user, statusFilter, priorityFilter, scopeFilter, assignedFilter])
+
+  useEffect(() => {
+    if (user && isAdmin) {
+      loadUsers()
+    }
+  }, [user, isAdmin])
+
+  const loadUsers = async () => {
+    try {
+      const response = await apiFetch<{ users: Array<any> }>('/api/admin/users')
+      if (response.success && response.data) {
+        setAllUsers(response.data.users || [])
+      }
+    } catch (err) {
+      console.error('Error loading users:', err)
+    }
+  }
 
   const loadTasks = async () => {
     try {
@@ -69,6 +93,15 @@ export default function TasksPage() {
       
       const params = new URLSearchParams()
       if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter)
+      if (priorityFilter && priorityFilter !== 'all') params.append('priority', priorityFilter)
+      if (scopeFilter && scopeFilter !== 'all') params.append('scope', scopeFilter)
+      if (assignedFilter && assignedFilter !== 'all') {
+        if (assignedFilter === 'unassigned') {
+          params.append('assigned', 'false')
+        } else {
+          params.append('userId', assignedFilter)
+        }
+      }
 
       const response = await apiFetch<{ tasks: Task[]; stats: Stats }>(
         `/api/tasks/list?${params.toString()}`
@@ -176,22 +209,84 @@ export default function TasksPage() {
         </div>
 
         {/* Filters */}
-        <div className="flex gap-4 mb-6">
-          <div className="w-48">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Все статусы" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Все статусы</SelectItem>
-                <SelectItem value="pending">Ожидает</SelectItem>
-                <SelectItem value="in_progress">В работе</SelectItem>
-                <SelectItem value="completed">Завершено</SelectItem>
-                <SelectItem value="skipped">Пропущено</SelectItem>
-              </SelectContent>
-            </Select>
+        <Card className="mb-6">
+          <div className="p-4">
+            <h3 className="font-medium mb-4">Фильтры</h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Status filter */}
+              <div>
+                <label className="text-sm text-gray-700 block mb-2">Статус</label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Все статусы" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все</SelectItem>
+                    <SelectItem value="pending">Ожидает</SelectItem>
+                    <SelectItem value="in_progress">В работе</SelectItem>
+                    <SelectItem value="completed">Завершено</SelectItem>
+                    <SelectItem value="skipped">Пропущено</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Priority filter */}
+              <div>
+                <label className="text-sm text-gray-700 block mb-2">Приоритет</label>
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Все приоритеты" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все</SelectItem>
+                    <SelectItem value="high">Высокий</SelectItem>
+                    <SelectItem value="medium">Средний</SelectItem>
+                    <SelectItem value="low">Низкий</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Scope filter */}
+              <div>
+                <label className="text-sm text-gray-700 block mb-2">Тип задач</label>
+                <Select value={scopeFilter} onValueChange={setScopeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Все типы" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все</SelectItem>
+                    <SelectItem value="validate_dishes">Блюда</SelectItem>
+                    <SelectItem value="validate_buzzers">Буззеры</SelectItem>
+                    <SelectItem value="validate_plates">Тарелки</SelectItem>
+                    <SelectItem value="validate_bottles">Бутылки</SelectItem>
+                    <SelectItem value="full_cycle">Полный цикл</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Assigned filter (admin only) */}
+              {isAdmin && (
+                <div>
+                  <label className="text-sm text-gray-700 block mb-2">Назначено</label>
+                  <Select value={assignedFilter} onValueChange={setAssignedFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Все пользователи" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Все</SelectItem>
+                      <SelectItem value="unassigned">Не назначено</SelectItem>
+                      {allUsers.map(u => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.full_name || u.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </Card>
 
         {/* Tasks table */}
         {loading ? (
