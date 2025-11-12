@@ -27,6 +27,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
   const [showMenuSearch, setShowMenuSearch] = useState(false)
   const [selectedDishIndex, setSelectedDishIndex] = useState<number | null>(null)
   const [modifiedDishes, setModifiedDishes] = useState<any[] | null>(null)
+  const [activeImageId, setActiveImageId] = useState<string | null>(null)
 
   // Initialize managers
   const taskManager = useTaskManager(resolvedParams.id)

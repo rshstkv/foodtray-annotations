@@ -54,47 +54,46 @@ export async function GET(request: NextRequest) {
       return apiError('Forbidden', 403)
     }
 
-    // Получаем все recognitions
-    const { data: recognitions, error: recError } = await supabase
-      .from('recognitions')
-      .select('recognition_id')
-
-    if (recError) {
-      console.error('[recognition-task-stats] Error fetching recognitions:', recError)
-      return apiError(recError.message, 500)
-    }
-
-    console.log('[recognition-task-stats] Total recognitions:', recognitions?.length || 0)
-
-    // Получаем все ЗАВЕРШЕННЫЕ задачи
-    const { data: completedTasks, error: tasksError } = await supabase
+    // Получаем все задачи (все статусы)
+    const { data: allTasks, error: tasksError } = await supabase
       .from('tasks')
-      .select('recognition_id, task_scope')
-      .eq('status', 'completed')
+      .select('recognition_id, task_scope, status')
 
     if (tasksError) {
-      console.error('[recognition-task-stats] Error fetching completed tasks:', tasksError)
+      console.error('[recognition-task-stats] Error fetching tasks:', tasksError)
       return apiError(tasksError.message, 500)
     }
 
-    console.log('[recognition-task-stats] Completed tasks:', completedTasks?.length || 0)
+    console.log('[recognition-task-stats] Total tasks:', allTasks?.length || 0)
+
+    // Получаем уникальные recognition_id из tasks
+    const uniqueRecognitionIds = new Set<string>()
+    allTasks?.forEach(task => {
+      if (task.recognition_id) {
+        uniqueRecognitionIds.add(task.recognition_id)
+      }
+    })
+
+    console.log('[recognition-task-stats] Unique recognitions from tasks:', uniqueRecognitionIds.size)
 
     // Группируем recognitions по завершенным проверкам
     const recognitionStepsMap = new Map<string, Set<string>>()
 
     // Инициализируем все recognitions (пустые наборы)
-    recognitions?.forEach(rec => {
-      recognitionStepsMap.set(rec.recognition_id, new Set())
+    uniqueRecognitionIds.forEach(recId => {
+      recognitionStepsMap.set(recId, new Set())
     })
 
-    // Добавляем завершенные проверки
-    completedTasks?.forEach(task => {
-      const steps = recognitionStepsMap.get(task.recognition_id) || new Set()
-      const taskSteps = task.task_scope?.steps || []
-      taskSteps.forEach((step: any) => {
-        steps.add(step.id)
-      })
-      recognitionStepsMap.set(task.recognition_id, steps)
+    // Добавляем завершенные проверки (только из completed tasks)
+    allTasks?.forEach(task => {
+      if (task.status === 'completed' && task.recognition_id) {
+        const steps = recognitionStepsMap.get(task.recognition_id) || new Set()
+        const taskSteps = task.task_scope?.steps || []
+        taskSteps.forEach((step: any) => {
+          steps.add(step.id)
+        })
+        recognitionStepsMap.set(task.recognition_id, steps)
+      }
     })
 
     // Группируем по комбинациям проверок
@@ -115,7 +114,7 @@ export async function GET(request: NextRequest) {
     })
 
     const result: RecognitionTaskStats = {
-      total_recognitions: recognitions?.length || 0,
+      total_recognitions: uniqueRecognitionIds.size,
       by_completed_checks: Object.fromEntries(stepCombinations)
     }
 

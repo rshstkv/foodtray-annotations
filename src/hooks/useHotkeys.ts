@@ -9,6 +9,8 @@ interface UseHotkeysOptions {
   annotationManager: UseAnnotationManagerReturn
   onToggleVisibility?: () => void
   onSelectDish?: (dishIndex: number) => void
+  onSwitchImage?: () => void
+  activeImageId?: string | null
   modifiedDishes?: any[] | null
   enabled?: boolean
 }
@@ -17,12 +19,13 @@ interface UseHotkeysOptions {
  * Централизованная обработка всех горячих клавиш
  * 
  * Hotkeys:
- * - 1-9: Выбор блюда по индексу
- * - ↑/↓: Навигация по аннотациям
+ * - 1-9: Выбор блюда по индексу (только на активной картинке)
+ * - ↑/↓: Навигация по аннотациям (только активной картинки)
+ * - ←/→: Переключение между картинками
  * - H: Toggle видимость всех bbox
  * - O: Toggle перекрытие (overlapped) для выбранного объекта
  * - S: Сохранить прогресс
- * - Tab: Пропустить этап
+ * - Tab: Пропустить этап (или переключить картинку в режиме check_overlaps)
  * - Shift+Tab: Пропустить задачу
  * - Enter: Завершить этап
  * - Esc: Снять выделение / остановить рисование
@@ -33,6 +36,8 @@ export function useHotkeys({
   annotationManager,
   onToggleVisibility,
   onSelectDish,
+  onSwitchImage,
+  activeImageId = null,
   modifiedDishes = null,
   enabled = true,
 }: UseHotkeysOptions) {
@@ -45,7 +50,7 @@ export function useHotkeys({
       return
     }
 
-    // 1-9: Выбор блюда
+    // 1-9: Выбор блюда (только на активной картинке)
     if (e.key >= '1' && e.key <= '9') {
       const dishIndex = parseInt(e.key) - 1
       
@@ -56,9 +61,12 @@ export function useHotkeys({
       
       annotationManager.setHighlightedDishIndex(dishIndex)
       
-      // Выделить первый bbox этого блюда
+      // Выделить первый bbox этого блюда на активной картинке
       const dishAnnotations = annotationManager.annotations.filter(
-        a => a.object_type === 'dish' && a.dish_index === dishIndex && !a.is_deleted
+        a => a.object_type === 'dish' && 
+             a.dish_index === dishIndex && 
+             !a.is_deleted &&
+             (activeImageId ? a.image_id === activeImageId : true)
       )
       
       if (dishAnnotations.length > 0) {
@@ -69,18 +77,21 @@ export function useHotkeys({
       return
     }
 
-    // ↑/↓: Previous/Next annotation
+    // ↑/↓: Previous/Next annotation (только на активной картинке)
     // Если выбрано блюдо (через 1-9), переключаем только bbox этого блюда
-    // Иначе переключаем все аннотации
+    // Иначе переключаем все аннотации активной картинки
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       const currentlyHighlightedDish = annotationManager.highlightedDishIndex
       
+      // Фильтруем по активной картинке
+      const activeAnnotations = activeImageId
+        ? annotationManager.annotations.filter(a => a.image_id === activeImageId && !a.is_deleted)
+        : annotationManager.annotations.filter(a => !a.is_deleted)
+      
       if (currentlyHighlightedDish !== null) {
-        // Переключаем только между bbox этого блюда
-        const dishAnnotations = annotationManager.annotations.filter(
-          a => a.object_type === 'dish' && 
-               a.dish_index === currentlyHighlightedDish && 
-               !a.is_deleted
+        // Переключаем только между bbox этого блюда на активной картинке
+        const dishAnnotations = activeAnnotations.filter(
+          a => a.object_type === 'dish' && a.dish_index === currentlyHighlightedDish
         )
         
         if (dishAnnotations.length > 0) {
@@ -98,14 +109,30 @@ export function useHotkeys({
           annotationManager.setSelectedAnnotationId(dishAnnotations[nextIndex].id)
         }
       } else {
-        // Переключаем все аннотации
-        if (e.key === 'ArrowDown') {
-          annotationManager.selectNext()
-        } else {
-          annotationManager.selectPrev()
+        // Переключаем все аннотации активной картинки
+        if (activeAnnotations.length > 0) {
+          const currentIndex = annotationManager.selectedAnnotationId
+            ? activeAnnotations.findIndex(a => a.id === annotationManager.selectedAnnotationId)
+            : -1
+          
+          let nextIndex
+          if (e.key === 'ArrowDown') {
+            nextIndex = (currentIndex + 1) % activeAnnotations.length
+          } else {
+            nextIndex = currentIndex <= 0 ? activeAnnotations.length - 1 : currentIndex - 1
+          }
+          
+          annotationManager.setSelectedAnnotationId(activeAnnotations[nextIndex].id)
         }
       }
       
+      e.preventDefault()
+      return
+    }
+
+    // ←/→: Переключение между картинками
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && onSwitchImage) {
+      onSwitchImage()
       e.preventDefault()
       return
     }
@@ -189,7 +216,10 @@ export function useHotkeys({
     taskManager,
     annotationManager,
     onToggleVisibility,
+    onSwitchImage,
+    activeImageId,
     modifiedDishes,
+    onSelectDish,
   ])
 
   useEffect(() => {
