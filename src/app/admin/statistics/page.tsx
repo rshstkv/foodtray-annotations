@@ -86,20 +86,23 @@ export default function AdminStatisticsPage() {
   }
 
   return (
-    <div className="p-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">Статистика</h1>
-            <p className="text-gray-600">
+    <div className="p-8">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Статистика</h1>
+            <p className="text-gray-600 text-base">
               {isAdmin ? 'Аналитика выполнения задач' : 'Ваша статистика выполнения задач'}
             </p>
           </div>
 
           {/* User filter - только для админа */}
           {isAdmin && (
-            <div className="mb-6">
-              <div className="w-64">
+            <div className="mb-8">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Фильтр по пользователю
+              </label>
+              <div className="w-80">
                 <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10 rounded-lg">
                     <SelectValue placeholder="Все пользователи" />
                   </SelectTrigger>
                   <SelectContent>
@@ -117,42 +120,42 @@ export default function AdminStatisticsPage() {
 
           {/* Stats */}
           {loading ? (
-            <Card className="p-12 text-center">
+            <Card className="p-12 text-center rounded-xl shadow-sm">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
             </Card>
           ) : stats ? (
             <div className="space-y-6">
               {/* Overview */}
-              <div className="grid grid-cols-4 gap-4">
-                <Card className="p-6">
-                  <div className="text-sm text-gray-600 mb-1">Всего задач</div>
-                  <div className="text-3xl font-bold">{stats.total}</div>
+              <div className="grid grid-cols-4 gap-6">
+                <Card className="p-6 rounded-xl shadow-sm">
+                  <div className="text-sm text-gray-600 mb-1 font-medium">Всего задач</div>
+                  <div className="text-3xl font-bold text-gray-900">{stats.total}</div>
                 </Card>
-                <Card className="p-6 border-green-200 bg-green-50">
-                  <div className="text-sm text-green-700 mb-1">Завершено</div>
+                <Card className="p-6 border-green-200 bg-green-50 rounded-xl shadow-sm">
+                  <div className="text-sm text-green-700 mb-1 font-medium">Завершено</div>
                   <div className="text-3xl font-bold text-green-900">{stats.completed}</div>
                 </Card>
-                <Card className="p-6 border-blue-200 bg-blue-50">
-                  <div className="text-sm text-blue-700 mb-1">В работе</div>
+                <Card className="p-6 border-blue-200 bg-blue-50 rounded-xl shadow-sm">
+                  <div className="text-sm text-blue-700 mb-1 font-medium">В работе</div>
                   <div className="text-3xl font-bold text-blue-900">{stats.in_progress}</div>
                 </Card>
-                <Card className="p-6 border-amber-200 bg-amber-50">
-                  <div className="text-sm text-amber-700 mb-1">Ожидают</div>
+                <Card className="p-6 border-amber-200 bg-amber-50 rounded-xl shadow-sm">
+                  <div className="text-sm text-amber-700 mb-1 font-medium">Ожидают</div>
                   <div className="text-3xl font-bold text-amber-900">{stats.pending}</div>
                 </Card>
               </div>
 
               {/* Completion rate */}
-              <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Процент завершения</h3>
-                <div className="flex items-center gap-4">
+              <Card className="p-6 rounded-xl shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Процент завершения</h3>
+                <div className="flex items-center gap-6">
                   <div className="flex-1 bg-gray-200 rounded-full h-4">
                     <div
-                      className="bg-green-600 h-4 rounded-full"
+                      className="bg-green-600 h-4 rounded-full transition-all duration-500"
                       style={{ width: `${stats.total > 0 ? (stats.completed / stats.total * 100) : 0}%` }}
                     />
                   </div>
-                  <span className="text-2xl font-bold text-gray-900">
+                  <span className="text-2xl font-bold text-gray-900 min-w-[80px] text-right">
                     {stats.total > 0 ? ((stats.completed / stats.total * 100).toFixed(1)) : '0.0'}%
                   </span>
                 </div>

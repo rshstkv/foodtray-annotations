@@ -104,21 +104,21 @@ export default function AdminExportPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">Экспорт данных</h1>
-            <p className="text-gray-600">Экспорт завершенных задач в JSON формате</p>
+    <div className="p-8 max-w-4xl">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Экспорт данных</h1>
+            <p className="text-gray-600 text-base">Экспорт завершенных задач в JSON формате</p>
           </div>
 
-          <Card className="p-6">
+          <Card className="p-6 rounded-xl shadow-sm">
             {/* Filters */}
-            <div className="space-y-4 mb-6">
+            <div className="space-y-6 mb-8">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Пользователь
                 </label>
                 <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10 rounded-lg">
                     <SelectValue placeholder="Все пользователи" />
                   </SelectTrigger>
                   <SelectContent>
@@ -137,7 +137,7 @@ export default function AdminExportPage() {
                   Статус задач
                 </label>
                 <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10 rounded-lg">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -162,7 +162,7 @@ export default function AdminExportPage() {
             <Button
               onClick={handleExport}
               disabled={exporting || !preview || preview.count === 0}
-              className="w-full"
+              className="w-full h-10 rounded-lg"
             >
               <Download className="w-4 h-4 mr-2" />
               {exporting ? 'Экспорт...' : 'Скачать JSON'}

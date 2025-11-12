@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, Check, X } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
 interface RecognitionTaskStats {
   total_recognitions: number
@@ -48,6 +49,7 @@ const STEP_TYPES = [
 ]
 
 export default function AdminAssignPage() {
+  const { toast } = useToast()
   const [recognitionStats, setRecognitionStats] = useState<RecognitionTaskStats | null>(null)
   const [userStats, setUserStats] = useState<UserStats[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -136,7 +138,11 @@ export default function AdminAssignPage() {
 
       if (response.ok) {
         const result = await response.json()
-        alert(`✅ Создано задач: ${result.created}`)
+        toast({
+          variant: 'success',
+          title: 'Успешно',
+          description: `Создано задач: ${result.created}`
+        })
         // Перезагружаем статистику
         await loadData()
         // Сбрасываем форму
@@ -146,11 +152,19 @@ export default function AdminAssignPage() {
         setTaskCount(10)
       } else {
         const error = await response.json()
-        alert(`❌ Ошибка: ${error.error}`)
+        toast({
+          variant: 'destructive',
+          title: 'Ошибка',
+          description: error.error || 'Не удалось создать задачи'
+        })
       }
     } catch (error) {
       console.error('Error creating tasks:', error)
-      alert('❌ Ошибка при создании задач')
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Ошибка при создании задач'
+      })
     } finally {
       setCreating(false)
     }
@@ -174,16 +188,16 @@ export default function AdminAssignPage() {
   const completedStepsForGroup = getCompletedStepsForGroup()
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-8 space-y-8 max-w-7xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Назначение задач</h1>
-        <p className="text-gray-600 mt-1">Управление задачами для аннотаторов</p>
+        <p className="text-gray-600 mt-2 text-base">Управление задачами для аннотаторов</p>
       </div>
 
       {/* Статистика по пользователям */}
-      <Card>
+      <Card className="rounded-xl shadow-sm">
         <CardContent className="pt-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Задачи по пользователям</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-6">Задачи по пользователям</h2>
           <div className="space-y-2">
             {userStats.map(user => (
               <div key={user.user_id} className="flex items-center justify-between p-3 border rounded hover:bg-gray-50">
@@ -221,9 +235,9 @@ export default function AdminAssignPage() {
       </Card>
 
       {/* Шаг 1: Выбор группы recognitions */}
-      <Card>
+      <Card className="rounded-xl shadow-sm">
         <CardContent className="pt-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 mb-6">
             Шаг 1: Выберите группу recognitions
           </h2>
           <p className="text-sm text-gray-600 mb-4">
@@ -300,9 +314,9 @@ export default function AdminAssignPage() {
       </Card>
 
       {/* Шаг 2: Выбор проверок для назначения */}
-      <Card>
+      <Card className="rounded-xl shadow-sm">
         <CardContent className="pt-6 space-y-6">
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Шаг 2: Какие проверки назначить
           </h2>
 
@@ -356,9 +370,9 @@ export default function AdminAssignPage() {
       </Card>
 
       {/* Шаг 3: Пользователь и количество */}
-      <Card>
+      <Card className="rounded-xl shadow-sm">
         <CardContent className="pt-6 space-y-6">
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Шаг 3: Назначить исполнителя
           </h2>
 
@@ -374,7 +388,7 @@ export default function AdminAssignPage() {
                 Выберите пользователя
               </label>
               <Select value={selectedUser} onValueChange={setSelectedUser}>
-                <SelectTrigger>
+                <SelectTrigger className="h-10 rounded-lg">
                   <SelectValue placeholder="Выберите пользователя" />
                 </SelectTrigger>
                 <SelectContent>
@@ -469,6 +483,7 @@ export default function AdminAssignPage() {
                 onClick={handleCreateTasks}
                 disabled={creating || assignSteps.length === 0 || !selectedUser || !selectedRecognitionGroup}
                 size="lg"
+                className="rounded-lg"
               >
                 {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Создать задачи

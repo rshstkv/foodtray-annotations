@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useUser } from '@/hooks/useUser'
 import { apiFetch } from '@/lib/api-response'
+import { useToast } from '@/hooks/use-toast'
 import { ArrowLeft, Save, Key, Trash2, Copy, Check, Mail } from 'lucide-react'
 import { 
   Select,
@@ -46,6 +47,7 @@ export default function UserProfilePage() {
   const params = useParams()
   const userId = params.id as string
   const { user: currentUser, isAdmin } = useUser()
+  const { toast } = useToast()
   
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [stats, setStats] = useState<UserStats | null>(null)
@@ -87,7 +89,11 @@ export default function UserProfilePage() {
       }
     } catch (err) {
       console.error('Error loading user profile:', err)
-      alert('Ошибка загрузки профиля пользователя')
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Не удалось загрузить профиль пользователя'
+      })
     } finally {
       setLoading(false)
     }
@@ -107,12 +113,20 @@ export default function UserProfilePage() {
       })
       
       if (response.success) {
-        alert('Профиль успешно обновлен')
+        toast({
+          variant: 'success',
+          title: 'Успешно',
+          description: 'Профиль пользователя обновлен'
+        })
         await loadUserProfile()
       }
     } catch (err) {
       console.error('Error updating user:', err)
-      alert('Ошибка обновления профиля')
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Не удалось обновить профиль'
+      })
     } finally {
       setSaving(false)
     }
@@ -131,17 +145,29 @@ export default function UserProfilePage() {
       if (response.success && response.data) {
         setGeneratedPassword(response.data.password)
         setPasswordCopied(false)
-        alert('Новый пароль сгенерирован')
+        toast({
+          variant: 'success',
+          title: 'Успешно',
+          description: 'Новый пароль сгенерирован'
+        })
       }
     } catch (err) {
       console.error('Error generating password:', err)
-      alert('Ошибка генерации пароля')
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Не удалось сгенерировать пароль'
+      })
     }
   }
 
   const handleSetPassword = async () => {
     if (!newPassword || newPassword.length < 6) {
-      alert('Пароль должен содержать минимум 6 символов')
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Пароль должен содержать минимум 6 символов'
+      })
       return
     }
 
@@ -155,13 +181,21 @@ export default function UserProfilePage() {
       )
       
       if (response.success) {
-        alert('Пароль успешно изменен')
+        toast({
+          variant: 'success',
+          title: 'Успешно',
+          description: 'Пароль успешно изменен'
+        })
         setShowPasswordDialog(false)
         setNewPassword('')
       }
     } catch (err) {
       console.error('Error setting password:', err)
-      alert('Ошибка изменения пароля')
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Не удалось изменить пароль'
+      })
     }
   }
 
@@ -175,11 +209,19 @@ export default function UserProfilePage() {
       )
       
       if (response.success && response.data) {
-        alert(response.data.message)
+        toast({
+          variant: 'success',
+          title: 'Успешно',
+          description: response.data.message || 'Письмо отправлено'
+        })
       }
     } catch (err) {
       console.error('Error sending reset email:', err)
-      alert('Ошибка отправки письма')
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Не удалось отправить письмо'
+      })
     }
   }
 
@@ -190,12 +232,20 @@ export default function UserProfilePage() {
       })
       
       if (response.success) {
-        alert('Пользователь удален')
+        toast({
+          variant: 'success',
+          title: 'Успешно',
+          description: 'Пользователь удален'
+        })
         router.push('/admin/users')
       }
     } catch (err) {
       console.error('Error deleting user:', err)
-      alert('Ошибка удаления пользователя')
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Не удалось удалить пользователя'
+      })
     }
   }
 
