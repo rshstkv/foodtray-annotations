@@ -42,7 +42,7 @@ export async function POST(
     let savedCount = 0
     
     if (changes && Array.isArray(changes)) {
-      for (const change of changes) {
+    for (const change of changes) {
       if (change.type === 'create') {
         const { error } = await supabaseServer
           .from('annotations')

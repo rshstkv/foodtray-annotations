@@ -1,12 +1,13 @@
 'use client'
 
-import { Annotation, DishFromReceipt } from '@/types/annotations'
+import { Annotation, DishFromReceipt, Image } from '@/types/annotations'
 import { Button } from '@/components/ui/button'
 import { Check, AlertCircle, X } from 'lucide-react'
 
 interface DishSelectionPanelProps {
   dishesFromReceipt: DishFromReceipt[]
   annotations: Annotation[]
+  images: Image[]
   selectedDishIndex: number | null
   onSelectDish: (index: number) => void
   onAddFromMenu: () => void
@@ -27,21 +28,27 @@ function flattenDishes(dishesFromReceipt: DishFromReceipt[]) {
 export function DishSelectionPanel({
   dishesFromReceipt,
   annotations,
+  images,
   selectedDishIndex,
   onSelectDish,
   onAddFromMenu,
 }: DishSelectionPanelProps) {
   const dishes = dishesFromReceipt ? flattenDishes(dishesFromReceipt) : []
 
-  // Count actual annotations for each dish (unique by image_id to avoid double counting)
+  // Count actual annotations for each dish on main image
+  // (validation checks both main and quality separately)
   const getActualCount = (dishIndex: number) => {
-    const uniqueImages = new Set(
-      annotations
-        .filter(a => a.object_type === 'dish' && a.dish_index === dishIndex && !a.is_deleted)
-        .map(a => a.image_id)
-    )
-    // Если есть на обеих картинках (main + quality) - считаем как 1
-    return uniqueImages.size > 0 ? 1 : 0
+    // Find main image ID
+    const mainImage = images.find(img => img.image_type === 'main')
+    if (!mainImage) return 0
+    
+    // Count annotations for this dish on main image
+    return annotations.filter(a => 
+      a.object_type === 'dish' && 
+      a.dish_index === dishIndex && 
+      !a.is_deleted &&
+      a.image_id === mainImage.id
+    ).length
   }
 
   // Get status icon and color

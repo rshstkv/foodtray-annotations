@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       const mergedSteps = [...existingSteps, ...newSteps]
       
       await supabase
-        .from('tasks')
+      .from('tasks')
         .update({
           assigned_to: assignment.user_id,
           priority,

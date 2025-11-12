@@ -150,6 +150,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                   <DishSelectionPanel
                     dishesFromReceipt={task.recognition.correct_dishes}
                     annotations={annotationManager.annotations}
+                    images={task.images}
                     selectedDishIndex={selectedDishIndex}
                     onSelectDish={handleSelectDish}
                     onAddFromMenu={handleAddFromMenu}
@@ -174,7 +175,13 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                     annotations={annotationManager.annotations.filter(
                       a => a.object_type === 'plate' && !a.is_deleted
                     )}
-                    expectedCount={task.recognition.correct_dishes?.length || 0}
+                    expectedCount={(() => {
+                      // Берем expected count из QWEN аннотаций (main image)
+                      const mainImage = task.images.find(img => img.image_type === 'main')
+                      if (!mainImage?.original_annotations) return 0
+                      const qwenData = mainImage.original_annotations as any
+                      return qwenData?.plates?.qwen_detections?.length || 0
+                    })()}
                     onStartDrawing={() => {
                       annotationManager.startDrawing('plate')
                     }}

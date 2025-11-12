@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { useUser } from '@/hooks/useUser'
 import { apiFetch } from '@/lib/api-response'
@@ -61,6 +62,7 @@ export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [priorityFilter, setPriorityFilter] = useState<string>('all')
   const [scopeFilter, setScopeFilter] = useState<string>('all')
+  const [scopeFilters, setScopeFilters] = useState<string[]>([]) // Чекбоксы для scope
   const [assignedFilter, setAssignedFilter] = useState<string>('all')
   const [allUsers, setAllUsers] = useState<Array<{ id: string; email: string; full_name: string | null }>>([])
 
@@ -68,7 +70,7 @@ export default function TasksPage() {
     if (user) {
       loadTasks()
     }
-  }, [user, statusFilter, priorityFilter, scopeFilter, assignedFilter])
+  }, [user, statusFilter, priorityFilter, scopeFilter, scopeFilters, assignedFilter])
 
   useEffect(() => {
     if (user && isAdmin) {
@@ -95,6 +97,10 @@ export default function TasksPage() {
       if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter)
       if (priorityFilter && priorityFilter !== 'all') params.append('priority', priorityFilter)
       if (scopeFilter && scopeFilter !== 'all') params.append('scope', scopeFilter)
+      // Добавляем фильтры по scope чекбоксам
+      if (scopeFilters.length > 0) {
+        scopeFilters.forEach(scope => params.append('scopes', scope))
+      }
       if (assignedFilter && assignedFilter !== 'all') {
         if (assignedFilter === 'unassigned') {
           params.append('assigned', 'false')
@@ -161,6 +167,23 @@ export default function TasksPage() {
     return { label: 'Низкий', color: 'bg-green-100 text-green-700' }
   }
 
+  const SCOPE_TYPES = [
+    { id: 'validate_dishes', name: 'Блюда' },
+    { id: 'validate_plates', name: 'Тарелки' },
+    { id: 'validate_buzzers', name: 'Баззеры' },
+    { id: 'check_overlaps', name: 'Перекрытия' },
+    { id: 'validate_bottles', name: 'Бутылки' },
+    { id: 'validate_nonfood', name: 'Non-food' }
+  ]
+
+  const toggleScopeFilter = (scopeId: string) => {
+    setScopeFilters(prev =>
+      prev.includes(scopeId)
+        ? prev.filter(id => id !== scopeId)
+        : [...prev, scopeId]
+    )
+  }
+
   if (!user) {
     return <div>Loading...</div>
   }
@@ -210,9 +233,10 @@ export default function TasksPage() {
 
         {/* Filters */}
         <Card className="mb-6">
-          <div className="p-4">
-            <h3 className="font-medium mb-4">Фильтры</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="p-4 space-y-4">
+            <h3 className="font-medium">Фильтры</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Status filter */}
               <div>
                 <label className="text-sm text-gray-700 block mb-2">Статус</label>
@@ -246,24 +270,6 @@ export default function TasksPage() {
                 </Select>
               </div>
               
-              {/* Scope filter */}
-              <div>
-                <label className="text-sm text-gray-700 block mb-2">Тип задач</label>
-                <Select value={scopeFilter} onValueChange={setScopeFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Все типы" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Все</SelectItem>
-                    <SelectItem value="validate_dishes">Блюда</SelectItem>
-                    <SelectItem value="validate_buzzers">Буззеры</SelectItem>
-                    <SelectItem value="validate_plates">Тарелки</SelectItem>
-                    <SelectItem value="validate_bottles">Бутылки</SelectItem>
-                    <SelectItem value="full_cycle">Полный цикл</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
               {/* Assigned filter (admin only) */}
               {isAdmin && (
                 <div>
@@ -283,6 +289,35 @@ export default function TasksPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              )}
+            </div>
+
+            {/* Scope filters - checkboxes */}
+            <div>
+              <label className="text-sm text-gray-700 block mb-2">Типы проверок</label>
+              <div className="grid grid-cols-6 gap-2">
+                {SCOPE_TYPES.map((scope) => (
+                  <div
+                    key={scope.id}
+                    className={`flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors ${
+                      scopeFilters.includes(scope.id)
+                        ? 'bg-blue-100 border-blue-400'
+                        : 'bg-white border-gray-200 hover:border-gray-300'
+                    }`}
+                    onClick={() => toggleScopeFilter(scope.id)}
+                  >
+                    <Checkbox
+                      checked={scopeFilters.includes(scope.id)}
+                      onCheckedChange={() => toggleScopeFilter(scope.id)}
+                    />
+                    <span className="text-sm">{scope.name}</span>
+                  </div>
+                ))}
+              </div>
+              {scopeFilters.length > 0 && (
+                <p className="text-xs text-blue-700 mt-2">
+                  ✓ Показаны задачи с: {scopeFilters.map(id => SCOPE_TYPES.find(s => s.id === id)?.name).join(', ')}
+                </p>
               )}
             </div>
           </div>

@@ -6,7 +6,7 @@ import { Annotation } from '@/types/annotations'
 
 interface PlateAnnotationPanelProps {
   annotations: Annotation[]
-  expectedCount: number  // Количество dishes в чеке
+  expectedCount: number  // Количество тарелок из QWEN аннотаций
   onStartDrawing: () => void
   isDrawing: boolean
 }

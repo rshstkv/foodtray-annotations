@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId')
     const status = searchParams.get('status')
     const scope = searchParams.get('scope')
+    const scopes = searchParams.getAll('scopes') // Множественные scope фильтры
     const priority = searchParams.get('priority')
     const assigned = searchParams.get('assigned')
 
@@ -72,23 +73,33 @@ export async function GET(request: NextRequest) {
 
     const { data: tasks, error } = await query
 
+    // Фильтрация по множественным scopes на клиенте (если указаны)
+    let filteredTasks = tasks || []
+    if (scopes.length > 0 && filteredTasks.length > 0) {
+      filteredTasks = filteredTasks.filter(task => {
+        const taskStepIds = task.task_scope?.steps?.map((s: any) => s.id) || []
+        // Проверяем что хотя бы один из выбранных scope присутствует
+        return scopes.some(scopeId => taskStepIds.includes(scopeId))
+      })
+    }
+
     if (error) {
       console.error('❌ Supabase query error:', error)
       return apiError(error.message, 500)
     }
 
-    console.log(`✅ Found ${tasks?.length || 0} tasks for user ${user.id}`)
+    console.log(`✅ Found ${filteredTasks?.length || 0} tasks for user ${user.id}`)
 
     // Подсчет статистики
     const stats = {
-      total: tasks.length,
-      pending: tasks.filter(t => t.status === 'pending').length,
-      in_progress: tasks.filter(t => t.status === 'in_progress').length,
-      completed: tasks.filter(t => t.status === 'completed').length,
-      skipped: tasks.filter(t => t.status === 'skipped').length,
+      total: filteredTasks.length,
+      pending: filteredTasks.filter(t => t.status === 'pending').length,
+      in_progress: filteredTasks.filter(t => t.status === 'in_progress').length,
+      completed: filteredTasks.filter(t => t.status === 'completed').length,
+      skipped: filteredTasks.filter(t => t.status === 'skipped').length,
     }
 
-    return apiSuccess({ tasks, stats })
+    return apiSuccess({ tasks: filteredTasks, stats })
   } catch (error) {
     console.error('Error fetching tasks:', error)
     return apiError('Internal server error', 500)
