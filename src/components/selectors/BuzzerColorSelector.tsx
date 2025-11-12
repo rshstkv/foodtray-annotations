@@ -17,19 +17,15 @@ interface BuzzerColorSelectorProps {
 const colorEmojis: Record<string, string> = {
   red: '🔴',
   green: '🟢',
-  white: '⚪',
   blue: '🔵',
   yellow: '🟡',
-  black: '⚫',
 }
 
 const colorLabels: Record<string, string> = {
   red: 'Красный',
   green: 'Зеленый',
-  white: 'Белый',
   blue: 'Синий',
   yellow: 'Желтый',
-  black: 'Черный',
 }
 
 export function BuzzerColorSelector({ value, onChange }: BuzzerColorSelectorProps) {

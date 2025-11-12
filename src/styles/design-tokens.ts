@@ -12,14 +12,12 @@ export const objectColors = {
   nonfood: '#6B7280',   // gray-500
 } as const
 
-// Buzzer colors
+// Buzzer colors (только цвета из Приложения B)
 export const buzzerColors = {
-  red: '#EF4444',       // red-500
-  green: '#10B981',     // green-500
-  white: '#F3F4F6',     // gray-100
-  blue: '#3B82F6',      // blue-500
-  yellow: '#F59E0B',    // amber-500
-  black: '#1F2937',     // gray-800
+  red: '#EF4444',       // red-500 - мясо
+  green: '#10B981',     // green-500 - паста
+  blue: '#3B82F6',      // blue-500 - рыба
+  yellow: '#F59E0B',    // amber-500 - пицца
 } as const
 
 // Status colors
@@ -103,7 +101,7 @@ export const zIndex = {
 export const objectTypeLabels = {
   dish: 'Блюдо',
   plate: 'Тарелка',
-  buzzer: 'Буззер',
+  buzzer: 'Баззер',
   bottle: 'Бутылка',
   nonfood: 'Не еда',
 } as const
@@ -130,8 +128,8 @@ export const bottleOrientations = {
 export const taskStepLabels = {
   validate_dishes: 'Валидация блюд',
   check_overlaps: 'Отметка перекрытий',
-  validate_buzzers: 'Валидация буззеров',
-  check_buzzer_positions: 'Позиции буззеров',
+  validate_buzzers: 'Валидация баззеров',
+  check_buzzer_positions: 'Позиции баззеров',
   validate_bottles: 'Валидация бутылок',
   validate_nonfood: 'Валидация не-еды',
   validate_plates: 'Валидация тарелок',

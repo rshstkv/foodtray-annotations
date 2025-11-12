@@ -13,7 +13,7 @@ const stepHints: Record<string, string> = {
   check_overlaps: 'Клик на картинку = выбор • ←→ = смена картинки • 1-9 и ↑↓ = навигация • O = переключить',
   validate_dishes: 'Проверьте соответствие блюд из чека',
   validate_plates: 'Отметьте все тарелки на фото',
-  validate_buzzers: 'Отметьте буззеры и их цвета',
+  validate_buzzers: 'Отметьте баззеры и их цвета',
 }
 
 export function TaskSidebar({ currentStep, children }: TaskSidebarProps) {

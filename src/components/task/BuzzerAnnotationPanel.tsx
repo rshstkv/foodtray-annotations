@@ -9,8 +9,6 @@ const BUZZER_COLORS = [
   { id: 'green', name: 'Зеленый', color: '#22c55e' },
   { id: 'blue', name: 'Синий', color: '#3b82f6' },
   { id: 'yellow', name: 'Желтый', color: '#eab308' },
-  { id: 'black', name: 'Черный', color: '#1f2937' },
-  { id: 'white', name: 'Белый', color: '#f3f4f6' },
 ]
 
 interface BuzzerAnnotationPanelProps {
@@ -67,7 +65,7 @@ export function BuzzerAnnotationPanel({
         variant={isDrawing ? 'default' : 'outline'}
       >
         <Pencil className="w-4 h-4" />
-        {isDrawing ? 'Рисуйте...' : 'Нарисовать буззер'}
+        {isDrawing ? 'Рисуйте...' : 'Нарисовать баззер'}
       </Button>
     </div>
   )

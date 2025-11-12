@@ -19,12 +19,11 @@ interface User {
 }
 
 interface Stats {
-  total_tasks: number
-  completed_tasks: number
-  in_progress_tasks: number
-  pending_tasks: number
-  completion_rate: number
-  by_scope: Record<string, number>
+  total: number
+  completed: number
+  in_progress: number
+  pending: number
+  skipped: number
 }
 
 export default function AdminStatisticsPage() {
@@ -127,19 +126,19 @@ export default function AdminStatisticsPage() {
               <div className="grid grid-cols-4 gap-4">
                 <Card className="p-6">
                   <div className="text-sm text-gray-600 mb-1">Всего задач</div>
-                  <div className="text-3xl font-bold">{stats.total_tasks}</div>
+                  <div className="text-3xl font-bold">{stats.total}</div>
                 </Card>
                 <Card className="p-6 border-green-200 bg-green-50">
                   <div className="text-sm text-green-700 mb-1">Завершено</div>
-                  <div className="text-3xl font-bold text-green-900">{stats.completed_tasks}</div>
+                  <div className="text-3xl font-bold text-green-900">{stats.completed}</div>
                 </Card>
                 <Card className="p-6 border-blue-200 bg-blue-50">
                   <div className="text-sm text-blue-700 mb-1">В работе</div>
-                  <div className="text-3xl font-bold text-blue-900">{stats.in_progress_tasks}</div>
+                  <div className="text-3xl font-bold text-blue-900">{stats.in_progress}</div>
                 </Card>
                 <Card className="p-6 border-amber-200 bg-amber-50">
                   <div className="text-sm text-amber-700 mb-1">Ожидают</div>
-                  <div className="text-3xl font-bold text-amber-900">{stats.pending_tasks}</div>
+                  <div className="text-3xl font-bold text-amber-900">{stats.pending}</div>
                 </Card>
               </div>
 
@@ -150,29 +149,14 @@ export default function AdminStatisticsPage() {
                   <div className="flex-1 bg-gray-200 rounded-full h-4">
                     <div
                       className="bg-green-600 h-4 rounded-full"
-                      style={{ width: `${stats.completion_rate}%` }}
+                      style={{ width: `${stats.total > 0 ? (stats.completed / stats.total * 100) : 0}%` }}
                     />
                   </div>
                   <span className="text-2xl font-bold text-gray-900">
-                    {stats.completion_rate?.toFixed(1) || '0.0'}%
+                    {stats.total > 0 ? ((stats.completed / stats.total * 100).toFixed(1)) : '0.0'}%
                   </span>
                 </div>
               </Card>
-
-              {/* By scope */}
-              {stats.by_scope && Object.keys(stats.by_scope).length > 0 && (
-                <Card className="p-6">
-                  <h3 className="text-lg font-semibold mb-4">По скоупам</h3>
-                  <div className="space-y-3">
-                    {Object.entries(stats.by_scope).map(([scope, count]) => (
-                      <div key={scope} className="flex items-center justify-between">
-                        <span className="text-sm text-gray-700">{scope}</span>
-                        <span className="text-sm font-semibold">{count} задач</span>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
             </div>
           ) : null}
         </div>
