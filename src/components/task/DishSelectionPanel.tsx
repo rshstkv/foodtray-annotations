@@ -9,8 +9,6 @@ interface DishSelectionPanelProps {
   annotations: Annotation[]
   selectedDishIndex: number | null
   onSelectDish: (index: number) => void
-  onAssignToSelected: (dishIndex: number) => void
-  onStartDrawing: (dishIndex: number) => void
   onAddFromMenu: () => void
 }
 
@@ -31,8 +29,6 @@ export function DishSelectionPanel({
   annotations,
   selectedDishIndex,
   onSelectDish,
-  onAssignToSelected,
-  onStartDrawing,
   onAddFromMenu,
 }: DishSelectionPanelProps) {
   const dishes = dishesFromReceipt ? flattenDishes(dishesFromReceipt) : []
@@ -107,7 +103,7 @@ export function DishSelectionPanel({
               onClick={() => onSelectDish(index)}
             >
               {/* Dish info */}
-              <div className="flex items-start justify-between mb-2">
+              <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="font-medium text-sm text-gray-900">
                     {index + 1}. {dish.name}
@@ -124,34 +120,6 @@ export function DishSelectionPanel({
 
                 {status.icon}
               </div>
-
-              {/* Controls (visible when selected) */}
-              {isSelected && (
-                <div className="flex gap-2 mt-2 pt-2 border-t border-gray-200">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onAssignToSelected(index)
-                    }}
-                    className="flex-1 text-xs h-7"
-                  >
-                    → Назначить выбранному
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onStartDrawing(index)
-                    }}
-                    className="flex-1 text-xs h-7"
-                  >
-                    ✏️ Нарисовать
-                  </Button>
-                </div>
-              )}
             </div>
           )
         })}
