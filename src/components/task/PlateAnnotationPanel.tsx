@@ -33,41 +33,39 @@ export function PlateAnnotationPanel({
   const hasAny = totalCount > 0
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header with status */}
-      <div>
-        <div className="flex items-center gap-2 mb-2">
-          <h3 className="font-medium text-gray-900">Тарелки</h3>
-          {allMatch && hasAny ? (
-            <Check className="w-5 h-5 text-green-600" />
-          ) : hasAny ? (
-            <AlertCircle className="w-5 h-5 text-amber-600" />
-          ) : null}
-        </div>
-        
-        <div className="text-sm space-y-1">
-          <p className="text-gray-700">
-            Ожидается: <span className="font-semibold">{expectedCount}</span> шт.
-          </p>
-          {imageIds.map((imageId, idx) => {
-            const count = byImage[imageId].length
-            const isCorrect = count === expectedCount
-            return (
-              <p
-                key={imageId}
-                className={`${
-                  isCorrect
-                    ? 'text-green-700'
-                    : count > 0
-                    ? 'text-amber-700'
-                    : 'text-red-700'
-                }`}
-              >
-                {idx === 0 ? 'Main' : 'Quality'}: {count}/{expectedCount}
-              </p>
-            )
-          })}
-        </div>
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-700">
+          Ожидается: <span className="font-semibold">{expectedCount}</span>
+        </span>
+        {allMatch && hasAny ? (
+          <Check className="w-4 h-4 text-green-600" />
+        ) : hasAny ? (
+          <AlertCircle className="w-4 h-4 text-amber-600" />
+        ) : null}
+      </div>
+
+      {/* Counts by image */}
+      <div className="flex gap-2 text-sm">
+        {imageIds.map((imageId, idx) => {
+          const count = byImage[imageId].length
+          const isCorrect = count === expectedCount
+          return (
+            <div
+              key={imageId}
+              className={`flex-1 px-2 py-1 rounded text-center ${
+                isCorrect
+                  ? 'bg-green-50 text-green-700'
+                  : count > 0
+                  ? 'bg-amber-50 text-amber-700'
+                  : 'bg-red-50 text-red-700'
+              }`}
+            >
+              {count}/{expectedCount}
+            </div>
+          )
+        })}
       </div>
 
       {/* Draw button */}
@@ -78,16 +76,8 @@ export function PlateAnnotationPanel({
         variant={isDrawing ? 'default' : 'outline'}
       >
         <Pencil className="w-4 h-4" />
-        {isDrawing ? 'Рисуйте на изображении...' : 'Нарисовать тарелку'}
+        {isDrawing ? 'Рисуйте...' : 'Нарисовать тарелку'}
       </Button>
-
-      {/* Instructions */}
-      <div className="text-xs text-gray-500 space-y-1">
-        <p>• Нажмите "Нарисовать"</p>
-        <p>• Обведите тарелку на обеих картинках</p>
-        <p>• Количество должно совпадать на обеих</p>
-        <p>• Клик для выделения, Del/Backspace для удаления</p>
-      </div>
     </div>
   )
 }

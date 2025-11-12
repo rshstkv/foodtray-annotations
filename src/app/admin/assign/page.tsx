@@ -55,7 +55,7 @@ export default function AdminAssignPage() {
   const [creating, setCreating] = useState(false)
 
   // Форма назначения
-  const [filterSteps, setFilterSteps] = useState<string[]>([])  // Фильтр по завершенным
+  const [selectedRecognitionGroup, setSelectedRecognitionGroup] = useState<string | null>(null)  // Выбранная группа recognitions
   const [assignSteps, setAssignSteps] = useState<string[]>([])  // Какие назначить
   const [selectedUser, setSelectedUser] = useState<string>('')
   const [taskCount, setTaskCount] = useState(10)
@@ -94,14 +94,6 @@ export default function AdminAssignPage() {
     }
   }
 
-  const toggleFilterStep = (stepId: string) => {
-    setFilterSteps(prev =>
-      prev.includes(stepId)
-        ? prev.filter(id => id !== stepId)
-        : [...prev, stepId]
-    )
-  }
-
   const toggleAssignStep = (stepId: string) => {
     setAssignSteps(prev =>
       prev.includes(stepId)
@@ -110,16 +102,31 @@ export default function AdminAssignPage() {
     )
   }
 
+  // Получить уже завершенные проверки для выбранной группы
+  const getCompletedStepsForGroup = (): string[] => {
+    if (!selectedRecognitionGroup || !recognitionStats) return []
+    const groupData = recognitionStats.by_completed_checks[selectedRecognitionGroup]
+    return groupData?.step_ids || []
+  }
+
+  // Проверить доступность проверки (не должна быть уже завершена)
+  const isStepAvailable = (stepId: string): boolean => {
+    const completedSteps = getCompletedStepsForGroup()
+    return !completedSteps.includes(stepId)
+  }
+
   const handleCreateTasks = async () => {
-    if (!selectedUser || assignSteps.length === 0) return
+    if (!selectedUser || assignSteps.length === 0 || !selectedRecognitionGroup) return
 
     setCreating(true)
     try {
+      const completedSteps = getCompletedStepsForGroup()
+      
       const response = await fetch('/api/admin/create-tasks-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          filter_by_completed_steps: filterSteps,
+          filter_by_completed_steps: completedSteps,
           assign_steps: assignSteps,
           assigned_to: selectedUser,
           limit: taskCount,
@@ -134,7 +141,7 @@ export default function AdminAssignPage() {
         await loadData()
         // Сбрасываем форму
         setAssignSteps([])
-        setFilterSteps([])
+        setSelectedRecognitionGroup(null)
         setSelectedUser('')
         setTaskCount(10)
       } else {
@@ -149,32 +156,10 @@ export default function AdminAssignPage() {
     }
   }
 
-  // Подсчет доступных recognitions
-  const getAvailableCount = () => {
-    if (!recognitionStats) return 0
-    
-    // Если нет фильтра - берем все recognitions
-    if (filterSteps.length === 0) {
-      return recognitionStats.total_recognitions
-    }
-    
-    // Ищем recognitions с нужными завершенными проверками
-    let total = 0
-    Object.entries(recognitionStats.by_completed_checks).forEach(([key, data]) => {
-      const stepIds = data.step_ids
-      
-      // Проверяем что ВСЕ выбранные фильтры присутствуют
-      const hasAllRequired = filterSteps.every(id => stepIds.includes(id))
-      if (hasAllRequired) {
-        // Проверяем что назначаемые проверки ЕЩЕ НЕ завершены (защита от дублей)
-        const hasConflict = assignSteps.some(id => stepIds.includes(id))
-        if (!hasConflict) {
-          total += data.count
-        }
-      }
-    })
-    
-    return total
+  // Получить количество recognitions в выбранной группе
+  const getSelectedGroupCount = (): number => {
+    if (!selectedRecognitionGroup || !recognitionStats) return 0
+    return recognitionStats.by_completed_checks[selectedRecognitionGroup]?.count || 0
   }
 
   if (loading) {
@@ -185,7 +170,8 @@ export default function AdminAssignPage() {
     )
   }
 
-  const availableCount = getAvailableCount()
+  const selectedGroupCount = getSelectedGroupCount()
+  const completedStepsForGroup = getCompletedStepsForGroup()
 
   return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto">
@@ -225,27 +211,22 @@ export default function AdminAssignPage() {
         </CardContent>
       </Card>
 
-      {/* Статистика recognitions */}
+      {/* Шаг 1: Выбор группы recognitions */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm text-gray-600">Всего recognitions</p>
-              <p className="text-3xl font-bold text-gray-900">{recognitionStats?.total_recognitions || 0}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-600">Без завершенных проверок</p>
-              <p className="text-3xl font-bold text-green-600">
-                {recognitionStats?.by_completed_checks?.['none']?.count || 0}
-              </p>
-            </div>
-          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Шаг 1: Выберите группу recognitions
+          </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Всего recognitions: <strong>{recognitionStats?.total_recognitions || 0}</strong>
+          </p>
 
-          {/* Таблица по завершенным проверкам */}
+          {/* Таблица групп recognitions */}
           <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
+                  <th className="text-left p-3 font-medium text-gray-700 w-16"></th>
                   <th className="text-left p-3 font-medium text-gray-700">Количество</th>
                   <th className="text-left p-3 font-medium text-gray-700">Завершенные проверки</th>
                 </tr>
@@ -254,9 +235,31 @@ export default function AdminAssignPage() {
                 {Object.entries(recognitionStats?.by_completed_checks || {})
                   .sort((a, b) => b[1].count - a[1].count)
                   .map(([key, data]) => (
-                    <tr key={key} className="border-b last:border-0 hover:bg-gray-50">
+                    <tr 
+                      key={key} 
+                      className={`border-b last:border-0 cursor-pointer transition-colors ${
+                        selectedRecognitionGroup === key 
+                          ? 'bg-blue-100 border-blue-300' 
+                          : 'hover:bg-gray-50'
+                      }`}
+                      onClick={() => {
+                        setSelectedRecognitionGroup(key)
+                        setAssignSteps([])  // Сбрасываем выбранные проверки
+                      }}
+                    >
                       <td className="p-3">
-                        <Badge variant="outline" className="font-mono text-base">
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          selectedRecognitionGroup === key 
+                            ? 'border-blue-500 bg-blue-500' 
+                            : 'border-gray-300'
+                        }`}>
+                          {selectedRecognitionGroup === key && (
+                            <Check className="h-3 w-3 text-white" />
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant="outline" className="font-mono text-base font-semibold">
                           {data.count}
                         </Badge>
                       </td>
@@ -264,7 +267,7 @@ export default function AdminAssignPage() {
                         {data.step_names.length === 0 ? (
                           <span className="text-green-600 font-medium">Новые (без проверок)</span>
                         ) : (
-                          <span className="text-gray-700">{data.step_names.join(' + ')}</span>
+                          <span className="text-gray-700 font-medium">{data.step_names.join(' + ')}</span>
                         )}
                       </td>
                     </tr>
@@ -272,100 +275,123 @@ export default function AdminAssignPage() {
               </tbody>
             </table>
           </div>
+
+          {selectedRecognitionGroup && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-900">
+                <Check className="inline h-4 w-4 mr-1" />
+                Выбрано: <strong>{selectedGroupCount} recognitions</strong>
+                {completedStepsForGroup.length > 0 && (
+                  <span> с завершенными проверками: <strong>{completedStepsForGroup.map(id => STEP_TYPES.find(s => s.id === id)?.name).join(', ')}</strong></span>
+                )}
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Форма создания задач */}
+      {/* Шаг 2: Выбор проверок для назначения */}
       <Card>
         <CardContent className="pt-6 space-y-6">
-          <h2 className="text-xl font-semibold text-gray-900">Создать новые задачи</h2>
+          <h2 className="text-xl font-semibold text-gray-900">
+            Шаг 2: Какие проверки назначить
+          </h2>
 
-          {/* Шаг 1: Фильтр по завершенным проверкам */}
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-3 block">
-              Шаг 1: Фильтр по завершенным проверкам (необязательно)
-            </label>
-            <p className="text-xs text-gray-500 mb-2">
-              Выберите проверки, которые УЖЕ должны быть завершены. Если ничего не выбрано - берутся все recognitions.
-            </p>
-            <div className="grid grid-cols-6 gap-2">
-              {STEP_TYPES.map((step) => (
-                <div
-                  key={step.id}
-                  className={`flex items-center gap-2 p-3 border rounded cursor-pointer transition-colors ${
-                    filterSteps.includes(step.id)
-                      ? 'bg-purple-100 border-purple-400'
-                      : 'bg-white border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => toggleFilterStep(step.id)}
-                >
-                  <Checkbox
-                    checked={filterSteps.includes(step.id)}
-                    onCheckedChange={() => toggleFilterStep(step.id)}
-                  />
-                  <span className="text-sm">{step.name}</span>
-                </div>
-              ))}
+          {!selectedRecognitionGroup ? (
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+              <p className="text-gray-600">Сначала выберите группу recognitions выше</p>
             </div>
-            {filterSteps.length > 0 && (
-              <p className="text-xs text-purple-700 mt-2">
-                ✓ Фильтр: recognitions с завершенными проверками {filterSteps.map(id => STEP_TYPES.find(s => s.id === id)?.name).join(' + ')}
+          ) : (
+            <>
+              <p className="text-sm text-gray-600">
+                Выберите проверки для создания задач. Уже завершенные проверки недоступны.
               </p>
-            )}
-          </div>
+              <div className="grid grid-cols-6 gap-2">
+                {STEP_TYPES.map((step) => {
+                  const isAvailable = isStepAvailable(step.id)
+                  const isSelected = assignSteps.includes(step.id)
+                  
+                  return (
+                    <div
+                      key={step.id}
+                      className={`flex items-center gap-2 p-3 border rounded transition-colors ${
+                        !isAvailable
+                          ? 'bg-gray-100 border-gray-300 opacity-50 cursor-not-allowed'
+                          : isSelected
+                          ? 'bg-green-100 border-green-400 cursor-pointer'
+                          : 'bg-white border-gray-200 hover:border-gray-300 cursor-pointer'
+                      }`}
+                      onClick={() => isAvailable && toggleAssignStep(step.id)}
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        disabled={!isAvailable}
+                        onCheckedChange={() => isAvailable && toggleAssignStep(step.id)}
+                      />
+                      <span className="text-sm">{step.name}</span>
+                      {!isAvailable && (
+                        <Badge variant="secondary" className="ml-auto text-xs">завершено</Badge>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              {assignSteps.length > 0 && (
+                <p className="text-xs text-green-700 mt-2">
+                  ✓ Будут созданы задачи с проверками: {assignSteps.map(id => STEP_TYPES.find(s => s.id === id)?.name).join(', ')}
+                </p>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-          {/* Шаг 2: Какие проверки назначить */}
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-3 block">
-              Шаг 2: Какие проверки назначить (обязательно)
-            </label>
-            <p className="text-xs text-gray-500 mb-2">
-              Выберите проверки для создания новых задач. Защита: не создаются задачи если проверки уже завершены.
-            </p>
-            <div className="grid grid-cols-6 gap-2">
-              {STEP_TYPES.map((step) => (
-                <div
-                  key={step.id}
-                  className={`flex items-center gap-2 p-3 border rounded cursor-pointer transition-colors ${
-                    assignSteps.includes(step.id)
-                      ? 'bg-green-100 border-green-400'
-                      : 'bg-white border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => toggleAssignStep(step.id)}
-                >
-                  <Checkbox
-                    checked={assignSteps.includes(step.id)}
-                    onCheckedChange={() => toggleAssignStep(step.id)}
-                  />
-                  <span className="text-sm">{step.name}</span>
-                </div>
-              ))}
+      {/* Шаг 3: Пользователь и количество */}
+      <Card>
+        <CardContent className="pt-6 space-y-6">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Шаг 3: Назначить исполнителя
+          </h2>
+
+          {!selectedRecognitionGroup || assignSteps.length === 0 ? (
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+              <p className="text-gray-600">Сначала выберите группу recognitions и проверки</p>
             </div>
-            {assignSteps.length > 0 && (
-              <p className="text-xs text-green-700 mt-2">
-                ✓ Будут созданы задачи с проверками: {assignSteps.map(id => STEP_TYPES.find(s => s.id === id)?.name).join(', ')}
-              </p>
-            )}
-          </div>
-
-          {/* Шаг 3: Пользователь и количество */}
+          ) : (
+            <>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">
-                Шаг 3: Назначить пользователю
+                Выберите пользователя
               </label>
               <Select value={selectedUser} onValueChange={setSelectedUser}>
                 <SelectTrigger>
                   <SelectValue placeholder="Выберите пользователя" />
                 </SelectTrigger>
                 <SelectContent>
-                  {users.map(user => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.email} {user.role === 'admin' && '(admin)'}
-                    </SelectItem>
-                  ))}
+                  {userStats.map(user => {
+                    const userInfo = users.find(u => u.id === user.user_id)
+                    return (
+                      <SelectItem key={user.user_id} value={user.user_id}>
+                        <div className="flex items-center justify-between w-full">
+                          <span>{user.user_email}</span>
+                          <Badge variant="outline" className="ml-2">
+                            {user.total_tasks} задач
+                          </Badge>
+                          {userInfo?.role === 'admin' && (
+                            <Badge variant="secondary" className="ml-1">admin</Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
+              {selectedUser && (
+                <p className="text-xs text-gray-600 mt-2">
+                  Загрузка: <strong>{userStats.find(u => u.user_id === selectedUser)?.total_tasks || 0} задач</strong> в работе
+                </p>
+              )}
             </div>
 
             <div>
@@ -390,15 +416,15 @@ export default function AdminAssignPage() {
             </div>
           </div>
 
-          {/* Шаг 4: Превью и создание */}
+          {/* Превью и создание */}
           <div className="border-t pt-4">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <h3 className="font-semibold text-blue-900 mb-2">Превью создания задач</h3>
               <div className="text-sm text-blue-800 space-y-1">
-                <p>• Доступно recognitions: <strong>{availableCount}</strong></p>
-                <p>• Будет создано задач: <strong>{Math.min(taskCount, availableCount)}</strong></p>
-                {filterSteps.length > 0 && (
-                  <p>• С завершенными проверками: <strong>{filterSteps.map(id => STEP_TYPES.find(s => s.id === id)?.name).join(' + ')}</strong></p>
+                <p>• Группа recognitions: <strong>{selectedGroupCount}</strong></p>
+                <p>• Будет создано задач: <strong>{Math.min(taskCount, selectedGroupCount)}</strong></p>
+                {completedStepsForGroup.length > 0 && (
+                  <p>• Уже завершены: <strong>{completedStepsForGroup.map(id => STEP_TYPES.find(s => s.id === id)?.name).join(', ')}</strong></p>
                 )}
                 {assignSteps.length > 0 && (
                   <p>• Новые проверки: <strong>{assignSteps.map(id => STEP_TYPES.find(s => s.id === id)?.name).join(', ')}</strong></p>
@@ -408,7 +434,12 @@ export default function AdminAssignPage() {
 
             <div className="flex items-center justify-between">
               <div className="text-sm text-gray-600">
-                {assignSteps.length === 0 ? (
+                {!selectedRecognitionGroup ? (
+                  <span className="text-red-600">
+                    <X className="inline h-4 w-4 mr-1" />
+                    Выберите группу recognitions
+                  </span>
+                ) : assignSteps.length === 0 ? (
                   <span className="text-red-600">
                     <X className="inline h-4 w-4 mr-1" />
                     Выберите проверки для назначения
@@ -417,11 +448,6 @@ export default function AdminAssignPage() {
                   <span className="text-red-600">
                     <X className="inline h-4 w-4 mr-1" />
                     Выберите пользователя
-                  </span>
-                ) : availableCount === 0 ? (
-                  <span className="text-red-600">
-                    <X className="inline h-4 w-4 mr-1" />
-                    Нет подходящих recognitions (возможно проверки уже завершены)
                   </span>
                 ) : (
                   <span className="text-green-600">
@@ -432,7 +458,7 @@ export default function AdminAssignPage() {
               </div>
               <Button
                 onClick={handleCreateTasks}
-                disabled={creating || assignSteps.length === 0 || !selectedUser || availableCount === 0}
+                disabled={creating || assignSteps.length === 0 || !selectedUser || !selectedRecognitionGroup}
                 size="lg"
               >
                 {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -440,6 +466,10 @@ export default function AdminAssignPage() {
               </Button>
             </div>
           </div>
+          </>
+          )}
+        </CardContent>
+      </Card>
         </CardContent>
       </Card>
     </div>

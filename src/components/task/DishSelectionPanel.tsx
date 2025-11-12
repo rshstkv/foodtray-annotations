@@ -81,22 +81,19 @@ export function DishSelectionPanel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="font-medium text-gray-900">Блюда из чека</h3>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onAddFromMenu}
-          className="text-xs"
-        >
-          + Добавить из меню
-        </Button>
-      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onAddFromMenu}
+        className="w-full text-xs"
+      >
+        + Добавить из меню
+      </Button>
 
       {/* Dishes list */}
-      <div className="space-y-2">
+      <div className="space-y-1">
         {dishes.map((dish, index) => {
           const actual = getActualCount(index)
           const isSelected = selectedDishIndex === index
@@ -105,27 +102,22 @@ export function DishSelectionPanel({
           return (
             <div
               key={dish.flatIndex}
-              className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+              className={`p-2 rounded border cursor-pointer transition-colors ${
                 isSelected
                   ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300 bg-white'
+                  : 'border-gray-200 hover:border-gray-300'
               }`}
               onClick={() => onSelectDish(index)}
             >
               {/* Dish info */}
               <div className="flex items-start justify-between gap-2">
-                <div className="flex-1">
-                  <div className="font-medium text-sm text-gray-900">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-gray-900 truncate">
                     {index + 1}. {dish.name}
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className={`text-xs font-medium ${status.color}`}>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <div className={`text-xs ${status.color}`}>
                       {actual}/{dish.expectedCount}
-                      {actual !== dish.expectedCount && (
-                        <span className="ml-1">
-                          {actual > dish.expectedCount ? '(избыток)' : '(недостаток)'}
-                        </span>
-                      )}
                     </div>
                     {onDishCountChange && (
                       <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
