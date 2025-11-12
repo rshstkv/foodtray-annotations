@@ -294,20 +294,26 @@ export default function TasksPage() {
 
           {/* Scope filters - dropdown with checkboxes */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Типы:</span>
+            <span className="text-sm text-gray-600">Должны быть:</span>
             <Popover>
               <PopoverTrigger asChild>
                 <Button 
                   variant="outline" 
-                  className="h-8 px-3 text-sm justify-between min-w-[140px]"
+                  className="h-8 px-3 text-sm justify-between min-w-[160px]"
+                  title="Показать задачи, содержащие ВСЕ выбранные типы"
                 >
                   {scopeFilters.length === 0 
-                    ? 'Все типы' 
-                    : `Выбрано: ${scopeFilters.length}`}
+                    ? 'Любые типы' 
+                    : `Все ${scopeFilters.length} ${scopeFilters.length === 1 ? 'тип' : 'типа'}`}
                   <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-56 p-3" align="start">
+              <PopoverContent className="w-64 p-3" align="start">
+                <div className="mb-2 pb-2 border-b">
+                  <p className="text-xs text-gray-600">
+                    ✓ Показать задачи, содержащие <strong>все</strong> выбранные типы
+                  </p>
+                </div>
                 <div className="space-y-2">
                   {SCOPE_TYPES.map((scope) => (
                     <label

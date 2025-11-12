@@ -487,6 +487,27 @@ export default function BBoxAnnotator({
             : (isPending ? '#666' : annotation.is_error ? '#dc2626' : color)
           const borderWidth = isSelected ? 7 : 2
           const borderStyle = isPending ? 'dashed' : 'solid'
+          
+          // Паттерн для перекрытых объектов
+          const getBackgroundPattern = () => {
+            if (annotation.is_overlapped) {
+              // Диагональные полосы для перекрытых объектов
+              return `repeating-linear-gradient(
+                45deg,
+                rgba(249, 115, 22, 0.15),
+                rgba(249, 115, 22, 0.15) 10px,
+                transparent 10px,
+                transparent 20px
+              )`
+            }
+            if (isSelected) {
+              return 'rgba(239, 68, 68, 0.15)'
+            }
+            if (isPending) {
+              return 'rgba(102, 102, 102, 0.1)'
+            }
+            return 'transparent'
+          }
 
           return (
             <div
@@ -498,7 +519,7 @@ export default function BBoxAnnotator({
                 width: p2.x - p1.x,
                 height: p2.y - p1.y,
                 border: `${borderWidth}px ${borderStyle} ${borderColor}`,
-                backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.15)' : (isPending ? 'rgba(102, 102, 102, 0.1)' : 'transparent'),
+                background: getBackgroundPattern(),
                 boxSizing: 'border-box',
                 cursor: drawingMode ? 'not-allowed' : (isPending ? 'default' : (isSelected ? 'move' : 'pointer')),
                 pointerEvents: isPending ? 'none' : (drawingMode ? 'none' : 'auto'),

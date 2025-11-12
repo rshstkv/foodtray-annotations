@@ -2,7 +2,7 @@
 
 import { Annotation } from '@/types/annotations'
 import { Button } from '@/components/ui/button'
-import { Edit3, Trash2, AlertCircle } from 'lucide-react'
+import { Edit3, Trash2, Layers } from 'lucide-react'
 
 interface BBoxToolbarProps {
   annotation: Annotation
@@ -53,12 +53,17 @@ export function BBoxToolbar({
 
           <Button
             size="sm"
-            variant={annotation.is_overlapped ? 'default' : 'ghost'}
+            variant={annotation.is_overlapped ? 'default' : 'outline'}
             onClick={onToggleOverlap}
-            className="h-8 text-xs"
+            className={`h-8 text-xs font-medium ${
+              annotation.is_overlapped 
+                ? 'bg-orange-500 hover:bg-orange-600 text-white' 
+                : 'hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300'
+            }`}
+            title="Отметить как перекрытый объект (горячая клавиша: O)"
           >
-            <AlertCircle className="w-3 h-3 mr-1" />
-            Overlap
+            <Layers className="w-3 h-3 mr-1" />
+            {annotation.is_overlapped ? 'Перекрыт 🔀' : 'Перекрытие'}
           </Button>
         </>
       )}

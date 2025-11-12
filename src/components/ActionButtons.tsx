@@ -7,7 +7,8 @@ import { useState, useEffect } from 'react'
 
 interface ActionButtonsProps {
   onSave: () => void
-  onSkip: () => void
+  onSkipStep: () => void
+  onSkipTask: () => void
   onComplete: () => void
   onReset?: () => void
   hasUnsavedChanges: boolean
@@ -17,7 +18,8 @@ interface ActionButtonsProps {
 
 export function ActionButtons({
   onSave,
-  onSkip,
+  onSkipStep,
+  onSkipTask,
   onComplete,
   onReset,
   hasUnsavedChanges,
@@ -38,13 +40,16 @@ export function ActionButtons({
     onSave()
     setShowSavedFeedback(true)
   }
+  
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-50">
-      <div className="max-w-7xl mx-auto px-6 py-4">
+      <div className="max-w-7xl mx-auto px-6 py-3.5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          {/* Левая часть: менее важные действия */}
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
+              size="sm"
               onClick={handleSave}
               disabled={!hasUnsavedChanges || isSaving}
               className={cn(
@@ -59,12 +64,14 @@ export function ActionButtons({
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              {showSavedFeedback && !hasUnsavedChanges ? 'Сохранено!' : 'Сохранить прогресс'}
+              {showSavedFeedback && !hasUnsavedChanges ? 'Сохранено!' : 'Сохранить'}
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-mono">S</kbd>
             </Button>
             
             {onReset && hasUnsavedChanges && (
               <Button
                 variant="ghost"
+                size="sm"
                 onClick={onReset}
                 disabled={isSaving}
                 className="gap-2 text-gray-600"
@@ -75,24 +82,40 @@ export function ActionButtons({
             )}
             
             {hasUnsavedChanges && (
-              <span className="text-xs text-amber-600 font-medium">
-                ● Есть несохранённые изменения
+              <span className="ml-2 text-xs text-amber-600 font-medium">
+                ● Несохранённые изменения
               </span>
             )}
           </div>
           
-          <div className="flex items-center gap-3">
+          {/* Правая часть: важные действия */}
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              onClick={onSkip}
+              size="sm"
+              onClick={onSkipStep}
               disabled={isSaving}
               className="gap-2"
             >
               <SkipForward className="w-4 h-4" />
-              Пропустить задачу
+              Пропустить этап
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-mono">Tab</kbd>
             </Button>
             
             <Button
+              variant="outline"
+              size="sm"
+              onClick={onSkipTask}
+              disabled={isSaving}
+              className="gap-2 text-orange-600 border-orange-300 hover:bg-orange-50"
+            >
+              <SkipForward className="w-4 h-4" />
+              Пропустить задачу
+              <kbd className="ml-1 px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-xs font-mono">⇧Tab</kbd>
+            </Button>
+            
+            <Button
+              size="sm"
               onClick={onComplete}
               disabled={isSaving || !canComplete}
               className={cn(
@@ -102,16 +125,9 @@ export function ActionButtons({
             >
               <CheckCircle2 className="w-4 h-4" />
               Завершить этап
+              <kbd className="ml-1 px-1.5 py-0.5 bg-green-800 bg-opacity-30 text-white rounded text-xs font-mono">Enter</kbd>
             </Button>
           </div>
-        </div>
-        
-        {/* Hotkeys подсказки */}
-        <div className="mt-2 flex gap-4 text-xs text-gray-500">
-          <span><kbd className="px-1.5 py-0.5 bg-gray-100 rounded">S</kbd> Сохранить</span>
-          <span><kbd className="px-1.5 py-0.5 bg-gray-100 rounded">Esc</kbd> Пропустить</span>
-          <span><kbd className="px-1.5 py-0.5 bg-gray-100 rounded">Enter</kbd> Завершить</span>
-          <span><kbd className="px-1.5 py-0.5 bg-gray-100 rounded">Tab</kbd> Следующий этап</span>
         </div>
       </div>
     </div>

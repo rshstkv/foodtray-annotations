@@ -147,26 +147,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: tasksError.message }, { status: 500 })
     }
 
-    // Строим карту: recognition_id -> выполненные проверки
+    // Строим карту: recognition_id -> завершенные проверки
     const recognitionCompletedSteps = new Map<string, Set<string>>()
-    const recognitionAllSteps = new Map<string, Set<string>>() // все проверки (включая pending)
 
     allTasks?.forEach(task => {
-      const taskSteps = task.task_scope?.steps || []
-      const stepIds = taskSteps.map((s: any) => s.id)
-      
-      // Все проверки (для защиты от дублирования)
-      const allSteps = recognitionAllSteps.get(task.recognition_id) || new Set()
-      stepIds.forEach((id: string) => allSteps.add(id))
-      recognitionAllSteps.set(task.recognition_id, allSteps)
-
-      // Только выполненные
+      // Только завершенные задачи учитываем
       if (task.status === 'completed') {
+        const taskSteps = task.task_scope?.steps || []
+        const stepIds = taskSteps.map((s: any) => s.id)
+        
         const completedSteps = recognitionCompletedSteps.get(task.recognition_id) || new Set()
         stepIds.forEach((id: string) => completedSteps.add(id))
         recognitionCompletedSteps.set(task.recognition_id, completedSteps)
       }
     })
+
+    console.log('[create-tasks-batch] Total recognitions:', allRecognitions?.length)
+    console.log('[create-tasks-batch] Filter by completed steps:', filter_by_completed_steps)
+    console.log('[create-tasks-batch] Assign steps:', assign_steps)
 
     // Фильтруем recognitions
     let candidateRecognitions = allRecognitions || []
@@ -179,11 +177,14 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Фильтр 2: защита от дублирования - исключаем recognitions, где уже есть назначаемые проверки
+    // Фильтр 2: защита от дублирования - исключаем recognitions, где назначаемые проверки УЖЕ ЗАВЕРШЕНЫ
     candidateRecognitions = candidateRecognitions.filter(rec => {
-      const allSteps = recognitionAllSteps.get(rec.recognition_id) || new Set()
-      return !assign_steps.some((stepId: string) => allSteps.has(stepId))
+      const completedSteps = recognitionCompletedSteps.get(rec.recognition_id) || new Set()
+      // Проверяем что НИ ОДНА из назначаемых проверок не завершена
+      return !assign_steps.some((stepId: string) => completedSteps.has(stepId))
     })
+
+    console.log('[create-tasks-batch] Candidate recognitions after filters:', candidateRecognitions.length)
 
     // Ограничиваем количество
     const selectedRecognitions = candidateRecognitions.slice(0, limit)

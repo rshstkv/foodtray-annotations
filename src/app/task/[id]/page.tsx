@@ -15,6 +15,7 @@ import { ImageGrid } from '@/components/task/ImageGrid'
 import { DishSelectionPanel } from '@/components/task/DishSelectionPanel'
 import { BuzzerAnnotationPanel } from '@/components/task/BuzzerAnnotationPanel'
 import { PlateAnnotationPanel } from '@/components/task/PlateAnnotationPanel'
+import { OverlapAnnotationPanel } from '@/components/task/OverlapAnnotationPanel'
 import { MenuSearchPanel } from '@/components/task/MenuSearchPanel'
 import BBoxAnnotator from '@/components/BBoxAnnotator'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -293,7 +294,8 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
               <ActionButtons
                 onSave={taskManager.saveProgress}
                 onComplete={taskManager.completeStep}
-                onSkip={taskManager.skipTask}
+                onSkipStep={taskManager.skipStep}
+                onSkipTask={taskManager.skipTask}
                 onReset={annotationManager.resetChanges}
                 isSaving={taskManager.isSaving}
                 hasUnsavedChanges={annotationManager.hasUnsavedChanges}

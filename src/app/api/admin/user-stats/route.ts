@@ -51,13 +51,16 @@ export async function GET(request: NextRequest) {
     // Get all assigned tasks
     const { data: tasks, error: tasksError } = await supabase
       .from('tasks')
-      .select('id, assigned_to, task_scope')
+      .select('id, assigned_to, task_scope, status')
       .not('assigned_to', 'is', null)
       .in('status', ['pending', 'in_progress'])
 
     if (tasksError) {
+      console.error('[user-stats] Error fetching tasks:', tasksError)
       return apiError(tasksError.message, 500)
     }
+
+    console.log('[user-stats] Found tasks:', tasks?.length || 0)
 
     // Build stats
     const userStatsMap = new Map<string, UserStats>()

@@ -20,7 +20,10 @@ interface UseHotkeysOptions {
  * - 1-9: Выбор блюда по индексу
  * - ↑/↓: Навигация по аннотациям
  * - H: Toggle видимость всех bbox
+ * - O: Toggle перекрытие (overlapped) для выбранного объекта
  * - S: Сохранить прогресс
+ * - Tab: Пропустить этап
+ * - Shift+Tab: Пропустить задачу
  * - Enter: Завершить этап
  * - Esc: Снять выделение / остановить рисование
  * - Delete/Backspace: Удалить выбранную аннотацию
@@ -114,6 +117,22 @@ export function useHotkeys({
       return
     }
 
+    // O: Toggle overlapped для выбранного объекта
+    if ((e.key === 'o' || e.key === 'O') && annotationManager.selectedAnnotationId) {
+      const selectedAnnotation = annotationManager.annotations.find(
+        a => a.id === annotationManager.selectedAnnotationId
+      )
+      
+      if (selectedAnnotation) {
+        annotationManager.updateAnnotation(annotationManager.selectedAnnotationId, {
+          is_overlapped: !selectedAnnotation.is_overlapped
+        })
+      }
+      
+      e.preventDefault()
+      return
+    }
+
     // S: Save progress
     if (e.key === 's' || e.key === 'S') {
       if (!taskManager.isSaving) {
@@ -127,6 +146,21 @@ export function useHotkeys({
     if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
       if (!taskManager.isSaving) {
         taskManager.completeStep()
+      }
+      e.preventDefault()
+      return
+    }
+
+    // Tab: Skip step (without Shift) or Skip task (with Shift)
+    if (e.key === 'Tab') {
+      if (!taskManager.isSaving) {
+        if (e.shiftKey) {
+          // Shift+Tab: Skip entire task
+          taskManager.skipTask()
+        } else {
+          // Tab: Skip current step
+          taskManager.skipStep()
+        }
       }
       e.preventDefault()
       return

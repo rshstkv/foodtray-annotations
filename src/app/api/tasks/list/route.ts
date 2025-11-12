@@ -78,8 +78,8 @@ export async function GET(request: NextRequest) {
     if (scopes.length > 0 && filteredTasks.length > 0) {
       filteredTasks = filteredTasks.filter(task => {
         const taskStepIds = task.task_scope?.steps?.map((s: any) => s.id) || []
-        // Проверяем что хотя бы один из выбранных scope присутствует
-        return scopes.some(scopeId => taskStepIds.includes(scopeId))
+        // AND-логика: проверяем что ВСЕ выбранные scope присутствуют в задаче
+        return scopes.every(scopeId => taskStepIds.includes(scopeId))
       })
     }
 

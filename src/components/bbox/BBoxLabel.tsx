@@ -38,6 +38,14 @@ export function BBoxLabel({
     return ''
   }
 
+  // Overlapped indicator
+  const getOverlappedIcon = () => {
+    if (annotation.is_overlapped) {
+      return '🔀' // Icon for overlapped objects
+    }
+    return ''
+  }
+
   return (
     <div
       className="absolute z-40 px-2 py-1 text-xs font-medium text-white rounded shadow-md pointer-events-none"
@@ -47,7 +55,7 @@ export function BBoxLabel({
         backgroundColor: color,
       }}
     >
-      {getSourceIcon()} {getLabel()}
+      {getSourceIcon()} {getLabel()} {getOverlappedIcon()}
     </div>
   )
 }

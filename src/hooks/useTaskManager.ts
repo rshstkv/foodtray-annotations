@@ -19,6 +19,7 @@ export interface UseTaskManagerReturn {
   loadTask: () => Promise<void>
   goToStep: (stepIndex: number) => void
   completeStep: () => Promise<void>
+  skipStep: () => Promise<void>
   skipTask: (reason?: string) => Promise<void>
   saveProgress: () => Promise<void>
 }
@@ -154,6 +155,37 @@ export function useTaskManager(taskId: string): UseTaskManagerReturn {
     }
   }, [task, taskId, currentStepIndex, allSteps.length, router, saveProgress])
 
+  const skipStep = useCallback(async () => {
+    if (!task) return
+
+    try {
+      setIsSaving(true)
+      
+      // Переходим к следующему этапу или завершаем задачу
+      const nextStepIndex = currentStepIndex + 1
+      
+      if (nextStepIndex >= allSteps.length) {
+        // Если это последний этап - завершаем задачу как пропущенную
+        const res = await fetch(`/api/tasks/${taskId}/skip`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: 'All steps skipped' })
+        })
+        
+        if (!res.ok) throw new Error('Failed to skip task')
+        router.push('/tasks')
+      } else {
+        // Переходим к следующему этапу, текущий помечается как пропущенный
+        setCurrentStepIndex(nextStepIndex)
+        await saveProgress()
+      }
+    } catch (err) {
+      console.error('Error skipping step:', err)
+    } finally {
+      setIsSaving(false)
+    }
+  }, [task, taskId, currentStepIndex, allSteps.length, router, saveProgress])
+
   const skipTask = useCallback(async (reason?: string) => {
     if (!task) return
 
@@ -187,6 +219,7 @@ export function useTaskManager(taskId: string): UseTaskManagerReturn {
     loadTask,
     goToStep,
     completeStep,
+    skipStep,
     skipTask,
     saveProgress,
   }
