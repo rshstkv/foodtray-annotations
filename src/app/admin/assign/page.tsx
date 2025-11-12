@@ -236,7 +236,7 @@ export default function AdminAssignPage() {
             <div className="text-right">
               <p className="text-sm text-gray-600">Без завершенных проверок</p>
               <p className="text-3xl font-bold text-green-600">
-                {recognitionStats?.by_completed_checks['none']?.count || 0}
+                {recognitionStats?.by_completed_checks?.['none']?.count || 0}
               </p>
             </div>
           </div>

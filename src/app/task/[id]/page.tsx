@@ -212,6 +212,32 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                     isDrawing={annotationManager.isDrawing}
                   />
                 )}
+
+                {currentStep.step.id === 'check_overlaps' && (
+                  <OverlapAnnotationPanel
+                    images={task.images}
+                    annotations={annotationManager.annotations}
+                    selectedAnnotationId={annotationManager.selectedAnnotationId}
+                    dishNames={(() => {
+                      const dishes = modifiedDishes || task.recognition.correct_dishes
+                      return dishes.reduce((acc: Record<number, string>, dish: any, idx: number) => {
+                        acc[idx] = dish.Name
+                        return acc
+                      }, {})
+                    })()}
+                    onAnnotationSelect={(annotationId) => {
+                      annotationManager.setSelectedAnnotationId(annotationId)
+                    }}
+                    onToggleOverlap={(annotationId) => {
+                      const annotation = annotationManager.annotations.find(a => a.id === annotationId)
+                      if (annotation) {
+                        annotationManager.updateAnnotation(annotationId, {
+                          is_overlapped: !annotation.is_overlapped
+                        })
+                      }
+                    }}
+                  />
+                )}
               </TaskSidebar>
 
               {/* Images */}

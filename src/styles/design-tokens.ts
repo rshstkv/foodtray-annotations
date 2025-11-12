@@ -129,11 +129,12 @@ export const bottleOrientations = {
 // Task step labels
 export const taskStepLabels = {
   validate_dishes: 'Валидация блюд',
-  check_overlaps: 'Проверка пересечений',
+  check_overlaps: 'Отметка перекрытий',
   validate_buzzers: 'Валидация буззеров',
   check_buzzer_positions: 'Позиции буззеров',
   validate_bottles: 'Валидация бутылок',
   validate_nonfood: 'Валидация не-еды',
+  validate_plates: 'Валидация тарелок',
 } as const
 
 // Task priority colors
