@@ -9,6 +9,7 @@ interface UseHotkeysOptions {
   annotationManager: UseAnnotationManagerReturn
   onToggleVisibility?: () => void
   onSelectDish?: (dishIndex: number) => void
+  modifiedDishes?: any[] | null
   enabled?: boolean
 }
 
@@ -29,6 +30,7 @@ export function useHotkeys({
   annotationManager,
   onToggleVisibility,
   onSelectDish,
+  modifiedDishes = null,
   enabled = true,
 }: UseHotkeysOptions) {
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -115,7 +117,7 @@ export function useHotkeys({
     // S: Save progress
     if (e.key === 's' || e.key === 'S') {
       if (!taskManager.isSaving) {
-        taskManager.saveProgress()
+        taskManager.saveProgress(annotationManager.annotations, modifiedDishes)
       }
       e.preventDefault()
       return
@@ -153,6 +155,7 @@ export function useHotkeys({
     taskManager,
     annotationManager,
     onToggleVisibility,
+    modifiedDishes,
   ])
 
   useEffect(() => {

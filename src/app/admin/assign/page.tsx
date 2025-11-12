@@ -132,19 +132,26 @@ export default function AdminAssignPage() {
   const getAvailableCount = () => {
     if (!stats) return 0
     
+    // Если ничего не выбрано - показываем recognitions без проверок
+    if (assignSteps.length === 0 && filterSteps.length === 0) {
+      return stats.by_completed_steps['none']?.count || 0
+    }
+    
     let total = 0
     Object.entries(stats.by_completed_steps).forEach(([key, data]) => {
       const stepIds = data.step_ids
       
-      // Проверяем фильтр
+      // Проверяем фильтр (по выполненным проверкам)
       if (filterSteps.length > 0) {
         const hasAllRequired = filterSteps.every(id => stepIds.includes(id))
         if (!hasAllRequired) return
       }
       
-      // Проверяем что назначаемые проверки еще не выполнены
-      const hasConflict = assignSteps.some(id => stepIds.includes(id))
-      if (hasConflict) return
+      // Проверяем что назначаемые проверки еще не выполнены (защита от дублирования)
+      if (assignSteps.length > 0) {
+        const hasConflict = assignSteps.some(id => stepIds.includes(id))
+        if (hasConflict) return
+      }
       
       total += data.count
     })

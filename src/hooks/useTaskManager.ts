@@ -101,7 +101,7 @@ export function useTaskManager(taskId: string): UseTaskManagerReturn {
     }
   }, [allSteps.length])
 
-  const saveProgress = useCallback(async () => {
+  const saveProgress = useCallback(async (annotations?: any[], modifiedDishes?: any[]) => {
     if (!task) return
 
     try {
@@ -111,6 +111,8 @@ export function useTaskManager(taskId: string): UseTaskManagerReturn {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           current_step_index: currentStepIndex,
+          annotations: annotations || [],
+          modified_dishes: modifiedDishes || null,
         })
       })
 

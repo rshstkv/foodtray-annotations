@@ -232,8 +232,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      created: createdTasks?.length || 0,
-      tasks: createdTasks
+      created: createdTasks?.length || 0
     })
 
   } catch (error) {

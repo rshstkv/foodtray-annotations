@@ -25,6 +25,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
   const [showAllBBoxes, setShowAllBBoxes] = useState(true)
   const [showMenuSearch, setShowMenuSearch] = useState(false)
   const [selectedDishIndex, setSelectedDishIndex] = useState<number | null>(null)
+  const [modifiedDishes, setModifiedDishes] = useState<any[] | null>(null)
 
   // Initialize managers
   const taskManager = useTaskManager(resolvedParams.id)
@@ -37,6 +38,13 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
       annotationManager.setAnnotations(allAnnotations)
     }
   }, [taskManager.task?.images])
+
+  // Initialize modified_dishes from task_scope
+  useEffect(() => {
+    if (taskManager.task?.task_scope?.modified_dishes) {
+      setModifiedDishes(taskManager.task.task_scope.modified_dishes)
+    }
+  }, [taskManager.task?.task_scope])
 
   // Handler for dish selection
   const handleSelectDish = useCallback((dishIndex: number) => {
@@ -70,12 +78,26 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
     setShowMenuSearch(false)
   }, [annotationManager])
 
+  // Handler for changing dish count in receipt
+  const handleDishCountChange = useCallback((dishIndex: number, newCount: number) => {
+    if (!taskManager.task) return
+    const dishes = modifiedDishes || taskManager.task.recognition.correct_dishes
+    const updatedDishes = [...dishes]
+    updatedDishes[dishIndex] = {
+      ...updatedDishes[dishIndex],
+      Count: Math.max(0, newCount) // Ensure non-negative
+    }
+    setModifiedDishes(updatedDishes)
+    annotationManager.setHasUnsavedChanges(true)
+  }, [modifiedDishes, taskManager.task, annotationManager])
+
   // Setup hotkeys (AFTER all handlers to avoid initialization errors)
   useHotkeys({
     taskManager,
     annotationManager,
     onToggleVisibility: () => setShowAllBBoxes(prev => !prev),
     onSelectDish: handleSelectDish,
+    modifiedDishes,
     enabled: !taskManager.loading && !!taskManager.task,
   })
 
@@ -108,7 +130,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
     goToStep: taskManager.goToStep,
     completeStep: taskManager.completeStep,
     skipTask: taskManager.skipTask,
-    saveProgress: taskManager.saveProgress,
+    saveProgress: () => taskManager.saveProgress(annotationManager.annotations, modifiedDishes),
   }
 
   // Annotation context value
@@ -148,12 +170,13 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
               <TaskSidebar currentStep={currentStep}>
                 {currentStep.step.id === 'validate_dishes' && (
                   <DishSelectionPanel
-                    dishesFromReceipt={task.recognition.correct_dishes}
+                    dishesFromReceipt={modifiedDishes || task.recognition.correct_dishes}
                     annotations={annotationManager.annotations}
                     images={task.images}
                     selectedDishIndex={selectedDishIndex}
                     onSelectDish={handleSelectDish}
                     onAddFromMenu={handleAddFromMenu}
+                    onDishCountChange={handleDishCountChange}
                   />
                 )}
 

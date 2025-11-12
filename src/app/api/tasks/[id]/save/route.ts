@@ -8,7 +8,7 @@ export async function POST(
   try {
     const { id: taskId } = await params
     const body = await request.json()
-    const { changes, current_step_index } = body
+    const { changes, annotations, modified_dishes, current_step_index } = body
 
     const supabaseServer = await createClient()
     const { data: { user } } = await supabaseServer.auth.getUser()
@@ -38,9 +38,37 @@ export async function POST(
       }
     }
 
-    // Применяем изменения аннотаций, если есть
+    // Сохраняем измененный чек в task_scope
+    if (modified_dishes) {
+      const { data: taskData, error: taskFetchError } = await supabaseServer
+        .from('tasks')
+        .select('task_scope')
+        .eq('id', taskId)
+        .single()
+
+      if (taskFetchError) {
+        console.error('[tasks/save] Error fetching task:', taskFetchError)
+      } else {
+        const updatedTaskScope = {
+          ...taskData.task_scope,
+          modified_dishes,
+        }
+
+        const { error: taskScopeError } = await supabaseServer
+          .from('tasks')
+          .update({ task_scope: updatedTaskScope })
+          .eq('id', taskId)
+
+        if (taskScopeError) {
+          console.error('[tasks/save] Error updating task_scope:', taskScopeError)
+        }
+      }
+    }
+
+    // Применяем изменения аннотаций
     let savedCount = 0
     
+    // Поддержка старого формата (changes) для обратной совместимости
     if (changes && Array.isArray(changes)) {
     for (const change of changes) {
       if (change.type === 'create') {
@@ -72,6 +100,37 @@ export async function POST(
         
         if (!error) savedCount++
       }
+      }
+    }
+    
+    // Новый формат: прямое сохранение всех аннотаций (upsert)
+    if (annotations && Array.isArray(annotations)) {
+      for (const annotation of annotations) {
+        // Пропускаем аннотации, которые не были изменены (нет id или это новые)
+        if (!annotation.id) {
+          // Создаем новую аннотацию
+          const { error } = await supabaseServer
+            .from('annotations')
+            .insert({
+              ...annotation,
+              created_by: user.id,
+              source: 'manual',
+            })
+          
+          if (!error) savedCount++
+        } else {
+          // Обновляем существующую
+          const { error } = await supabaseServer
+            .from('annotations')
+            .update({
+              ...annotation,
+              updated_by: user.id,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', annotation.id)
+          
+          if (!error) savedCount++
+        }
       }
     }
 

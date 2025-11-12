@@ -2,7 +2,7 @@
 
 import { Annotation, DishFromReceipt, Image } from '@/types/annotations'
 import { Button } from '@/components/ui/button'
-import { Check, AlertCircle, X } from 'lucide-react'
+import { Check, AlertCircle, X, Plus, Minus } from 'lucide-react'
 
 interface DishSelectionPanelProps {
   dishesFromReceipt: DishFromReceipt[]
@@ -11,6 +11,7 @@ interface DishSelectionPanelProps {
   selectedDishIndex: number | null
   onSelectDish: (index: number) => void
   onAddFromMenu: () => void
+  onDishCountChange?: (groupIndex: number, newCount: number) => void
 }
 
 // Flatten dishes for display
@@ -20,6 +21,7 @@ function flattenDishes(dishesFromReceipt: DishFromReceipt[]) {
       name: dish.Name,
       expectedCount: item.Count,
       externalId: dish.ExternalId,
+      groupIndex, // Store original group index for count changes
       flatIndex: groupIndex * 100 + dishIndex, // Unique index
     }))
   )
@@ -32,6 +34,7 @@ export function DishSelectionPanel({
   selectedDishIndex,
   onSelectDish,
   onAddFromMenu,
+  onDishCountChange,
 }: DishSelectionPanelProps) {
   const dishes = dishesFromReceipt ? flattenDishes(dishesFromReceipt) : []
 
@@ -110,17 +113,43 @@ export function DishSelectionPanel({
               onClick={() => onSelectDish(index)}
             >
               {/* Dish info */}
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2">
                 <div className="flex-1">
                   <div className="font-medium text-sm text-gray-900">
                     {index + 1}. {dish.name}
                   </div>
-                  <div className={`text-xs mt-1 font-medium ${status.color}`}>
-                    {actual}/{dish.expectedCount}
-                    {actual !== dish.expectedCount && (
-                      <span className="ml-1">
-                        {actual > dish.expectedCount ? '(избыток)' : '(недостаток)'}
-                      </span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className={`text-xs font-medium ${status.color}`}>
+                      {actual}/{dish.expectedCount}
+                      {actual !== dish.expectedCount && (
+                        <span className="ml-1">
+                          {actual > dish.expectedCount ? '(избыток)' : '(недостаток)'}
+                        </span>
+                      )}
+                    </div>
+                    {onDishCountChange && (
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-5 w-5 p-0"
+                          onClick={() => onDishCountChange(dish.groupIndex, dish.expectedCount - 1)}
+                          disabled={dish.expectedCount <= 0}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="text-xs text-gray-600 min-w-[2ch] text-center">
+                          {dish.expectedCount}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-5 w-5 p-0"
+                          onClick={() => onDishCountChange(dish.groupIndex, dish.expectedCount + 1)}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
