@@ -154,11 +154,13 @@ export function useTaskManager(taskId: string): UseTaskManagerReturn {
         throw new Error('Current step not found')
       }
       
+      console.log('[completeStep] Current step:', currentStep.step.id, 'index:', currentStepIndex)
+      
       // Завершаем текущий этап
       const res = await fetch(`/api/tasks/${taskId}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ step_id: currentStep.id })
+        body: JSON.stringify({ step_id: currentStep.step.id })
       })
       
       if (!res.ok) {
@@ -181,8 +183,8 @@ export function useTaskManager(taskId: string): UseTaskManagerReturn {
         window.history.pushState({}, '', url.toString())
       }
     } catch (err) {
-      console.error('Error completing step:', err)
-      alert(err instanceof Error ? err.message : 'Failed to complete step')
+      console.error('[completeStep] Error:', err)
+      // Ошибка уже залогирована в консоль для отладки
     } finally {
       setIsSaving(false)
     }

@@ -25,6 +25,9 @@ export async function POST(
     const body = await request.json().catch(() => ({}))
     const { step_id } = body
 
+    console.log(`[tasks/complete] Received body:`, JSON.stringify(body))
+    console.log(`[tasks/complete] step_id:`, step_id)
+
     // Получить текущего пользователя
     const supabaseServer = await createClient()
     const { data: { user } } = await supabaseServer.auth.getUser()
@@ -86,14 +89,44 @@ export async function POST(
       // Получаем текущие аннотации и validated_state
       const { data: fullTask, error: fullTaskError } = await supabaseServer
         .from('tasks')
-        .select('validated_state, task_scope, images(id), annotations(*)')
+        .select('validated_state, task_scope')
         .eq('id', taskId)
         .single()
 
-      if (fullTaskError) {
+      if (fullTaskError || !fullTask) {
         console.error('[tasks/complete] Error fetching full task:', fullTaskError)
         return NextResponse.json(
           { error: 'Failed to fetch task data for snapshot' },
+          { status: 500 }
+        )
+      }
+
+      // Получаем images для этой задачи
+      const { data: images, error: imagesError } = await supabaseServer
+        .from('images')
+        .select('id')
+        .eq('recognition_id', task.recognitions.recognition_id)
+
+      if (imagesError || !images) {
+        console.error('[tasks/complete] Error fetching images:', imagesError)
+        return NextResponse.json(
+          { error: 'Failed to fetch images for snapshot' },
+          { status: 500 }
+        )
+      }
+
+      const imageIds = images.map(img => img.id)
+
+      // Получаем аннотации для этих изображений
+      const { data: annotations, error: annotationsError } = await supabaseServer
+        .from('annotations')
+        .select('*')
+        .in('image_id', imageIds)
+
+      if (annotationsError) {
+        console.error('[tasks/complete] Error fetching annotations:', annotationsError)
+        return NextResponse.json(
+          { error: 'Failed to fetch annotations for snapshot' },
           { status: 500 }
         )
       }
@@ -108,7 +141,7 @@ export async function POST(
 
       // Группировать аннотации по image_id (только активные)
       const annotationsByImage: { [key: string]: Annotation[] } = {}
-      for (const ann of (fullTask.annotations || [])) {
+      for (const ann of (annotations || [])) {
         if (!ann.is_deleted) {
           if (!annotationsByImage[ann.image_id]) {
             annotationsByImage[ann.image_id] = []
@@ -185,8 +218,9 @@ export async function POST(
 
     if (updateError) {
       console.error('[tasks/complete] Error updating task:', updateError)
+      console.error('[tasks/complete] Update data:', JSON.stringify(updateData, null, 2))
       return NextResponse.json(
-        { error: 'Failed to update task' },
+        { error: 'Failed to update task', details: updateError.message },
         { status: 500 }
       )
     }

@@ -38,8 +38,8 @@ function AnnotationListCompact({
   const hasError = count !== expected
   const hasDuplicates = (() => {
     const coords = annotations
-      .filter(a => a.bbox) // Фильтруем аннотации без bbox
-      .map(a => `${a.bbox.x},${a.bbox.y},${a.bbox.width},${a.bbox.height}`)
+      .filter(a => a.bbox_x1 !== undefined && a.bbox_y1 !== undefined)
+      .map(a => `${a.bbox_x1},${a.bbox_y1},${a.bbox_x2},${a.bbox_y2}`)
     return coords.length !== new Set(coords).size
   })()
   
@@ -74,8 +74,8 @@ function AnnotationListCompact({
             <div className="text-xs text-gray-500 italic">Нет аннотаций</div>
           ) : (
             annotations.map((ann, idx) => {
-              if (!ann.bbox) return null // Пропускаем аннотации без bbox
-              const coord = `(${Math.round(ann.bbox.x)}, ${Math.round(ann.bbox.y)})`
+              if (ann.bbox_x1 === undefined || ann.bbox_y1 === undefined) return null
+              const coord = `(${Math.round(ann.bbox_x1)}, ${Math.round(ann.bbox_y1)})`
               return (
                 <div key={ann.id} className="flex items-center justify-between gap-2 text-xs py-0.5">
                   <span className="text-gray-600 font-mono">{coord}</span>
@@ -251,10 +251,10 @@ export function DishSelectionPanel({
       {/* Dishes list */}
       <div className="space-y-1">
         {dishes.map((dish, index) => {
-          const countMain = getCountByImageType(index, 'main')
-          const countQuality = getCountByImageType(index, 'quality')
+          const countMain = getCountByImageType(dish.groupIndex, 'main')
+          const countQuality = getCountByImageType(dish.groupIndex, 'quality')
           const expected = dish.expectedCount
-          const isSelected = selectedDishIndex === index
+          const isSelected = selectedDishIndex === dish.groupIndex
           
           const statusMain = getStatus(expected, countMain)
           const statusQuality = getStatus(expected, countQuality)
@@ -270,7 +270,7 @@ export function DishSelectionPanel({
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-gray-300'
               }`}
-              onClick={() => onSelectDish(index)}
+              onClick={() => onSelectDish(dish.groupIndex)}
             >
               {/* Dish info */}
               <div className="flex flex-col gap-1">
@@ -278,16 +278,16 @@ export function DishSelectionPanel({
                   <div className="flex-1 min-w-0">
                     {dish.hasAmbiguity ? (
                       <>
-                        {isAmbiguityResolved(index) ? (
+                        {isAmbiguityResolved(dish.groupIndex) ? (
                           <>
                             <div className="text-sm text-gray-900 truncate">
-                              {index + 1}. {getSelectedDishName(index)}
+                              {dish.groupIndex + 1}. {getSelectedDishName(dish.groupIndex)}
                             </div>
                           </>
                         ) : (
                           <>
                             <div className="text-sm text-gray-900 truncate">
-                              {index + 1}. <span className="text-gray-500 italic">Неопределенность</span>
+                              {dish.groupIndex + 1}. <span className="text-gray-500 italic">Неопределенность</span>
                             </div>
                             <div className="text-xs text-red-600 font-medium mt-0.5">
                               ⚠️ НЕОПРЕДЕЛЕННОСТЬ - выберите правильное блюдо
@@ -297,7 +297,7 @@ export function DishSelectionPanel({
                       </>
                     ) : (
                       <div className="text-sm text-gray-900 truncate">
-                        {index + 1}. {dish.name}
+                        {dish.groupIndex + 1}. {dish.name}
                       </div>
                     )}
                   </div>

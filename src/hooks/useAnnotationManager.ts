@@ -19,7 +19,8 @@ export interface UseAnnotationManagerReturn {
   updateAnnotation: (id: string, updates: Partial<Annotation>) => void
   deleteAnnotation: (id: string) => void
   clearChanges: () => void
-  resetChanges: () => void  // Новый метод для отката изменений
+  resetChanges: () => void  // Откат изменений к последнему сохраненному состоянию
+  updateOriginalAnnotations: () => void  // Обновление "последнего сохраненного" после успешного сохранения
   
   // Selection
   setSelectedAnnotationId: (id: string | null) => void
@@ -36,7 +37,7 @@ export interface UseAnnotationManagerReturn {
 }
 
 export function useAnnotationManager(initialImages: Image[] = []): UseAnnotationManagerReturn {
-  const [originalAnnotations] = useState<Annotation[]>(() => {
+  const [originalAnnotations, setOriginalAnnotations] = useState<Annotation[]>(() => {
     return initialImages.flatMap(img => img.annotations || [])
   })
   const [annotations, setAnnotationsState] = useState<Annotation[]>(() => {
@@ -54,6 +55,11 @@ export function useAnnotationManager(initialImages: Image[] = []): UseAnnotation
   const setAnnotations = useCallback((newAnnotations: Annotation[]) => {
     setAnnotationsState(newAnnotations)
   }, [])
+
+  // Update original annotations (call after successful save)
+  const updateOriginalAnnotations = useCallback(() => {
+    setOriginalAnnotations(JSON.parse(JSON.stringify(annotations)))
+  }, [annotations])
 
   const createAnnotation = useCallback((annotation: Omit<Annotation, 'id' | 'created_at' | 'updated_at'>) => {
     const newAnnotation: Annotation = {
@@ -174,6 +180,7 @@ export function useAnnotationManager(initialImages: Image[] = []): UseAnnotation
     deleteAnnotation,
     resetChanges,
     clearChanges,
+    updateOriginalAnnotations,
     setSelectedAnnotationId,
     selectNext,
     selectPrev,

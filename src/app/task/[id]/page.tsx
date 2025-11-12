@@ -28,6 +28,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
   const [showMenuSearch, setShowMenuSearch] = useState(false)
   const [selectedDishIndex, setSelectedDishIndex] = useState<number | null>(null)
   const [modifiedDishes, setModifiedDishes] = useState<any[] | null>(null)
+  const [initialModifiedDishes, setInitialModifiedDishes] = useState<any[] | null>(null)
   const [activeImageId, setActiveImageId] = useState<string | null>(null)
 
   // Initialize managers
@@ -50,9 +51,14 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
   // Initialize modified_dishes from task_scope
   useEffect(() => {
     if (taskManager.task?.task_scope?.modified_dishes) {
-      setModifiedDishes(taskManager.task.task_scope.modified_dishes)
+      const dishes = taskManager.task.task_scope.modified_dishes
+      setModifiedDishes(dishes)
+      // Сохраняем начальное состояние для отката
+      if (!initialModifiedDishes) {
+        setInitialModifiedDishes(JSON.parse(JSON.stringify(dishes)))
+      }
     }
-  }, [taskManager.task?.task_scope])
+  }, [taskManager.task?.task_scope, initialModifiedDishes])
 
   // Handler for dish selection
   const handleSelectDish = useCallback((dishIndex: number) => {
@@ -89,15 +95,15 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
   // Handler for changing dish count in receipt
   const handleDishCountChange = useCallback((dishIndex: number, newCount: number) => {
     if (!taskManager.task) return
-    const dishes = modifiedDishes || taskManager.task.recognition.correct_dishes
+    const dishes = (modifiedDishes && modifiedDishes.length > 0) ? modifiedDishes : taskManager.task.recognition.correct_dishes
     const updatedDishes = [...dishes]
     updatedDishes[dishIndex] = {
       ...updatedDishes[dishIndex],
       Count: Math.max(0, newCount) // Ensure non-negative
     }
     setModifiedDishes(updatedDishes)
-    annotationManager.setHasUnsavedChanges(true)
-  }, [modifiedDishes, taskManager.task, annotationManager])
+    // hasUnsavedChanges будет автоматически вычислено через сравнение modifiedDishes
+  }, [modifiedDishes, taskManager.task])
 
   // Handler for resolving ambiguity (selecting correct dish variant)
   const handleResolveAmbiguity = useCallback(async (dishIndex: number, selectedDishName: string) => {
@@ -148,7 +154,10 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
     // Сохраняем изменения автоматически
     if (annotationsToUpdate.length > 0) {
       console.log('[handleResolveAmbiguity] Saving progress...')
-      await taskManager.saveProgress(annotationManager.annotations, modifiedDishes)
+      await taskManager.saveProgress(annotationManager.annotations, modifiedDishes || [])
+      // Очищаем изменения после успешного сохранения
+      annotationManager.clearChanges()
+      annotationManager.updateOriginalAnnotations() // Обновляем "последнее сохраненное"
       console.log('[handleResolveAmbiguity] Progress saved!')
     }
   }, [annotationManager, taskManager, modifiedDishes])
@@ -164,6 +173,33 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
     // Clear selection when switching images
     annotationManager.setSelectedAnnotationId(null)
   }, [taskManager.task?.images, activeImageId, annotationManager])
+
+  // Unified save handler (MUST be before early return)
+  const handleSave = useCallback(async () => {
+    await taskManager.saveProgress(annotationManager.annotations, modifiedDishes || [])
+    // После успешного сохранения очищаем изменения и обновляем начальное состояние
+    annotationManager.clearChanges()
+    annotationManager.updateOriginalAnnotations() // Обновляем "последнее сохраненное" для корректного сброса
+    if (modifiedDishes) {
+      setInitialModifiedDishes(JSON.parse(JSON.stringify(modifiedDishes)))
+    }
+  }, [taskManager, annotationManager, modifiedDishes])
+
+  // Unified reset handler (MUST be before early return)
+  const handleReset = useCallback(() => {
+    // Сбрасываем аннотации
+    annotationManager.resetChanges()
+    // Сбрасываем блюда
+    if (initialModifiedDishes) {
+      setModifiedDishes(JSON.parse(JSON.stringify(initialModifiedDishes)))
+    }
+  }, [annotationManager, initialModifiedDishes])
+
+  // Check if there are unsaved changes (annotations OR dishes) (MUST be before early return)
+  const hasUnsavedChanges = 
+    annotationManager.hasUnsavedChanges || 
+    (modifiedDishes && initialModifiedDishes && 
+     JSON.stringify(modifiedDishes) !== JSON.stringify(initialModifiedDishes))
 
   // Setup hotkeys (AFTER all handlers to avoid initialization errors)
   useHotkeys({
@@ -247,7 +283,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
               <TaskSidebar currentStep={currentStep}>
                 {currentStep.step.id === 'validate_dishes' && (
                   <DishSelectionPanel
-                    dishesFromReceipt={modifiedDishes || task.recognition.correct_dishes}
+                    dishesFromReceipt={(modifiedDishes && modifiedDishes.length > 0) ? modifiedDishes : task.recognition.correct_dishes}
                     annotations={annotationManager.annotations}
                     images={task.images}
                     selectedDishIndex={selectedDishIndex}
@@ -298,7 +334,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                     selectedAnnotationId={annotationManager.selectedAnnotationId}
                     activeImageId={activeImageId}
                     dishNames={(() => {
-                      const dishes = modifiedDishes || task.recognition.correct_dishes
+                      const dishes = (modifiedDishes && modifiedDishes.length > 0) ? modifiedDishes : task.recognition.correct_dishes
                       return dishes.reduce((acc: Record<number, string>, dish: any, idx: number) => {
                         acc[idx] = dish.Name
                         return acc
@@ -362,7 +398,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                     {currentStep.step.id === 'validate_dishes' && (
                       <ImageAnnotationInfo
                         image={image}
-                        dishesFromReceipt={modifiedDishes || task.recognition.correct_dishes}
+                        dishesFromReceipt={(modifiedDishes && modifiedDishes.length > 0) ? modifiedDishes : task.recognition.correct_dishes}
                         annotations={filteredAnnotations}
                         selectedDishIndex={selectedDishIndex}
                         onDeleteAnnotation={annotationManager.deleteAnnotation}
@@ -414,13 +450,13 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
             {/* Action buttons */}
             <div className="border-t border-gray-200 bg-white px-6 py-4">
               <ActionButtons
-                onSave={taskManager.saveProgress}
+                onSave={handleSave}
                 onComplete={taskManager.completeStep}
                 onSkipStep={taskManager.skipStep}
                 onSkipTask={taskManager.skipTask}
-                onReset={annotationManager.resetChanges}
+                onReset={handleReset}
                 isSaving={taskManager.isSaving}
-                hasUnsavedChanges={annotationManager.hasUnsavedChanges}
+                hasUnsavedChanges={hasUnsavedChanges}
                 canComplete={taskManager.canGoNext || taskManager.currentStepIndex === taskManager.allSteps.length - 1}
               />
             </div>

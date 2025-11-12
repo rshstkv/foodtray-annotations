@@ -374,9 +374,11 @@ export default function TasksPage() {
                 <tbody className="divide-y divide-gray-200">
                   {tasks.map((task) => {
                     const priorityInfo = getPriorityLabel(task.priority)
-                    const currentStep = task.progress?.current_step_index || 0
+                    // Считаем количество завершенных этапов
+                    const completedSteps = task.progress?.completed_steps?.length || 
+                      (task.progress as any)?.steps?.filter((s: any) => s.status === 'completed').length || 0
                     const totalSteps = task.task_scope?.steps?.length || 0
-                    const progressPercent = totalSteps > 0 ? (currentStep / totalSteps) * 100 : 0
+                    const progressPercent = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
 
                     return (
                       <tr key={task.id} className="hover:bg-gray-50">
@@ -405,7 +407,7 @@ export default function TasksPage() {
                               />
                             </div>
                             <span className="text-xs text-gray-600">
-                              {currentStep}/{totalSteps}
+                              {completedSteps}/{totalSteps}
                             </span>
                           </div>
                         </td>
