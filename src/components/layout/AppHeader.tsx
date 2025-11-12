@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Layers } from 'lucide-react'
+import Image from 'next/image'
 import { UserNav } from '@/components/UserNav'
 import { Breadcrumbs } from './Breadcrumbs'
 
@@ -21,9 +21,15 @@ export function AppHeader({ isAdmin, userName, userEmail }: AppHeaderProps) {
         <div className="flex items-center justify-between">
           {/* Logo and Breadcrumbs */}
           <div className="flex items-center gap-6">
-            <Link href="/tasks" className="flex items-center gap-2 group">
-              <div className="p-2 rounded-lg bg-blue-50 group-hover:bg-blue-100 transition-colors">
-                <Layers className="w-5 h-5 text-blue-600" />
+            <Link href="/tasks" className="flex items-center gap-3 group">
+              <div className="relative w-10 h-10 transition-transform group-hover:scale-105">
+                <Image
+                  src="/logo.svg"
+                  alt="RRS Logo"
+                  width={40}
+                  height={40}
+                  priority
+                />
               </div>
               <span className="text-lg font-semibold text-gray-900">
                 RRS Annotations

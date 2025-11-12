@@ -1,17 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { apiFetch } from '@/lib/api-response'
-import { 
-  Loader2, Users, Package, CheckCircle2, UtensilsCrossed, Bell, Disc3,
-  ArrowRightLeft, Filter, AlertCircle, User, Layers
-} from 'lucide-react'
+import { Loader2, ChevronDown, ChevronRight } from 'lucide-react'
 
 interface User {
   id: string
@@ -19,220 +14,96 @@ interface User {
   role: string
 }
 
-interface TaskScope {
-  steps: Array<{ id: string; name: string }>
+interface TasksByScope {
+  [scopeKey: string]: {
+    scope_names: string[]
+    count: number
+  }
 }
 
-interface TaskStats {
-  total: number
-  unassigned: number
-  pending: number
-  in_progress: number
-  completed: number
-}
-
-interface TaskWithScope {
-  id: string
-  recognition_id: string
-  assigned_to: string | null
-  task_scope: TaskScope
-  status: string
-  priority: number
-}
-
-interface UserAssignments {
+interface UserStats {
   user_id: string
   user_email: string
-  task_count: number
-  by_scope: Record<string, number>
+  role: string
+  total_tasks: number
+  by_scope: TasksByScope
 }
 
-interface ScopeStats {
-  scope_key: string
-  scope_names: string[]
-  total: number
-  assigned: number
-  unassigned: number
+interface AvailableTasksStats {
+  total_unassigned: number
+  by_scope: TasksByScope
 }
 
-// Доступные типы проверок
 const STEP_TYPES = [
-  {
-    id: 'validate_dishes',
-    name: 'Блюда',
-    shortName: 'Блюда',
-    icon: UtensilsCrossed,
-    color: 'text-orange-600',
-    bgColor: 'bg-orange-50',
-    borderColor: 'border-orange-200',
-  },
-  {
-    id: 'check_overlaps',
-    name: 'Перекрытия',
-    shortName: 'Перекрытия',
-    icon: AlertCircle,
-    color: 'text-red-600',
-    bgColor: 'bg-red-50',
-    borderColor: 'border-red-200',
-  },
-  {
-    id: 'validate_buzzers',
-    name: 'Баззеры',
-    shortName: 'Баззеры',
-    icon: Bell,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
-  },
-  {
-    id: 'validate_bottles',
-    name: 'Бутылки',
-    shortName: 'Бутылки',
-    icon: Package,
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-50',
-    borderColor: 'border-purple-200',
-  },
-  {
-    id: 'validate_nonfood',
-    name: 'Другие предметы',
-    shortName: 'Предметы',
-    icon: Package,
-    color: 'text-gray-600',
-    bgColor: 'bg-gray-50',
-    borderColor: 'border-gray-200',
-  },
-  {
-    id: 'validate_plates',
-    name: 'Тарелки',
-    shortName: 'Тарелки',
-    icon: Disc3,
-    color: 'text-green-600',
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-200',
-  },
+  { id: 'validate_dishes', name: 'Блюда' },
+  { id: 'check_overlaps', name: 'Перекрытия' },
+  { id: 'validate_buzzers', name: 'Баззеры' },
+  { id: 'validate_bottles', name: 'Бутылки' },
+  { id: 'validate_nonfood', name: 'Другие предметы' },
+  { id: 'validate_plates', name: 'Тарелки' },
 ]
 
-// Режимы работы
-type Mode = 'assign' | 'reassign' | 'view'
-
 export default function AssignTasksPage() {
-  const [mode, setMode] = useState<Mode>('assign')
-  const [users, setUsers] = useState<User[]>([])
-  const [allUsers, setAllUsers] = useState<User[]>([]) // Включая админов
-  const [stats, setStats] = useState<TaskStats | null>(null)
-  const [scopeStats, setScopeStats] = useState<ScopeStats[]>([])
-  const [userAssignments, setUserAssignments] = useState<UserAssignments[]>([])
-  
-  // Параметры назначения
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
-  const [selectedSteps, setSelectedSteps] = useState<string[]>(['validate_dishes', 'check_overlaps', 'validate_plates']) // По умолчанию блюда + перекрытия + тарелки
-  const [filterByExistingScope, setFilterByExistingScope] = useState<string[]>([]) // Фильтр: какие scope уже есть у задач
-  const [taskCount, setTaskCount] = useState<string>('10')
-  const [priority, setPriority] = useState<string>('medium')
-  
-  // Переназначение
-  const [fromUserId, setFromUserId] = useState<string>('')
-  const [toUserId, setToUserId] = useState<string>('')
-  const [reassignCount, setReassignCount] = useState<string>('10')
-  
+  const [userStats, setUserStats] = useState<UserStats[]>([])
+  const [availableStats, setAvailableStats] = useState<AvailableTasksStats | null>(null)
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
+  
+  // Параметры назначения для выбранного пользователя
+  const [filterScopes, setFilterScopes] = useState<string[]>([])
+  const [assignScopes, setAssignScopes] = useState<string[]>([])
+  const [taskCount, setTaskCount] = useState(10)
 
   useEffect(() => {
-    loadUsers()
-    loadStats()
-    loadScopeStats()
-    loadUserAssignments()
+    loadData()
   }, [])
 
-  const loadUsers = async () => {
+  const loadData = async () => {
     try {
-      const response = await apiFetch<{ users: User[] }>('/api/admin/users')
-      if (response.success && response.data) {
-        const annotators = response.data.users.filter(u => u.role === 'annotator')
-        setUsers(annotators)
-        setAllUsers(response.data.users) // Все пользователи для переназначения
-      }
-    } catch (err) {
-      console.error('Error loading users:', err)
-    }
-  }
+      const [statsRes, availableRes] = await Promise.all([
+        apiFetch<{ user_stats: UserStats[] }>('/api/admin/user-stats'),
+        apiFetch<{ available: AvailableTasksStats }>('/api/admin/available-tasks-stats')
+      ])
 
-  const loadStats = async () => {
-    try {
-      const response = await apiFetch<{ tasks: any[], stats: TaskStats }>('/api/tasks/list')
-      if (response.success && response.data) {
-        setStats(response.data.stats)
+      if (statsRes.success && statsRes.data) {
+        setUserStats(statsRes.data.user_stats)
       }
-    } catch (err) {
-      console.error('Error loading stats:', err)
-    }
-  }
 
-  const loadScopeStats = async () => {
-    try {
-      const response = await apiFetch<{ scope_stats: ScopeStats[] }>('/api/admin/scope-stats')
-      if (response.success && response.data) {
-        setScopeStats(response.data.scope_stats)
+      if (availableRes.success && availableRes.data) {
+        setAvailableStats(availableRes.data.available)
       }
     } catch (err) {
-      console.error('Error loading scope stats:', err)
-    }
-  }
-
-  const loadUserAssignments = async () => {
-    try {
-      const response = await apiFetch<{ assignments: UserAssignments[] }>('/api/admin/user-assignments')
-      if (response.success && response.data) {
-        setUserAssignments(response.data.assignments)
-      }
-    } catch (err) {
-      console.error('Error loading user assignments:', err)
+      console.error('Error loading data:', err)
     }
   }
 
   const handleAssign = async () => {
-    if (selectedUsers.length === 0) {
-      alert('Выберите хотя бы одного аннотатора')
-      return
-    }
-
-    if (selectedSteps.length === 0) {
-      alert('Выберите хотя бы один тип проверки')
-      return
-    }
-
+    if (!selectedUserId) return
+    
     setLoading(true)
-    setSuccess(false)
-
     try {
-      const steps = selectedSteps.map(stepId => {
-        const stepType = STEP_TYPES.find(s => s.id === stepId)
-        return {
-          id: stepId,
-          name: stepType?.name || stepId
-        }
-      })
-      
-      const response = await apiFetch('/api/admin/assign-tasks', {
+      const steps = assignScopes.map(id => ({
+        id,
+        name: STEP_TYPES.find(s => s.id === id)?.name || id
+      }))
+
+      await apiFetch('/api/admin/assign-tasks', {
         method: 'POST',
         body: JSON.stringify({
-          user_ids: selectedUsers,
-          task_count: parseInt(taskCount),
-          priority,
+          user_ids: [selectedUserId],
+          task_count: taskCount,
           scope: { steps },
-          filter_by_existing_scope: filterByExistingScope.length > 0 ? filterByExistingScope : undefined
+          filter_by_existing_scope: filterScopes.length > 0 ? filterScopes : undefined
         })
       })
 
-      if (response.success) {
-        setSuccess(true)
-        setSelectedUsers([])
-        await Promise.all([loadStats(), loadScopeStats(), loadUserAssignments()])
-        
-        setTimeout(() => setSuccess(false), 3000)
-      }
+      // Reload data
+      await loadData()
+      
+      // Reset
+      setFilterScopes([])
+      setAssignScopes([])
+      setSelectedUserId(null)
     } catch (err) {
       console.error('Error assigning tasks:', err)
       alert('Ошибка при назначении задач')
@@ -241,550 +112,213 @@ export default function AssignTasksPage() {
     }
   }
 
-  const handleReassign = async () => {
-    if (!fromUserId || !toUserId) {
-      alert('Выберите пользователей для переназначения')
-      return
-    }
-
-    if (fromUserId === toUserId) {
-      alert('Выберите разных пользователей')
-      return
-    }
-
-    setLoading(true)
-    setSuccess(false)
-
-    try {
-      const response = await apiFetch('/api/admin/reassign-tasks', {
-        method: 'POST',
-        body: JSON.stringify({
-          from_user_id: fromUserId,
-          to_user_id: toUserId,
-          task_count: parseInt(reassignCount)
-        })
-      })
-
-      if (response.success) {
-        setSuccess(true)
-        setFromUserId('')
-        setToUserId('')
-        await Promise.all([loadStats(), loadUserAssignments()])
-        
-        setTimeout(() => setSuccess(false), 3000)
-      }
-    } catch (err) {
-      console.error('Error reassigning tasks:', err)
-      alert('Ошибка при переназначении задач')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const toggleUser = (userId: string) => {
-    setSelectedUsers(prev => 
-      prev.includes(userId) 
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
+  const toggleFilterScope = (scopeId: string) => {
+    setFilterScopes(prev =>
+      prev.includes(scopeId) ? prev.filter(id => id !== scopeId) : [...prev, scopeId]
     )
   }
 
-  const selectAllUsers = () => {
-    setSelectedUsers(users.map(u => u.id))
-  }
-
-  const unselectAll = () => {
-    setSelectedUsers([])
-  }
-
-  const toggleStep = (stepId: string) => {
-    setSelectedSteps(prev =>
-      prev.includes(stepId)
-        ? prev.filter(id => id !== stepId)
-        : [...prev, stepId]
+  const toggleAssignScope = (scopeId: string) => {
+    setAssignScopes(prev =>
+      prev.includes(scopeId) ? prev.filter(id => id !== scopeId) : [...prev, scopeId]
     )
   }
 
-  const selectAllSteps = () => {
-    setSelectedSteps(STEP_TYPES.map(s => s.id))
-  }
-
-  const clearSteps = () => {
-    setSelectedSteps([])
-  }
-
-  const toggleFilterScope = (stepId: string) => {
-    setFilterByExistingScope(prev =>
-      prev.includes(stepId)
-        ? prev.filter(id => id !== stepId)
-        : [...prev, stepId]
-    )
-  }
-
-  const getScopeKey = (steps: string[]) => {
-    return [...steps].sort().join('+')
-  }
-
-  const getScopeDisplay = (steps: string[]) => {
-    if (steps.length === 0) return 'Не выбрано'
-    if (steps.length === STEP_TYPES.length) return 'Полный цикл'
-    return steps.map(id => STEP_TYPES.find(s => s.id === id)?.shortName || id).join(' + ')
-  }
+  const selectedUser = userStats.find(u => u.user_id === selectedUserId)
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Управление задачами</h1>
-        <p className="text-gray-600 mt-2">Назначение и переназначение задач между аннотаторами</p>
+        <h1 className="text-3xl font-bold text-gray-900">Назначение задач</h1>
+        <p className="text-gray-600 mt-2">Управление задачами аннотаторов</p>
       </div>
 
-      {/* Mode Selector */}
-      <div className="flex gap-2">
-        <Button
-          variant={mode === 'assign' ? 'default' : 'outline'}
-          onClick={() => setMode('assign')}
-        >
-          <Package className="w-4 h-4 mr-2" />
-          Назначить задачи
-        </Button>
-        <Button
-          variant={mode === 'reassign' ? 'default' : 'outline'}
-          onClick={() => setMode('reassign')}
-        >
-          <ArrowRightLeft className="w-4 h-4 mr-2" />
-          Переназначить
-        </Button>
-        <Button
-          variant={mode === 'view' ? 'default' : 'outline'}
-          onClick={() => setMode('view')}
-        >
-          <Users className="w-4 h-4 mr-2" />
-          Обзор
-        </Button>
-      </div>
-
-      {/* Stats */}
-      {stats && (
-        <div className="grid grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Всего задач</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
-                </div>
-                <Package className="w-10 h-10 text-gray-400" />
+      {/* Available Tasks Stats */}
+      {availableStats && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-900">Доступно задач для назначения</p>
+                <p className="text-3xl font-bold text-blue-600 mt-1">{availableStats.total_unassigned}</p>
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Не назначено</p>
-                  <p className="text-3xl font-bold text-amber-600">
-                    {stats.total - stats.pending - stats.in_progress - stats.completed}
-                  </p>
-                </div>
-                <AlertCircle className="w-10 h-10 text-amber-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">В работе</p>
-                  <p className="text-3xl font-bold text-blue-600">{stats.in_progress}</p>
-                </div>
-                <Users className="w-10 h-10 text-blue-400" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Завершено</p>
-                  <p className="text-3xl font-bold text-green-600">{stats.completed}</p>
-                </div>
-                <CheckCircle2 className="w-10 h-10 text-green-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Scope Statistics */}
-      {mode === 'view' && scopeStats.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Статистика по типам задач</CardTitle>
-            <CardDescription>Распределение задач по комбинациям проверок</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {scopeStats.map((stat) => (
-                <div key={stat.scope_key} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-1">
-                      {stat.scope_names.map((name) => {
-                        const stepType = STEP_TYPES.find(s => s.name === name)
-                        const Icon = stepType?.icon || Package
-                        return (
-                          <div
-                            key={name}
-                            className={`p-2 rounded ${stepType?.bgColor || 'bg-gray-100'}`}
-                          >
-                            <Icon className={`w-4 h-4 ${stepType?.color || 'text-gray-600'}`} />
-                          </div>
-                        )
-                      })}
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{stat.scope_names.join(' + ')}</p>
-                      <p className="text-sm text-gray-500">
-                        {stat.total} задач ({stat.assigned} назначено, {stat.unassigned} свободно)
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Badge variant="outline">{stat.total} всего</Badge>
-                    <Badge variant="secondary">{stat.unassigned} свободно</Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* User Assignments */}
-      {mode === 'view' && userAssignments.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Назначения по пользователям</CardTitle>
-            <CardDescription>Сколько задач назначено каждому аннотатору</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {userAssignments.map((assignment) => (
-                <div key={assignment.user_id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <User className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="font-medium text-gray-900">{assignment.user_email}</p>
-                      <p className="text-sm text-gray-500">{assignment.task_count} задач</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {Object.entries(assignment.by_scope).map(([scopeKey, count]) => {
-                      const scopeNames = scopeKey.split('+')
-                      return (
-                        <Badge key={scopeKey} variant="outline">
-                          {scopeNames.map(name => STEP_TYPES.find(s => s.id === name)?.shortName || name).join('+')} ({count})
-                        </Badge>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Assignment Form */}
-      {mode === 'assign' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Назначение новых задач</CardTitle>
-            <CardDescription>Выберите аннотаторов, типы проверок и фильтры</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Users Selection */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <Label className="text-base">Аннотаторы ({selectedUsers.length} выбрано)</Label>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={selectAllUsers}>
-                    Выбрать всех
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={unselectAll}>
-                    Снять выбор
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                {users.map((user) => (
-                  <div
-                    key={user.id}
-                    className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                      selectedUsers.includes(user.id) 
-                        ? 'border-blue-500 bg-blue-50' 
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                    onClick={() => toggleUser(user.id)}
-                  >
-                    <Checkbox 
-                      checked={selectedUsers.includes(user.id)} 
-                      onCheckedChange={() => toggleUser(user.id)}
-                    />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">{user.email}</p>
-                    </div>
-                  </div>
+              <div className="flex gap-2 flex-wrap">
+                {Object.entries(availableStats.by_scope).map(([scopeKey, data]) => (
+                  <Badge key={scopeKey} variant="outline" className="bg-white">
+                    {data.scope_names.join(' + ')}: {data.count}
+                  </Badge>
                 ))}
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
 
-            {/* Filter by Existing Scope */}
-            <div className="border-t pt-6">
-              <div className="flex items-center gap-2 mb-3">
-                <Filter className="w-4 h-4 text-gray-500" />
-                <Label className="text-base">Фильтр: назначить задачи, у которых УЖЕ есть</Label>
-              </div>
-              <p className="text-sm text-gray-500 mb-3">
-                Выберите какие проверки уже должны быть в задачах. Пусто = любые задачи.
-              </p>
-              
-              <div className="grid grid-cols-3 gap-3">
-                {STEP_TYPES.map((stepType) => {
-                  const Icon = stepType.icon
-                  const isSelected = filterByExistingScope.includes(stepType.id)
-                  
-                  return (
-                    <div
-                      key={stepType.id}
-                      className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
-                        isSelected
-                          ? 'border-purple-300 bg-purple-50' 
-                          : 'border-gray-200 hover:border-gray-300 bg-white'
-                      }`}
-                      onClick={() => toggleFilterScope(stepType.id)}
-                    >
-                      <Checkbox 
-                        checked={isSelected} 
-                        onCheckedChange={() => toggleFilterScope(stepType.id)}
-                      />
-                      <Icon className={`w-4 h-4 ${isSelected ? 'text-purple-600' : 'text-gray-400'}`} />
-                      <p className={`text-sm font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
-                        {stepType.name}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+      {/* Users Table */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-2">
+            {userStats.map((user) => {
+              const isSelected = selectedUserId === user.user_id
+              const isExpanded = isSelected
 
-            {/* Step Types Selection */}
-            <div className="border-t pt-6">
-              <div className="flex items-center justify-between mb-3">
-                <Label className="text-base">Назначить проверки ({selectedSteps.length} выбрано)</Label>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={selectAllSteps}>
-                    Все
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={clearSteps}>
-                    Сбросить
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-3">
-                {STEP_TYPES.map((stepType) => {
-                  const Icon = stepType.icon
-                  const isSelected = selectedSteps.includes(stepType.id)
-                  
-                  return (
-                    <div
-                      key={stepType.id}
-                      className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        isSelected
-                          ? `${stepType.borderColor} ${stepType.bgColor}` 
-                          : 'border-gray-200 hover:border-gray-300 bg-white'
-                      }`}
-                      onClick={() => toggleStep(stepType.id)}
-                    >
-                      <Checkbox 
-                        checked={isSelected} 
-                        onCheckedChange={() => toggleStep(stepType.id)}
-                      />
-                      <Icon className={`w-5 h-5 ${isSelected ? stepType.color : 'text-gray-400'}`} />
+              return (
+                <div key={user.user_id} className="border rounded-lg">
+                  {/* User Row */}
+                  <div
+                    className={`flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
+                      isSelected ? 'bg-blue-50' : ''
+                    }`}
+                    onClick={() => setSelectedUserId(isSelected ? null : user.user_id)}
+                  >
+                    <div className="flex items-center gap-4 flex-1">
+                      {isExpanded ? (
+                        <ChevronDown className="w-5 h-5 text-gray-400" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                      )}
+                      
                       <div className="flex-1">
-                        <p className={`text-sm font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
-                          {stepType.name}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900">{user.user_email}</p>
+                          {user.role === 'admin' && (
+                            <Badge variant="secondary">Админ</Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-gray-900">{user.total_tasks}</p>
+                          <p className="text-xs text-gray-500">задач</p>
+                        </div>
+
+                        <div className="flex gap-2 flex-wrap max-w-md">
+                          {Object.entries(user.by_scope).map(([scopeKey, data]) => (
+                            <Badge key={scopeKey} variant="outline">
+                              {data.scope_names.join('+')} ({data.count})
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  )
-                })}
-              </div>
-            </div>
+                  </div>
 
-            {/* Parameters Grid */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Количество задач на пользователя</Label>
-                <Select value={taskCount} onValueChange={setTaskCount}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5 задач</SelectItem>
-                    <SelectItem value="10">10 задач</SelectItem>
-                    <SelectItem value="20">20 задач</SelectItem>
-                    <SelectItem value="50">50 задач</SelectItem>
-                    <SelectItem value="100">100 задач</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  {/* Assignment Panel */}
+                  {isExpanded && (
+                    <div className="border-t bg-gray-50 p-6 space-y-6">
+                      {/* Filter Section */}
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-3">
+                          Фильтр: назначить задачи, у которых УЖЕ есть
+                        </p>
+                        <div className="grid grid-cols-6 gap-2">
+                          {STEP_TYPES.map((step) => (
+                            <div
+                              key={step.id}
+                              className={`flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors ${
+                                filterScopes.includes(step.id)
+                                  ? 'bg-purple-100 border-purple-300'
+                                  : 'bg-white border-gray-200 hover:border-gray-300'
+                              }`}
+                              onClick={() => toggleFilterScope(step.id)}
+                            >
+                              <Checkbox
+                                checked={filterScopes.includes(step.id)}
+                                onCheckedChange={() => toggleFilterScope(step.id)}
+                              />
+                              <span className="text-sm">{step.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {filterScopes.length === 0 && (
+                          <p className="text-xs text-gray-500 mt-2">Пусто = любые задачи</p>
+                        )}
+                      </div>
 
-              <div>
-                <Label>Приоритет</Label>
-                <Select value={priority} onValueChange={setPriority}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Низкий</SelectItem>
-                    <SelectItem value="medium">Средний</SelectItem>
-                    <SelectItem value="high">Высокий</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                      {/* Assign Section */}
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-3">
+                          Назначить проверки (добавятся к существующим)
+                        </p>
+                        <div className="grid grid-cols-6 gap-2">
+                          {STEP_TYPES.map((step) => (
+                            <div
+                              key={step.id}
+                              className={`flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors ${
+                                assignScopes.includes(step.id)
+                                  ? 'bg-green-100 border-green-300'
+                                  : 'bg-white border-gray-200 hover:border-gray-300'
+                              }`}
+                              onClick={() => toggleAssignScope(step.id)}
+                            >
+                              <Checkbox
+                                checked={assignScopes.includes(step.id)}
+                                onCheckedChange={() => toggleAssignScope(step.id)}
+                              />
+                              <span className="text-sm">{step.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
-            {/* Submit */}
-            <div className="pt-4 border-t space-y-3">
-              {/* Summary */}
-              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Аннотаторов:</span>
-                  <span className="font-semibold text-gray-900">{selectedUsers.length}</span>
+                      {/* Task Count */}
+                      <div className="flex items-center gap-4">
+                        <label className="text-sm font-medium text-gray-700">
+                          Количество задач:
+                        </label>
+                        <div className="flex gap-2">
+                          {[5, 10, 20, 50, 100].map((count) => (
+                            <button
+                              key={count}
+                              onClick={() => setTaskCount(count)}
+                              className={`px-3 py-1 rounded border text-sm ${
+                                taskCount === count
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                              }`}
+                            >
+                              {count}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Action Button */}
+                      <div className="flex items-center justify-between pt-4 border-t">
+                        <div className="text-sm text-gray-600">
+                          {assignScopes.length === 0 ? (
+                            <span className="text-red-600">Выберите хотя бы одну проверку</span>
+                          ) : (
+                            <span>
+                              Будет назначено: <strong>{taskCount}</strong> задач с проверками{' '}
+                              <strong>{assignScopes.map(id => STEP_TYPES.find(s => s.id === id)?.name).join(', ')}</strong>
+                            </span>
+                          )}
+                        </div>
+                        <Button
+                          onClick={handleAssign}
+                          disabled={loading || assignScopes.length === 0}
+                          size="lg"
+                        >
+                          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Назначить
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Задач на каждого:</span>
-                  <span className="font-semibold text-gray-900">{taskCount}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Фильтр (уже есть):</span>
-                  <span className="font-semibold text-gray-900">
-                    {filterByExistingScope.length === 0 
-                      ? 'Любые' 
-                      : getScopeDisplay(filterByExistingScope)
-                    }
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Назначить проверки:</span>
-                  <span className="font-semibold text-gray-900">
-                    {getScopeDisplay(selectedSteps)}
-                  </span>
-                </div>
-                <div className="pt-2 border-t border-gray-200 flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Всего будет назначено:</span>
-                  <span className="text-lg font-bold text-blue-600">
-                    {selectedUsers.length * parseInt(taskCount)} задач
-                  </span>
-                </div>
-              </div>
-              
-              {/* Action Button */}
-              <Button 
-                onClick={handleAssign} 
-                disabled={loading || selectedUsers.length === 0 || selectedSteps.length === 0}
-                size="lg"
-                className="w-full"
-              >
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {success ? '✓ Назначено!' : 'Назначить задачи'}
-              </Button>
+              )
+            })}
+          </div>
+
+          {userStats.length === 0 && (
+            <div className="text-center py-12 text-gray-500">
+              Нет пользователей
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Reassignment Form */}
-      {mode === 'reassign' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Переназначение задач</CardTitle>
-            <CardDescription>Перенести задачи от одного пользователя к другому</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>От пользователя</Label>
-                <Select value={fromUserId} onValueChange={setFromUserId}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Выберите пользователя" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allUsers.map((user) => {
-                      const assignment = userAssignments.find(a => a.user_id === user.id)
-                      return (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.email} {assignment ? `(${assignment.task_count} задач)` : ''}
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>К пользователю</Label>
-                <Select value={toUserId} onValueChange={setToUserId}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Выберите пользователя" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allUsers.map((user) => {
-                      const assignment = userAssignments.find(a => a.user_id === user.id)
-                      return (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.email} {assignment ? `(${assignment.task_count} задач)` : ''}
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label>Количество задач для переназначения</Label>
-              <Select value={reassignCount} onValueChange={setReassignCount}>
-                <SelectTrigger className="mt-2">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5 задач</SelectItem>
-                  <SelectItem value="10">10 задач</SelectItem>
-                  <SelectItem value="20">20 задач</SelectItem>
-                  <SelectItem value="50">50 задач</SelectItem>
-                  <SelectItem value="all">Все задачи</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button 
-              onClick={handleReassign} 
-              disabled={loading || !fromUserId || !toUserId}
-              size="lg"
-              className="w-full"
-            >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {success ? '✓ Переназначено!' : 'Переназначить задачи'}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
