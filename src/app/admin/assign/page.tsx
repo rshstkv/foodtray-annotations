@@ -163,6 +163,22 @@ export default function AssignTasksPage() {
     setSelectedUsers([])
   }
 
+  const toggleStep = (stepId: string) => {
+    setSelectedSteps(prev =>
+      prev.includes(stepId)
+        ? prev.filter(id => id !== stepId)
+        : [...prev, stepId]
+    )
+  }
+
+  const selectAllSteps = () => {
+    setSelectedSteps(STEP_TYPES.map(s => s.id))
+  }
+
+  const clearSteps = () => {
+    setSelectedSteps([])
+  }
+
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-6">
       <div>
@@ -255,24 +271,53 @@ export default function AssignTasksPage() {
             </div>
           </div>
 
-          {/* Scope Selection */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Тип задач</Label>
-              <Select value={selectedScope} onValueChange={setSelectedScope}>
-                <SelectTrigger className="mt-2">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEFAULT_SCOPES.map(scope => (
-                    <SelectItem key={scope.id} value={scope.id}>
-                      {scope.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Step Types Selection */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <Label className="text-base">Типы проверок ({selectedSteps.length} выбрано)</Label>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={selectAllSteps}>
+                  Все
+                </Button>
+                <Button variant="outline" size="sm" onClick={clearSteps}>
+                  Сбросить
+                </Button>
+              </div>
             </div>
+            
+            <div className="grid grid-cols-3 gap-3">
+              {STEP_TYPES.map((stepType) => {
+                const Icon = stepType.icon
+                const isSelected = selectedSteps.includes(stepType.id)
+                
+                return (
+                  <div
+                    key={stepType.id}
+                    className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      isSelected
+                        ? `${stepType.borderColor} ${stepType.bgColor}` 
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                    onClick={() => toggleStep(stepType.id)}
+                  >
+                    <Checkbox 
+                      checked={isSelected} 
+                      onCheckedChange={() => toggleStep(stepType.id)}
+                    />
+                    <Icon className={`w-5 h-5 ${isSelected ? stepType.color : 'text-gray-400'}`} />
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
+                        {stepType.name}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
 
+          {/* Parameters Grid */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Количество задач на пользователя</Label>
               <Select value={taskCount} onValueChange={setTaskCount}>
@@ -287,32 +332,59 @@ export default function AssignTasksPage() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          {/* Priority */}
-          <div>
-            <Label>Приоритет</Label>
-            <Select value={priority} onValueChange={setPriority}>
-              <SelectTrigger className="mt-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="low">Низкий</SelectItem>
-                <SelectItem value="medium">Средний</SelectItem>
-                <SelectItem value="high">Высокий</SelectItem>
-              </SelectContent>
-            </Select>
+            <div>
+              <Label>Приоритет</Label>
+              <Select value={priority} onValueChange={setPriority}>
+                <SelectTrigger className="mt-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Низкий</SelectItem>
+                  <SelectItem value="medium">Средний</SelectItem>
+                  <SelectItem value="high">Высокий</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Submit */}
-          <div className="flex items-center justify-between pt-4 border-t">
-            <p className="text-sm text-gray-600">
-              Будет назначено: <span className="font-semibold">{selectedUsers.length * parseInt(taskCount)}</span> задач
-            </p>
+          <div className="pt-4 border-t space-y-3">
+            {/* Summary */}
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">Аннотаторов:</span>
+                <span className="font-semibold text-gray-900">{selectedUsers.length}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">Задач на каждого:</span>
+                <span className="font-semibold text-gray-900">{taskCount}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">Типы проверок:</span>
+                <span className="font-semibold text-gray-900">
+                  {selectedSteps.length === 0 
+                    ? 'Не выбрано' 
+                    : selectedSteps.length === STEP_TYPES.length 
+                      ? 'Полный цикл' 
+                      : selectedSteps.map(id => STEP_TYPES.find(s => s.id === id)?.name).join(' + ')
+                  }
+                </span>
+              </div>
+              <div className="pt-2 border-t border-gray-200 flex items-center justify-between">
+                <span className="text-sm text-gray-600">Всего будет назначено:</span>
+                <span className="text-lg font-bold text-blue-600">
+                  {selectedUsers.length * parseInt(taskCount)} задач
+                </span>
+              </div>
+            </div>
+            
+            {/* Action Button */}
             <Button 
               onClick={handleAssign} 
-              disabled={loading || selectedUsers.length === 0}
+              disabled={loading || selectedUsers.length === 0 || selectedSteps.length === 0}
               size="lg"
+              className="w-full"
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {success ? '✓ Назначено!' : 'Назначить задачи'}
