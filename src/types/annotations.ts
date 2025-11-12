@@ -125,6 +125,84 @@ export interface TaskProgress {
   steps: StepProgress[]
 }
 
+// ============================================================================
+// Validated State (история валидации)
+// ============================================================================
+
+// Лог изменений (delta) - все изменения которые делает пользователь
+export type ChangeLogEntry = 
+  | { 
+      type: 'dish_resolved'
+      timestamp: string
+      dish_index: number
+      selected_name: string
+      previous_names: string[]
+    }
+  | { 
+      type: 'dish_count_changed'
+      timestamp: string
+      dish_index: number
+      old_count: number
+      new_count: number
+    }
+  | { 
+      type: 'dish_added_from_menu'
+      timestamp: string
+      dish_name: string
+      external_id: string
+      count: number
+    }
+  | { 
+      type: 'annotation_created'
+      timestamp: string
+      annotation_id: string
+      object_type: string
+      image_id: string
+    }
+  | { 
+      type: 'annotation_deleted'
+      timestamp: string
+      annotation_id: string
+      reason?: string
+    }
+  | { 
+      type: 'annotation_moved'
+      timestamp: string
+      annotation_id: string
+      old_bbox: [number, number, number, number]
+      new_bbox: [number, number, number, number]
+    }
+  | { 
+      type: 'overlap_marked'
+      timestamp: string
+      annotation_id: string
+      is_overlapped: boolean
+    }
+
+// Snapshot состояния после завершения этапа
+export interface StepSnapshot {
+  validated_at: string
+  validated_by: string
+  snapshot: {
+    dishes: DishFromReceipt[]
+    annotations: {
+      [image_id: string]: Annotation[]
+    }
+  }
+  changes_log: ChangeLogEntry[]
+}
+
+// Полное валидированное состояние задачи
+export interface ValidatedState {
+  steps: {
+    [step_id: string]: StepSnapshot
+  }
+  current_draft: {
+    step_id: string
+    changes_log: ChangeLogEntry[]
+  } | null
+}
+
 export interface Task {
   id: string
   recognition_id: string
@@ -135,6 +213,9 @@ export interface Task {
   // Scope и прогресс
   task_scope: TaskScope
   progress: TaskProgress
+  
+  // Валидированное состояние (snapshot после каждого этапа)
+  validated_state: ValidatedState | null
   
   // Workflow
   status: TaskStatus

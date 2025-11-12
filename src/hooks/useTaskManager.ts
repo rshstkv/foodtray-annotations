@@ -21,7 +21,7 @@ export interface UseTaskManagerReturn {
   completeStep: () => Promise<void>
   skipStep: () => Promise<void>
   skipTask: (reason?: string) => Promise<void>
-  saveProgress: () => Promise<void>
+  saveProgress: (annotations?: any[], modifiedDishes?: any[]) => Promise<void>
 }
 
 export function useTaskManager(taskId: string): UseTaskManagerReturn {

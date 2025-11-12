@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
+import type { ValidatedState, StepSnapshot, Annotation } from '@/types/annotations'
 
 /**
  * POST /api/tasks/{task_id}/complete
@@ -13,6 +14,7 @@ import { createClient } from '@/lib/supabase-server'
  * 1. Если step_id указан - завершаем этап в progress
  * 2. Если это последний этап - завершаем всю задачу
  * 3. Если step_id не указан - завершаем всю задачу целиком
+ * 4. Создаем snapshot валидированного состояния для завершенного этапа
  */
 export async function POST(
   request: NextRequest,
@@ -65,6 +67,7 @@ export async function POST(
   const updatedProgress = { ...progress }
   let taskCompleted = false
   let nextStep: typeof steps[0] | null = null
+  let validatedStateToSave: ValidatedState | null = null
 
   if (step_id) {
     // Завершаем конкретный этап
@@ -76,6 +79,61 @@ export async function POST(
           { status: 400 }
         )
       }
+
+      // Создаем snapshot валидированного состояния для этого этапа
+      console.log(`[tasks/complete] Creating snapshot for step: ${step_id}`)
+      
+      // Получаем текущие аннотации и validated_state
+      const { data: fullTask, error: fullTaskError } = await supabaseServer
+        .from('tasks')
+        .select('validated_state, task_scope, images(id), annotations(*)')
+        .eq('id', taskId)
+        .single()
+
+      if (fullTaskError) {
+        console.error('[tasks/complete] Error fetching full task:', fullTaskError)
+        return NextResponse.json(
+          { error: 'Failed to fetch task data for snapshot' },
+          { status: 500 }
+        )
+      }
+
+      const validatedState: ValidatedState = fullTask.validated_state || { 
+        steps: {}, 
+        current_draft: null 
+      }
+
+      // Получить текущее состояние чека (используем modified_dishes если есть, иначе оригинальный)
+      const dishes = fullTask.task_scope?.modified_dishes || []
+
+      // Группировать аннотации по image_id (только активные)
+      const annotationsByImage: { [key: string]: Annotation[] } = {}
+      for (const ann of (fullTask.annotations || [])) {
+        if (!ann.is_deleted) {
+          if (!annotationsByImage[ann.image_id]) {
+            annotationsByImage[ann.image_id] = []
+          }
+          annotationsByImage[ann.image_id].push(ann)
+        }
+      }
+
+      // Создать snapshot
+      const snapshot: StepSnapshot = {
+        validated_at: new Date().toISOString(),
+        validated_by: user.id,
+        snapshot: {
+          dishes,
+          annotations: annotationsByImage
+        },
+        changes_log: validatedState.current_draft?.changes_log || []
+      }
+
+      // Сохранить snapshot и очистить draft
+      validatedState.steps[step_id] = snapshot
+      validatedState.current_draft = null
+      validatedStateToSave = validatedState
+
+      console.log(`[tasks/complete] Snapshot created with ${Object.keys(annotationsByImage).length} images, ${dishes.length} dishes, ${snapshot.changes_log.length} changes`)
 
       // Обновляем progress для этого этапа
       updatedProgress.steps[stepIndex] = {
@@ -107,6 +165,11 @@ export async function POST(
     // Обновляем task
     const updateData: Record<string, unknown> = {
       progress: updatedProgress
+    }
+
+    // Добавляем validated_state если был создан snapshot
+    if (validatedStateToSave) {
+      updateData.validated_state = validatedStateToSave
     }
 
     if (taskCompleted) {

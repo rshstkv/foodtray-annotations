@@ -107,48 +107,93 @@ export async function GET(request: NextRequest) {
       },
       data: (recognitions || []).map(recognition => {
         const recognitionImages = (images || []).filter(img => img.recognition_id === recognition.recognition_id)
-        
-        // Найти задачу для этого recognition чтобы получить modified_dishes
-        // Если есть несколько задач для одного recognition, приоритет задаче с modified_dishes
         const recognitionTasks = tasks.filter(t => t.recognition_id === recognition.recognition_id)
-        const taskWithModifications = recognitionTasks.find(t => t.task_scope?.modified_dishes) || recognitionTasks[0]
-        const modifiedDishes = taskWithModifications?.task_scope?.modified_dishes
+        
+        // Приоритет 1: Использовать validated_state если есть завершенные этапы
+        const taskWithValidation = recognitionTasks.find(t => 
+          t.validated_state && Object.keys(t.validated_state.steps).length > 0
+        )
+        
+        let finalDishes = recognition.correct_dishes
+        let annotationsByImageId: { [key: string]: any[] } = {}
+        let changesHistory: any[] = []
+
+        if (taskWithValidation?.validated_state) {
+          // Используем данные из последнего завершенного этапа
+          const completedSteps = Object.entries(taskWithValidation.validated_state.steps)
+          
+          if (completedSteps.length > 0) {
+            // Последний завершенный этап содержит финальное состояние
+            const [lastStepId, lastStepSnapshot] = completedSteps[completedSteps.length - 1]
+            finalDishes = lastStepSnapshot.snapshot.dishes
+            annotationsByImageId = lastStepSnapshot.snapshot.annotations
+            
+            // Собрать полную историю изменений из всех этапов
+            changesHistory = completedSteps.flatMap(([stepId, snapshot]) => 
+              snapshot.changes_log.map(change => ({ ...change, step_id: stepId }))
+            )
+            
+            console.log(`[export] Using validated_state for recognition ${recognition.recognition_id}: ${completedSteps.length} step(s), ${changesHistory.length} change(s)`)
+          }
+        } else {
+          // Fallback: использовать текущие данные из БД (старая логика)
+          const taskWithModifications = recognitionTasks.find(t => t.task_scope?.modified_dishes) || recognitionTasks[0]
+          finalDishes = taskWithModifications?.task_scope?.modified_dishes || recognition.correct_dishes
+          
+          // Группировать аннотации по image_id
+          for (const image of recognitionImages) {
+            const imageAnnotations = (annotations || []).filter(ann => 
+              ann.image_id === image.id && !ann.is_deleted
+            )
+            if (imageAnnotations.length > 0) {
+              annotationsByImageId[image.id] = imageAnnotations
+            }
+          }
+          
+          console.log(`[export] Using fallback data for recognition ${recognition.recognition_id}`)
+        }
+
+        // Формируем images массив из annotationsByImageId
+        const exportImages = recognitionImages.map(image => {
+          const imageAnnotations = annotationsByImageId[image.id] || []
+          
+          return {
+            image_id: image.id,
+            image_type: image.image_type,
+            storage_path: image.storage_path,
+            width: image.width,
+            height: image.height,
+            annotations: imageAnnotations.map(ann => ({
+              id: ann.id,
+              object_type: ann.object_type,
+              object_subtype: ann.object_subtype,
+              dish_index: ann.dish_index,
+              custom_dish_name: ann.custom_dish_name,
+              bbox: {
+                x1: ann.bbox_x1,
+                y1: ann.bbox_y1,
+                x2: ann.bbox_x2,
+                y2: ann.bbox_y2,
+              },
+              is_overlapped: ann.is_overlapped,
+              source: ann.source,
+              created_by: ann.created_by,
+              updated_by: ann.updated_by,
+              created_at: ann.created_at,
+              updated_at: ann.updated_at,
+            })),
+          }
+        })
         
         return {
           recognition_id: recognition.recognition_id,
           recognition_date: recognition.recognition_date,
-          correct_dishes: modifiedDishes || recognition.correct_dishes, // Используем измененный чек если есть
+          validated_dishes: finalDishes, // Финальная версия после валидации
+          original_dishes: recognition.correct_dishes, // Оригинальная версия из Qwen
+          correct_dishes: finalDishes, // Backward compatibility
           menu_all: recognition.menu_all,
-          images: recognitionImages.map(image => {
-            const imageAnnotations = (annotations || []).filter(ann => ann.image_id === image.id)
-            
-            return {
-              image_id: image.id,
-              image_type: image.image_type,
-              storage_path: image.storage_path,
-              width: image.width,
-              height: image.height,
-              annotations: imageAnnotations.map(ann => ({
-                id: ann.id,
-                object_type: ann.object_type,
-                object_subtype: ann.object_subtype,
-                dish_index: ann.dish_index,
-                custom_dish_name: ann.custom_dish_name,
-                bbox: {
-                  x1: ann.bbox_x1,
-                  y1: ann.bbox_y1,
-                  x2: ann.bbox_x2,
-                  y2: ann.bbox_y2,
-                },
-                is_overlapped: ann.is_overlapped,
-                source: ann.source,
-                created_by: ann.created_by,
-                updated_by: ann.updated_by,
-                created_at: ann.created_at,
-                updated_at: ann.updated_at,
-              })),
-            }
-          }),
+          images: exportImages,
+          changes_history: changesHistory, // Полная история изменений
         }
       }),
     }
