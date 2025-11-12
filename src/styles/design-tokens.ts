@@ -14,10 +14,10 @@ export const objectColors = {
 
 // Buzzer colors (только цвета из Приложения B)
 export const buzzerColors = {
-  red: '#EF4444',       // red-500 - мясо
-  green: '#10B981',     // green-500 - паста
-  blue: '#3B82F6',      // blue-500 - рыба
-  yellow: '#F59E0B',    // amber-500 - пицца
+  red: '#EF4444',       // red-500
+  green: '#10B981',     // green-500
+  blue: '#3B82F6',      // blue-500
+  white: '#F3F4F6',     // gray-100
 } as const
 
 // Status colors

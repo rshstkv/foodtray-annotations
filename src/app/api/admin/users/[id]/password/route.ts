@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
-import { supabase } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabase'
 
 // Проверка роли админа
 async function checkAdminRole(supabase: any) {
@@ -57,7 +57,8 @@ export async function POST(
     const newPassword = body.password || generatePassword(12)
 
     // Проверяем что пользователь существует
-    const { data: profile, error: profileError } = await supabase
+    const adminClient = createAdminClient()
+    const { data: profile, error: profileError } = await adminClient
       .from('profiles')
       .select('email, full_name')
       .eq('id', userId)

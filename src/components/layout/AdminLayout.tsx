@@ -2,19 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, BarChart3, Download, LayoutDashboard, ClipboardList } from 'lucide-react'
+import { Users, BarChart3, Download, ClipboardList } from 'lucide-react'
 
 interface AdminLayoutProps {
   children: React.ReactNode
 }
 
 const navItems = [
-  { 
-    href: '/admin', 
-    label: 'Dashboard', 
-    icon: LayoutDashboard,
-    exact: true 
-  },
   { 
     href: '/admin/assign', 
     label: 'Назначение задач', 

@@ -8,7 +8,7 @@ const BUZZER_COLORS = [
   { id: 'red', name: 'Красный', color: '#ef4444' },
   { id: 'green', name: 'Зеленый', color: '#22c55e' },
   { id: 'blue', name: 'Синий', color: '#3b82f6' },
-  { id: 'yellow', name: 'Желтый', color: '#eab308' },
+  { id: 'white', name: 'Белый', color: '#f3f4f6' },
 ]
 
 interface BuzzerAnnotationPanelProps {
