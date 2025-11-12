@@ -470,8 +470,6 @@ export default function AdminAssignPage() {
           )}
         </CardContent>
       </Card>
-        </CardContent>
-      </Card>
     </div>
   )
 }
