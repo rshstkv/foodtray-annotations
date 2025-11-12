@@ -12,7 +12,7 @@ export async function GET(
     // Получаем изображение из storage
     const { data, error } = await supabase
       .storage
-      .from('bbox-images')
+      .from('recognition-images')
       .download(imagePath)
 
     if (error || !data) {

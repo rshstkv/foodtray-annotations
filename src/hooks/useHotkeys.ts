@@ -1,42 +1,164 @@
-import { useEffect } from 'react'
+'use client'
 
-type HotkeyHandler = (e: KeyboardEvent) => void
+import { useEffect, useCallback } from 'react'
+import { UseTaskManagerReturn } from './useTaskManager'
+import { UseAnnotationManagerReturn } from './useAnnotationManager'
 
-interface Hotkey {
-  key: string
-  ctrl?: boolean
-  shift?: boolean
-  alt?: boolean
-  handler: HotkeyHandler
+interface UseHotkeysOptions {
+  taskManager: UseTaskManagerReturn
+  annotationManager: UseAnnotationManagerReturn
+  onToggleVisibility?: () => void
+  onSelectDish?: (dishIndex: number) => void
+  enabled?: boolean
 }
 
-export function useHotkeys(hotkeys: Hotkey[]) {
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      for (const hotkey of hotkeys) {
-        const ctrlMatch = hotkey.ctrl ? e.ctrlKey || e.metaKey : !e.ctrlKey && !e.metaKey
-        const shiftMatch = hotkey.shift ? e.shiftKey : !e.shiftKey
-        const altMatch = hotkey.alt ? e.altKey : !e.altKey
-        const keyMatch = e.key.toLowerCase() === hotkey.key.toLowerCase()
+/**
+ * Централизованная обработка всех горячих клавиш
+ * 
+ * Hotkeys:
+ * - 1-9: Выбор блюда по индексу
+ * - ↑/↓: Навигация по аннотациям
+ * - H: Toggle видимость всех bbox
+ * - S: Сохранить прогресс
+ * - Enter: Завершить этап
+ * - Esc: Снять выделение / остановить рисование
+ * - Delete/Backspace: Удалить выбранную аннотацию
+ */
+export function useHotkeys({
+  taskManager,
+  annotationManager,
+  onToggleVisibility,
+  onSelectDish,
+  enabled = true,
+}: UseHotkeysOptions) {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!enabled) return
 
-        if (ctrlMatch && shiftMatch && altMatch && keyMatch) {
-          e.preventDefault()
-          hotkey.handler(e)
-          break
+    // Игнорируем hotkeys если фокус в input/textarea
+    const target = e.target as HTMLElement
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      return
+    }
+
+    // 1-9: Выбор блюда
+    if (e.key >= '1' && e.key <= '9') {
+      const dishIndex = parseInt(e.key) - 1
+      
+      // Синхронизируем с sidebar
+      if (onSelectDish) {
+        onSelectDish(dishIndex)
+      }
+      
+      annotationManager.setHighlightedDishIndex(dishIndex)
+      
+      // Выделить первый bbox этого блюда
+      const dishAnnotations = annotationManager.annotations.filter(
+        a => a.object_type === 'dish' && a.dish_index === dishIndex && !a.is_deleted
+      )
+      
+      if (dishAnnotations.length > 0) {
+        annotationManager.setSelectedAnnotationId(dishAnnotations[0].id)
+      }
+      
+      e.preventDefault()
+      return
+    }
+
+    // ↑/↓: Previous/Next annotation
+    // Если выбрано блюдо (через 1-9), переключаем только bbox этого блюда
+    // Иначе переключаем все аннотации
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      const currentlyHighlightedDish = annotationManager.highlightedDishIndex
+      
+      if (currentlyHighlightedDish !== null) {
+        // Переключаем только между bbox этого блюда
+        const dishAnnotations = annotationManager.annotations.filter(
+          a => a.object_type === 'dish' && 
+               a.dish_index === currentlyHighlightedDish && 
+               !a.is_deleted
+        )
+        
+        if (dishAnnotations.length > 0) {
+          const currentIndex = annotationManager.selectedAnnotationId
+            ? dishAnnotations.findIndex(a => a.id === annotationManager.selectedAnnotationId)
+            : -1
+          
+          let nextIndex
+          if (e.key === 'ArrowDown') {
+            nextIndex = (currentIndex + 1) % dishAnnotations.length
+          } else {
+            nextIndex = currentIndex <= 0 ? dishAnnotations.length - 1 : currentIndex - 1
+          }
+          
+          annotationManager.setSelectedAnnotationId(dishAnnotations[nextIndex].id)
+        }
+      } else {
+        // Переключаем все аннотации
+        if (e.key === 'ArrowDown') {
+          annotationManager.selectNext()
+        } else {
+          annotationManager.selectPrev()
         }
       }
+      
+      e.preventDefault()
+      return
     }
+
+    // H: Toggle visibility
+    if (e.key === 'h' || e.key === 'H') {
+      onToggleVisibility?.()
+      e.preventDefault()
+      return
+    }
+
+    // S: Save progress
+    if (e.key === 's' || e.key === 'S') {
+      if (!taskManager.isSaving) {
+        taskManager.saveProgress()
+      }
+      e.preventDefault()
+      return
+    }
+
+    // Enter: Complete step
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+      if (!taskManager.isSaving) {
+        taskManager.completeStep()
+      }
+      e.preventDefault()
+      return
+    }
+
+    // Esc: Deselect / Stop drawing
+    if (e.key === 'Escape') {
+      if (annotationManager.isDrawing) {
+        annotationManager.stopDrawing()
+      } else {
+        annotationManager.setSelectedAnnotationId(null)
+        annotationManager.setHighlightedDishIndex(null)
+      }
+      e.preventDefault()
+      return
+    }
+
+    // Delete/Backspace: Delete selected annotation
+    if ((e.key === 'Delete' || e.key === 'Backspace') && annotationManager.selectedAnnotationId) {
+      annotationManager.deleteAnnotation(annotationManager.selectedAnnotationId)
+      e.preventDefault()
+      return
+    }
+  }, [
+    enabled,
+    taskManager,
+    annotationManager,
+    onToggleVisibility,
+  ])
+
+  useEffect(() => {
+    if (!enabled) return
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [hotkeys])
+  }, [handleKeyDown, enabled])
 }
-
-
-
-
-
-
-
-
-

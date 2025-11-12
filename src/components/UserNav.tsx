@@ -71,7 +71,7 @@ export function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => router.push('/annotations/tasks')}>
+        <DropdownMenuItem onClick={() => router.push('/tasks')}>
           📋 Задачи
         </DropdownMenuItem>
         {user.role === 'admin' && (

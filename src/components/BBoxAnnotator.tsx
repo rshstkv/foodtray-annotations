@@ -5,8 +5,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { AnnotationControls } from './AnnotationControls'
 
 interface Annotation {
-  id: number
-  image_id: number
+  id: string | number
+  image_id: string | number
   bbox_x1: number
   bbox_y1: number
   bbox_x2: number
@@ -39,7 +39,7 @@ interface BBoxAnnotatorProps {
     bbox_x2: number
     bbox_y2: number
   }) => void
-  onAnnotationUpdate?: (id: number, updates: {
+  onAnnotationUpdate?: (id: string | number, updates: {
     bbox_x1?: number
     bbox_y1?: number
     bbox_x2?: number
@@ -59,8 +59,8 @@ interface BBoxAnnotatorProps {
   onDelete?: () => void
   onToggleOverlapped?: (annotationId: number) => void
   onToggleOrientation?: (annotationId: number) => void
-  onToggleError?: (id: number) => void
-  updateAnnotationLocally?: (id: number, updates: Partial<Annotation>) => void // NEW: для оптимистичных обновлений
+  onToggleError?: (id: string | number) => void
+  updateAnnotationLocally?: (id: string | number, updates: Partial<Annotation>) => void // NEW: для оптимистичных обновлений
 }
 
 // Цвета для разных блюд
@@ -108,14 +108,14 @@ export default function BBoxAnnotator({
   const [drawCurrent, setDrawCurrent] = useState<{ x: number; y: number } | null>(null)
   
   // Состояние для drag & resize
-  const [draggedAnnotation, setDraggedAnnotation] = useState<number | null>(null)
+  const [draggedAnnotation, setDraggedAnnotation] = useState<number | string | null>(null)
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
   const [resizeHandle, setResizeHandle] = useState<string | null>(null) // 'tl', 'tr', 'bl', 'br'
   
   // Ref для хранения начальных координат bbox при старте drag/resize
   const initialBBoxRef = useRef<{bbox_x1: number, bbox_y1: number, bbox_x2: number, bbox_y2: number} | null>(null)
   // State для локального отображения во время драга
-  const [tempBBox, setTempBBox] = useState<{id: number, bbox: {bbox_x1: number, bbox_y1: number, bbox_x2: number, bbox_y2: number}} | null>(null)
+  const [tempBBox, setTempBBox] = useState<{id: number | string, bbox: {bbox_x1: number, bbox_y1: number, bbox_x2: number, bbox_y2: number}} | null>(null)
 
   // Debounce helper
   const debounce = <T extends (...args: any[]) => void>(fn: T, delay: number) => {
@@ -176,37 +176,34 @@ export default function BBoxAnnotator({
     (x: number, y: number) => {
       if (!naturalSize || !renderMetrics) return { x: 0, y: 0 }
 
-      const scaleRefToNaturalX = naturalSize.w / referenceWidth
-      const scaleRefToNaturalY = naturalSize.h / referenceHeight
-
-      const naturalX = x * scaleRefToNaturalX
-      const naturalY = y * scaleRefToNaturalY
+      // Координаты в БД нормализованы (0-1), конвертируем их напрямую в natural, затем в screen
+      const naturalX = x * naturalSize.w
+      const naturalY = y * naturalSize.h
 
       const screenX = renderMetrics.offsetX + naturalX * renderMetrics.scale
       const screenY = renderMetrics.offsetY + naturalY * renderMetrics.scale
 
       return { x: screenX, y: screenY }
     },
-    [naturalSize, renderMetrics, referenceWidth, referenceHeight]
+    [naturalSize, renderMetrics]
   )
 
-  // Конвертация координат из screen (canvas) в reference (БД)
+  // Конвертация координат из screen (canvas) в normalized (БД: 0-1)
   const screenToRef = useCallback(
     (x: number, y: number) => {
       if (!naturalSize || !renderMetrics) return { x: 0, y: 0 }
 
+      // Screen -> Natural -> Normalized
       const naturalX = (x - renderMetrics.offsetX) / renderMetrics.scale
       const naturalY = (y - renderMetrics.offsetY) / renderMetrics.scale
 
-      const scaleNaturalToRefX = referenceWidth / naturalSize.w
-      const scaleNaturalToRefY = referenceHeight / naturalSize.h
+      // Нормализуем к 0-1
+      const normalizedX = naturalX / naturalSize.w
+      const normalizedY = naturalY / naturalSize.h
 
-      const refX = naturalX * scaleNaturalToRefX
-      const refY = naturalY * scaleNaturalToRefY
-
-      return { x: Math.round(refX), y: Math.round(refY) }
+      return { x: normalizedX, y: normalizedY }
     },
-    [naturalSize, renderMetrics, referenceWidth, referenceHeight]
+    [naturalSize, renderMetrics]
   )
 
   // Обработка рисования нового bbox
@@ -477,19 +474,12 @@ export default function BBoxAnnotator({
           const p2 = refToScreen(coords.bbox_x2, coords.bbox_y2)
 
           // Bbox считается выбранным если:
-          // 1. Это тот же самый bbox (по id)
-          // 2. ИЛИ это bbox того же блюда, что и selectedAnnotation
-          const isSelected = selectedAnnotation?.id === annotation.id || 
-            (selectedAnnotation && selectedAnnotation.dish_index !== null && 
-             selectedAnnotation.dish_index === annotation.dish_index)
-          // Подсветка: для блюд по dish_index, для plates когда highlightDishIndex === -1
-          const isHighlighted = !isSelected && highlightDishIndex !== null && highlightDishIndex !== undefined && 
-            (annotation.dish_index === highlightDishIndex || 
-             (highlightDishIndex === -1 && annotation.object_type === 'plate'))
+          // Выделен только если это конкретный bbox по id (для правильной работы стрелок)
+          const isSelected = selectedAnnotation?.id === annotation.id
           const color = getColor(annotation)
           const isPending = annotation.id === -1
 
-          // Жирная ярко-красная рамка для выделенного bbox
+          // ТОЛЬКО КРАСНАЯ рамка для выделенного bbox (убрана желтая подсветка)
           const borderColor = isSelected 
             ? '#dc2626'  // Ярко-красный для выделенного
             : (isPending ? '#666' : annotation.is_error ? '#dc2626' : color)
@@ -510,9 +500,7 @@ export default function BBoxAnnotator({
                 boxSizing: 'border-box',
                 cursor: drawingMode ? 'not-allowed' : (isPending ? 'default' : (isSelected ? 'move' : 'pointer')),
                 pointerEvents: isPending ? 'none' : (drawingMode ? 'none' : 'auto'),
-                // Highlighted ring для синхронной подсветки (только если НЕ выбран)
-                boxShadow: isHighlighted ? `0 0 0 4px rgba(250, 204, 21, 0.7), 0 0 0 8px rgba(250, 204, 21, 0.3)` : undefined,
-                zIndex: isSelected ? 10 : (isHighlighted ? 5 : 1),
+                zIndex: isSelected ? 10 : 1,
               }}
               onClick={(e) => {
                 e.stopPropagation()
@@ -683,16 +671,25 @@ export default function BBoxAnnotator({
             >
               <div className="bg-black bg-opacity-90 rounded px-2 py-1 shadow-lg">
                 <AnnotationControls
-                  annotation={selectedAnnotation}
+                  annotation={selectedAnnotation as any}
                   originalAnnotations={_originalAnnotations}
                   imageId={_imageId}
                   compact={true}
                   showEdit={true}
                   showOverlapped={true}
                   showOrientation={true}
-                  showError={true}
+                  showError={false}
                   showDelete={true}
-                  onUpdate={onAnnotationUpdate}
+                  onUpdate={(id, updates) => {
+                    // Сначала оптимистично обновляем локально (синхронно)
+                    if (updateAnnotationLocally) {
+                      updateAnnotationLocally(id, updates)
+                    }
+                    // Потом async сохраняем на сервер
+                    if (onAnnotationUpdate) {
+                      onAnnotationUpdate(id, updates)
+                    }
+                  }}
                   onDelete={onDelete ? () => onDelete() : undefined}
                   onChangeDish={(id) => {
                     if (onChangeDish) {

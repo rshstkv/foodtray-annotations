@@ -1,0 +1,296 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { MainLayout } from '@/components/layout/MainLayout'
+import { useUser } from '@/hooks/useUser'
+import { apiFetch } from '@/lib/api-response'
+import { Badge } from '@/components/ui/badge'
+import { Clock, CheckCircle, XCircle, PlayCircle } from 'lucide-react'
+
+interface Task {
+  id: string
+  recognition_id: string
+  status: string
+  priority: number
+  scopes: string[]
+  progress: {
+    current_step_index: number
+    completed_steps: string[]
+  } | null
+  created_at: string
+  assigned_user: {
+    id: string
+    email: string
+    full_name: string | null
+  } | null
+  recognition: {
+    recognition_id: string
+    recognition_date: string
+    correct_dishes: unknown[]
+  }
+}
+
+interface Stats {
+  total: number
+  pending: number
+  in_progress: number
+  completed: number
+  skipped: number
+}
+
+export default function TasksPage() {
+  const router = useRouter()
+  const { user, isAdmin } = useUser()
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+
+  useEffect(() => {
+    if (user) {
+      loadTasks()
+    }
+  }, [user, statusFilter])
+
+  const loadTasks = async () => {
+    try {
+      setLoading(true)
+      
+      const params = new URLSearchParams()
+      if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter)
+
+      const response = await apiFetch<{ tasks: Task[]; stats: Stats }>(
+        `/api/tasks/list?${params.toString()}`
+      )
+      
+      if (response.success && response.data) {
+        setTasks(response.data.tasks || [])
+        setStats(response.data.stats || { total: 0, pending: 0, in_progress: 0, completed: 0, skipped: 0 })
+      } else {
+        console.error('API response not successful:', response)
+      }
+    } catch (err) {
+      console.error('Error loading tasks:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const startNextTask = async () => {
+    try {
+      const response = await apiFetch<{ task: Task } | null>('/api/tasks/next')
+      
+      if (response.success && response.data) {
+        router.push(`/task/${response.data.task.id}`)
+      }
+    } catch (err) {
+      console.error('Error starting next task:', err)
+    }
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="w-4 h-4 text-green-600" />
+      case 'in_progress':
+        return <PlayCircle className="w-4 h-4 text-blue-600" />
+      case 'skipped':
+        return <XCircle className="w-4 h-4 text-gray-400" />
+      default:
+        return <Clock className="w-4 h-4 text-amber-600" />
+    }
+  }
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      pending: 'Ожидает',
+      in_progress: 'В работе',
+      completed: 'Завершено',
+      skipped: 'Пропущено',
+    }
+    return labels[status] || status
+  }
+
+  const getPriorityLabel = (priority: number) => {
+    if (priority >= 7) return { label: 'Высокий', color: 'bg-red-100 text-red-700' }
+    if (priority >= 4) return { label: 'Средний', color: 'bg-amber-100 text-amber-700' }
+    return { label: 'Низкий', color: 'bg-green-100 text-green-700' }
+  }
+
+  if (!user) {
+    return <div>Loading...</div>
+  }
+
+  return (
+    <MainLayout userName={user.email} userEmail={user.email} isAdmin={isAdmin}>
+      <div className="p-6 max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Мои задачи</h1>
+              <p className="text-gray-600 mt-1">Управление задачами аннотирования</p>
+            </div>
+            
+            <Button onClick={startNextTask} size="lg">
+              Начать следующую задачу
+            </Button>
+          </div>
+
+          {/* Stats */}
+          {stats && (
+            <div className="grid grid-cols-5 gap-4">
+              <Card className="p-4">
+                <div className="text-sm text-gray-600">Всего</div>
+                <div className="text-2xl font-bold mt-1">{stats.total}</div>
+              </Card>
+              <Card className="p-4 border-amber-200 bg-amber-50">
+                <div className="text-sm text-amber-700">Ожидают</div>
+                <div className="text-2xl font-bold mt-1 text-amber-900">{stats.pending}</div>
+              </Card>
+              <Card className="p-4 border-blue-200 bg-blue-50">
+                <div className="text-sm text-blue-700">В работе</div>
+                <div className="text-2xl font-bold mt-1 text-blue-900">{stats.in_progress}</div>
+              </Card>
+              <Card className="p-4 border-green-200 bg-green-50">
+                <div className="text-sm text-green-700">Завершено</div>
+                <div className="text-2xl font-bold mt-1 text-green-900">{stats.completed}</div>
+              </Card>
+              <Card className="p-4">
+                <div className="text-sm text-gray-600">Пропущено</div>
+                <div className="text-2xl font-bold mt-1">{stats.skipped}</div>
+              </Card>
+            </div>
+          )}
+        </div>
+
+        {/* Filters */}
+        <div className="flex gap-4 mb-6">
+          <div className="w-48">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Все статусы" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все статусы</SelectItem>
+                <SelectItem value="pending">Ожидает</SelectItem>
+                <SelectItem value="in_progress">В работе</SelectItem>
+                <SelectItem value="completed">Завершено</SelectItem>
+                <SelectItem value="skipped">Пропущено</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Tasks table */}
+        {loading ? (
+          <Card className="p-12 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Загрузка задач...</p>
+          </Card>
+        ) : tasks.length === 0 ? (
+          <Card className="p-12 text-center">
+            <div className="text-6xl mb-4">📋</div>
+            <h2 className="text-2xl font-semibold mb-2">Нет задач</h2>
+            <p className="text-gray-600">Задач с выбранными фильтрами не найдено</p>
+          </Card>
+        ) : (
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b border-gray-200 bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Recognition ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Приоритет
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Статус
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Прогресс
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Дата
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Действия
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {tasks.map((task) => {
+                    const priorityInfo = getPriorityLabel(task.priority)
+                    const currentStep = task.progress?.current_step_index || 0
+                    const totalSteps = task.task_scope?.steps?.length || 0
+                    const progressPercent = totalSteps > 0 ? (currentStep / totalSteps) * 100 : 0
+
+                    return (
+                      <tr key={task.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                          {task.recognition_id}
+                        </td>
+                        <td className="px-6 py-4">
+                          <Badge className={priorityInfo.color}>
+                            {priorityInfo.label}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(task.status)}
+                            <span className="text-sm text-gray-700">
+                              {getStatusLabel(task.status)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-[100px]">
+                              <div
+                                className="bg-blue-600 h-2 rounded-full"
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-600">
+                              {currentStep}/{totalSteps}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {new Date(task.created_at).toLocaleDateString('ru-RU')}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => router.push(`/task/${task.id}`)}
+                          >
+                            Открыть
+                          </Button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+      </div>
+    </MainLayout>
+  )
+}
+

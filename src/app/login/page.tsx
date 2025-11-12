@@ -40,7 +40,7 @@ export default function LoginPage() {
       }
 
       // Успешный вход - используем router для плавного перехода
-      router.push('/annotations/tasks')
+      router.push('/tasks')
       router.refresh()
     } catch (err) {
       setError('Ошибка соединения с сервером')

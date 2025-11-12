@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase-server'
+import { MainLayout } from '@/components/layout/MainLayout'
+import { AdminLayout as AdminLayoutComponent } from '@/components/layout/AdminLayout'
 
 export default async function AdminLayout({
   children,
@@ -24,9 +26,15 @@ export default async function AdminLayout({
 
   // Если не админ - перенаправляем на задачи
   if (!profile || profile.role !== 'admin') {
-    redirect('/annotations/tasks')
+    redirect('/tasks')
   }
 
-  return <>{children}</>
+  return (
+    <MainLayout userName={user.email || ''} userEmail={user.email || ''} isAdmin={true}>
+      <AdminLayoutComponent>
+        {children}
+      </AdminLayoutComponent>
+    </MainLayout>
+  )
 }
 

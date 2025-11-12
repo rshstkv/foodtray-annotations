@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RRS Product Clarifications",
-  description: "Система обработки кларификаций заказов ресторанов с автоматической подгрузкой и фильтрацией",
+  title: "RRS Annotation System",
+  description: "Система аннотирования заказов ресторанов с валидацией блюд и объектов",
 };
 
 export default function RootLayout({

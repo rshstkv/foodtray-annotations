@@ -1,6 +1,6 @@
 /**
- * Единый источник типов для annotation системы
- * Используется во всех компонентах, hooks и API
+ * Типы для annotation системы (CLEAN SLATE версия)
+ * Без legacy (workflow_state, validation_mode, etc.)
  */
 
 // ============================================================================
@@ -8,321 +8,312 @@
 // ============================================================================
 
 export interface Annotation {
-  id: number
-  image_id: number
+  id: string
+  image_id: string
+  
+  // Bounding box (normalized 0-1)
   bbox_x1: number
   bbox_y1: number
   bbox_x2: number
   bbox_y2: number
-  object_type: 'food' | 'buzzer' | 'plate' | 'non_food' | 'tray'
-  object_subtype: string | null
-  dish_index: number | null
-  is_overlapped: boolean
-  is_bottle_up: boolean | null
-  is_error: boolean
+  
+  // Классификация
+  object_type: 'dish' | 'plate' | 'buzzer' | 'bottle' | 'nonfood'
+  object_subtype: string | null  // 'vertical', 'horizontal' для bottle
+  dish_index: number | null       // Связь с correct_dishes[index]
+  custom_dish_name: string | null // Для блюд не из чека (добавленных из меню)
+  
+  // Флаги
+  is_overlapped: boolean          // Блюдо перекрыто другим объектом
+  is_bottle_up: boolean | null    // Для bottle: стоит вертикально
+  is_error: boolean               // Есть ошибка валидации
+  
+  // Аудит
   source: 'qwen_auto' | 'manual'
-  qwen_detection_index?: number | null
-  qwen_detection_type?: string | null
-  selected_dish_variant_index?: number | null
-  created_at?: string
-  updated_at?: string
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+  
+  // Soft delete
+  is_deleted: boolean
 }
 
 export interface Image {
-  id: number
+  id: string
   recognition_id: string
-  photo_type: 'Main' | 'Qualifying'
+  
+  image_type: 'main' | 'quality'
   storage_path: string
-  image_width: number | null
-  image_height: number | null
-  original_annotations?: {
-    qwen_dishes_detections?: unknown[]
-    qwen_plates_detections?: unknown[]
-  } | null
-  annotations: Annotation[]
-  created_at?: string
+  
+  width: number | null
+  height: number | null
+  
+  // Оригинальные аннотации QWEN (для сравнения)
+  original_annotations: unknown[] | null
+  
+  // Текущие аннотации
+  annotations?: Annotation[]
+  
+  created_at: string
 }
 
-export interface Dish {
-  Name: string
-  ean?: string
-}
-
-export interface CorrectDish {
+// Структура блюда из чека (как приходит из базы)
+export interface DishFromReceipt {
   Count: number
-  Dishes: Dish[]
+  Dishes: Array<{
+    Name: string
+    ExternalId: string
+  }>
+}
+
+// Плоская структура блюда для UI
+export interface Dish {
+  name: string
+  count: number
+  externalId: string
 }
 
 export interface Recognition {
-  id?: number
   recognition_id: string
   recognition_date: string
-  status?: string
-  is_mistake?: boolean
-  correct_dishes: CorrectDish[]
-  menu_all?: unknown[]
-  validation_mode?: 'quick' | 'edit' | null
-  workflow_state: WorkflowState
-  current_stage_id: number | null
-  completed_stages: number[]
+  
+  // Данные чека (raw формат из базы)
+  correct_dishes: DishFromReceipt[]
+  menu_all: unknown[] | null
+  
+  // Метаданные
+  created_at: string
+  updated_at: string
+}
+
+// ============================================================================
+// Tasks & Workflow
+// ============================================================================
+
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'skipped'
+
+export interface TaskStep {
+  id: string
+  name: string
+  type: 'validation' | 'annotation'
+  required: boolean
+  allow_drawing: boolean
+  allow_menu_edit?: boolean
+  checks: string[]
+}
+
+export interface TaskScope {
+  steps: TaskStep[]
+  allow_menu_edit?: boolean
+}
+
+export interface StepProgress {
+  id: string
+  status: 'pending' | 'in_progress' | 'completed'
+  started_at?: string
+  completed_at?: string
+  changes?: {
+    added: number
+    removed: number
+    modified: number
+  }
+}
+
+export interface TaskProgress {
+  current_step_index: number
+  steps: StepProgress[]
+}
+
+export interface Task {
+  id: string
+  recognition_id: string
+  
+  // Назначение
   assigned_to: string | null
+  
+  // Scope и прогресс
+  task_scope: TaskScope
+  progress: TaskProgress
+  
+  // Workflow
+  status: TaskStatus
+  priority: 1 | 2 | 3  // 1=quick, 2=medium, 3=heavy
+  
+  // Временные метки
+  created_at: string
   started_at: string | null
   completed_at: string | null
-  completed_by?: string | null
-  annotator_notes?: string | null
-  created_at?: string
-  updated_at?: string
+  
+  // Аудит
+  created_by: string | null
+  completed_by: string | null
+  
+  // Пропуск
+  skipped_reason: string | null
+  skipped_at: string | null
 }
 
 // ============================================================================
-// Workflow
+// Full Task Data (с join)
 // ============================================================================
 
-export type WorkflowState = 
-  | 'pending' 
-  | 'in_progress' 
-  | 'completed' 
-  | 'requires_correction'
-  | 'check_error_pending'
-  | 'dish_correction_pending'
-  | 'manual_review_pending'
-
-export interface TaskType {
-  id: number
-  code: string
-  name: string
-  description: string
-  ui_config: TaskUIConfig
-  is_active: boolean
-  created_at: string
-}
-
-export interface TaskUIConfig {
-  layout: 'single-image' | 'dual-image'
-  actions: {
-    bbox_create?: boolean
-    bbox_delete?: boolean
-    bbox_assign_dish?: boolean
-    bbox_resize?: boolean
-    bbox_drag?: boolean
-    bbox_toggle_overlap?: boolean
-    bbox_toggle_bottle?: boolean
-    bbox_change_type?: boolean
-    correct_dish_select?: boolean
-    correct_dish_change_count?: boolean
-  }
-  ui: {
-    show_both_images?: boolean
-    show_menu_search?: boolean
-    focus_mode?: 'bbox' | 'dishes' | 'attributes'
-    quick_keys?: Record<string, string>
-    simplified_controls?: boolean
-    auto_next?: boolean
-    sync_dish_highlight?: boolean
-    buttons?: string[]
-  }
-  filters?: {
-    object_types?: string[]
-    dish_codes?: string[]
-  }
-}
-
-export interface WorkflowStage {
-  id: number
-  task_type_id: number
-  stage_order: number
-  name: string
-  skip_condition: Record<string, unknown> | null
-  is_optional: boolean
-  created_at: string
-}
-
-// ============================================================================
-// Task Data
-// ============================================================================
-
-export interface TaskData {
+export interface TaskData extends Task {
   recognition: Recognition
   images: Image[]
-  menu_all?: unknown[]
-  task_type: TaskType
-  stage: WorkflowStage
 }
 
-export interface TaskResult {
-  success: boolean
-  changes?: Record<string, unknown>
-  flag_type?: 'dish_error' | 'check_error' | 'manual_review'
-  reason?: string
+// ============================================================================
+// Local State (Frontend)
+// ============================================================================
+
+export type AnnotationChangeType = 'create' | 'update' | 'delete'
+
+export interface AnnotationChange {
+  type: AnnotationChangeType
+  annotation: Partial<Annotation> & { id?: string; image_id: string }
+  originalAnnotation?: Annotation  // Для update/delete
+}
+
+export interface LocalAnnotationState {
+  annotations: Annotation[]
+  changes: AnnotationChange[]
+  hasUnsavedChanges: boolean
+}
+
+// ============================================================================
+// Validation
+// ============================================================================
+
+export type ValidationCheckType = 'error' | 'warning' | 'info'
+
+export interface ValidationCheck {
+  type: ValidationCheckType
+  message: string
+  action?: string  // Подсказка что делать
+  field?: string   // Какое поле проблемное
+}
+
+export interface ValidationResult {
+  canComplete: boolean
+  checks: ValidationCheck[]
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+export function getDishColor(index: number): string {
+  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4']
+  return colors[index % colors.length]
+}
+
+export type CorrectDish = Dish
+
+// ============================================================================
+// Step Context (для UI)
+// ============================================================================
+
+export interface StepContext {
+  step: TaskStep
+  stepIndex: number
+  stepProgress: StepProgress
+  isActive: boolean
+  isCompleted: boolean
+  isPending: boolean
+}
+
+// ============================================================================
+// BBox Drawing
+// ============================================================================
+
+export interface BBoxDrawingState {
+  isDrawing: boolean
+  startPoint: { x: number; y: number } | null
+  currentPoint: { x: number; y: number } | null
+  objectType: Annotation['object_type']
+  objectSubtype: string | null
+}
+
+// ============================================================================
+// User
+// ============================================================================
+
+export interface User {
+  id: string
+  email: string
+  role: 'admin' | 'annotator'
+  full_name?: string
+  created_at: string
 }
 
 // ============================================================================
 // API Responses
 // ============================================================================
 
-export interface APIResponse<T = unknown> {
-  data?: T
-  error?: string
-  message?: string
+export interface ApiError {
+  error: string
+  details?: unknown
 }
 
-export interface TaskStatsResponse {
-  task_type: string
-  total: number
+export interface TasksStatsResponse {
   pending: number
   in_progress: number
   completed: number
-  by_tier: Record<number, number>
+  skipped: number
+  by_priority: {
+    [key: number]: number
+  }
+}
+
+export interface SaveAnnotationsRequest {
+  task_id: string
+  changes: AnnotationChange[]
+}
+
+export interface SaveAnnotationsResponse {
+  success: boolean
+  saved_count: number
+  task_progress?: TaskProgress
+}
+
+export interface CompleteStepRequest {
+  task_id: string
+  step_id: string
+}
+
+export interface CompleteStepResponse {
+  success: boolean
+  next_step?: TaskStep
+  task_completed: boolean
 }
 
 // ============================================================================
-// UI State
+// Utility Types
 // ============================================================================
 
-export interface TaskEngineState {
-  taskData: TaskData | null
-  loading: boolean
-  error: string | null
-  completing: boolean
+export type ObjectTypeColor = {
+  [K in Annotation['object_type']]: string
 }
 
-export type TaskEngineAction =
-  | { type: 'FETCH_START' }
-  | { type: 'FETCH_SUCCESS'; payload: TaskData }
-  | { type: 'FETCH_ERROR'; payload: string }
-  | { type: 'COMPLETE_START' }
-  | { type: 'COMPLETE_SUCCESS' }
-  | { type: 'COMPLETE_ERROR'; payload: string }
-  | { type: 'RESET' }
-
-// ============================================================================
-// Annotation Operations
-// ============================================================================
-
-export interface CreateAnnotationPayload {
-  image_id: number
-  object_type: Annotation['object_type']
-  object_subtype: string | null
-  dish_index: number | null
-  bbox_x1: number
-  bbox_y1: number
-  bbox_x2: number
-  bbox_y2: number
-  is_overlapped?: boolean
-  is_bottle_up?: boolean | null
-  is_error?: boolean
-  selected_dish_variant_index?: number | null
+export const OBJECT_TYPE_COLORS: ObjectTypeColor = {
+  dish: '#3B82F6',      // blue
+  plate: '#10B981',     // green
+  buzzer: '#F59E0B',    // amber
+  bottle: '#8B5CF6',    // purple
+  nonfood: '#6B7280',   // gray
 }
 
-export interface UpdateAnnotationPayload {
-  bbox_x1?: number
-  bbox_y1?: number
-  bbox_x2?: number
-  bbox_y2?: number
-  dish_index?: number | null
-  object_type?: Annotation['object_type']
-  object_subtype?: string | null
-  is_overlapped?: boolean
-  is_bottle_up?: boolean | null
-  is_error?: boolean
-  selected_dish_variant_index?: number | null
-  current_bbox_x1?: number
-  current_bbox_y1?: number
-  current_bbox_x2?: number
-  current_bbox_y2?: number
+export const OBJECT_TYPE_LABELS: { [K in Annotation['object_type']]: string } = {
+  dish: 'Блюдо',
+  plate: 'Тарелка',
+  buzzer: 'Buzzer',
+  bottle: 'Бутылка',
+  nonfood: 'Другое',
 }
 
-// ============================================================================
-// BBox Annotator Props
-// ============================================================================
-
-export interface BBoxAnnotatorProps {
-  imageUrl: string
-  annotations: Annotation[]
-  selectedDishIndex?: number | null
-  highlightDishIndex?: number | null
-  dishNames?: Record<number, string>
-  originalAnnotations?: Image['original_annotations']
-  imageId?: number
-  onAnnotationCreate?: (bbox: {
-    bbox_x1: number
-    bbox_y1: number
-    bbox_x2: number
-    bbox_y2: number
-  }) => void
-  onAnnotationUpdate?: (id: number, updates: UpdateAnnotationPayload) => void
-  onAnnotationSelect?: (annotation: Annotation | null) => void
-  selectedAnnotation?: Annotation | null
-  drawingMode?: boolean
-  readOnly?: boolean
-  referenceWidth?: number
-  referenceHeight?: number
+export const PRIORITY_LABELS: { [key: number]: string } = {
+  1: 'Быстрая',
+  2: 'Средняя',
+  3: 'Сложная',
 }
-
-// ============================================================================
-// Dish Colors
-// ============================================================================
-
-export const DISH_COLORS = [
-  '#22c55e', // green-500
-  '#3b82f6', // blue-500
-  '#f59e0b', // amber-500
-  '#ef4444', // red-500
-  '#8b5cf6', // violet-500
-  '#ec4899', // pink-500
-  '#06b6d4', // cyan-500
-  '#f97316', // orange-500
-  '#84cc16', // lime-500
-] as const
-
-export function getDishColor(index: number): string {
-  return DISH_COLORS[index % DISH_COLORS.length]
-}
-
-// ============================================================================
-// Workflow & Queue Types
-// ============================================================================
-
-export type WorkflowQueue = 'pending' | 'requires_correction'
-
-export type TaskMode = 'quick' | 'edit'
-
-// ============================================================================
-// Export Types
-// ============================================================================
-
-export interface ExportFilters {
-  tier?: number[]
-  workflow_state?: string[]
-  completed_stages?: string[]
-  date_from?: string
-  date_to?: string
-}
-
-// ============================================================================
-// Dish EAN Metadata
-// ============================================================================
-
-export interface DishEanMetadata {
-  id: number
-  ean: string
-  dish_name: string
-  requires_bottle_orientation: boolean
-  created_at: string
-  updated_at: string
-}
-
-// ============================================================================
-// Task Statistics
-// ============================================================================
-
-export interface TaskStats {
-  quick_validation: number  // M=Q=expected, pending
-  edit_mode: number          // M≠Q or M≠expected, pending
-  requires_correction: number
-  bottle_orientation: number
-  buzzer_annotation: number
-  non_food_objects: number
-  completed: number
-}
-
