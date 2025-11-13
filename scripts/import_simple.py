@@ -62,8 +62,10 @@ def main():
         else:
             i += 1
     
-    # Load .env.local
-    env_path = Path(__file__).parent.parent / '.env.local'
+    # Load .env.production (or .env.local)
+    env_path = Path(__file__).parent.parent / '.env.production'
+    if not env_path.exists():
+        env_path = Path(__file__).parent.parent / '.env.local'
     if env_path.exists():
         with open(env_path) as f:
             for line in f:
