@@ -2,8 +2,9 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { TaskData, StepContext } from '@/types/annotations'
-import { validateStep } from '@/lib/validation'
+import { TaskData, StepContext, Item } from '@/types/annotations'
+import { validateStep } from '@/lib/stepGuards'
+import { migrateTaskData } from '@/lib/migrationHelpers'
 
 export interface UseTaskManagerReturn {
   task: TaskData | null

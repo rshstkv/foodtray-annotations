@@ -400,7 +400,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                   
                   const relevantTypes = getRelevantObjectTypes()
                   const filteredAnnotations = annotationManager.annotations.filter(
-                    a => a.image_id === image.id && relevantTypes.includes(a.object_type)
+                    a => a.image_id === image.id && relevantTypes.includes(a.object_type) && !a.is_deleted
                   )
                   
                   // Если есть выбранный конкретный bbox по ID

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { Annotation, AnnotationChange, Image } from '@/types/annotations'
+import { AnnotationEngine } from '@/lib/annotationEngine'
 
 export interface UseAnnotationManagerReturn {
   annotations: Annotation[]
@@ -41,6 +42,12 @@ export interface UseAnnotationManagerReturn {
 }
 
 export function useAnnotationManager(initialImages: Image[] = []): UseAnnotationManagerReturn {
+  // Создаем AnnotationEngine под капотом
+  const engine = useMemo(() => {
+    const initialAnnotations = initialImages.flatMap(img => img.annotations || [])
+    return new AnnotationEngine(initialAnnotations, [])
+  }, []) // Создается один раз
+  
   const [originalAnnotations, setOriginalAnnotations] = useState<Annotation[]>(() => {
     return initialImages.flatMap(img => img.annotations || [])
   })
@@ -58,8 +65,10 @@ export function useAnnotationManager(initialImages: Image[] = []): UseAnnotation
   const hasUnsavedChanges = changes.length > 0
 
   const setAnnotations = useCallback((newAnnotations: Annotation[]) => {
+    // Синхронизируем engine с новым состоянием
+    engine.setAnnotations(newAnnotations)
     setAnnotationsState(newAnnotations)
-  }, [])
+  }, [engine])
 
   // Update original annotations (call after successful save)
   const updateOriginalAnnotations = useCallback(() => {
@@ -67,9 +76,13 @@ export function useAnnotationManager(initialImages: Image[] = []): UseAnnotation
   }, [annotations])
 
   const createAnnotation = useCallback((annotation: Omit<Annotation, 'id' | 'created_at' | 'updated_at'>) => {
+    // Используем engine для создания с правильными дефолтами
     const newAnnotation: Annotation = {
       ...annotation,
       id: `temp_${Date.now()}_${Math.random()}`,
+      is_manual: annotation.is_manual ?? annotation.source === 'manual',
+      is_locked: annotation.is_locked ?? false,
+      version: annotation.version ?? 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       is_deleted: false,
@@ -83,11 +96,19 @@ export function useAnnotationManager(initialImages: Image[] = []): UseAnnotation
   }, [])
 
   const updateAnnotation = useCallback((id: string, updates: Partial<Annotation>) => {
-    setAnnotationsState(prev => prev.map(a => 
-      a.id === id 
-        ? { ...a, ...updates, updated_at: new Date().toISOString() } 
-        : a
-    ))
+    setAnnotationsState(prev => prev.map(a => {
+      if (a.id === id) {
+        // Инкрементируем version при обновлении
+        return {
+          ...a,
+          ...updates,
+          version: (a.version || 1) + 1,
+          is_manual: true, // Любое обновление делает аннотацию мануальной
+          updated_at: new Date().toISOString(),
+        }
+      }
+      return a
+    }))
     
     const original = annotations.find(a => a.id === id)
     if (original) {
