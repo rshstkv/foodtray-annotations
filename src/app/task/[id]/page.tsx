@@ -1,10 +1,11 @@
 'use client'
 
-import { use, useState, useEffect, useCallback } from 'react'
+import { use, useState, useEffect, useCallback, useMemo } from 'react'
 import { useUser } from '@/hooks/useUser'
 import { useTaskManager } from '@/hooks/useTaskManager'
 import { useAnnotationManager } from '@/hooks/useAnnotationManager'
 import { useHotkeys } from '@/hooks/useHotkeys'
+import { validateStep } from '@/lib/stepGuards'
 import { TaskProvider } from '@/contexts/TaskContext'
 import { AnnotationProvider } from '@/contexts/AnnotationContext'
 import { MainLayout } from '@/components/layout/MainLayout'
@@ -197,6 +198,21 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
     annotationManager.hasUnsavedChanges || 
     (modifiedDishes && initialModifiedDishes && 
      JSON.stringify(modifiedDishes) !== JSON.stringify(initialModifiedDishes))
+  
+  // Валидация текущего этапа через stepGuards
+  const stepValidation = useMemo(() => {
+    if (!taskManager.task) return { canComplete: true, checks: [] }
+    
+    const currentStep = taskManager.allSteps[taskManager.currentStepIndex]
+    if (!currentStep) return { canComplete: true, checks: [] }
+    
+    return validateStep(
+      currentStep.step.id,
+      [], // items - пока пустой массив
+      annotationManager.annotations,
+      taskManager.task.images
+    )
+  }, [taskManager.task, taskManager.currentStepIndex, taskManager.allSteps, annotationManager.annotations])
 
   // Setup hotkeys (AFTER all handlers to avoid initialization errors)
   useHotkeys({
@@ -403,6 +419,20 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                     a => a.image_id === image.id && relevantTypes.includes(a.object_type) && !a.is_deleted
                   )
                   
+                  // DEBUG: логируем для buzzers
+                  if (currentStep.step.id === 'validate_buzzers') {
+                    console.log('[DEBUG] Buzzer annotations for image:', image.id.substring(0,8), {
+                      total: annotationManager.annotations.filter(a => a.object_type === 'buzzer').length,
+                      forThisImage: filteredAnnotations.length,
+                      allBuzzers: annotationManager.annotations.filter(a => a.object_type === 'buzzer').map(a => ({
+                        id: a.id.substring(0,8),
+                        image_id: a.image_id.substring(0,8),
+                        is_deleted: a.is_deleted,
+                        bbox: `${a.bbox_x1.toFixed(2)},${a.bbox_y1.toFixed(2)}`
+                      }))
+                    })
+                  }
+                  
                   // Если есть выбранный конкретный bbox по ID
                   const selectedForThisImage = annotationManager.annotations.find(
                     a => a.id === annotationManager.selectedAnnotationId && a.image_id === image.id
@@ -481,7 +511,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                 onReset={handleReset}
                 isSaving={taskManager.isSaving}
                 hasUnsavedChanges={hasUnsavedChanges}
-                canComplete={taskManager.canGoNext || taskManager.currentStepIndex === taskManager.allSteps.length - 1}
+                canComplete={stepValidation.canComplete}
               />
             </div>
           </div>
