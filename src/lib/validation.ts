@@ -1,4 +1,4 @@
-import { Annotation, TaskStep, ValidationResult, Dish } from '@/types/annotations'
+import { Annotation, TaskStep, ValidationResult, Dish, ValidationCheck } from '@/types/annotations'
 
 export function validateStep(
   step: TaskStep,
@@ -6,7 +6,7 @@ export function validateStep(
   dishes: Dish[],
   images: { id: string; image_type: 'main' | 'quality' }[]
 ): ValidationResult {
-  const checks = []
+  const checks: ValidationCheck[] = []
   
   switch (step.id) {
     case 'validate_dishes':
@@ -37,7 +37,7 @@ function validateDishes(
   dishes: Dish[],
   images: { id: string; image_type: 'main' | 'quality' }[]
 ): ValidationResult {
-  const checks = []
+  const checks: ValidationCheck[] = []
   
   for (let i = 0; i < dishes.length; i++) {
     const dish = dishes[i]
@@ -104,7 +104,7 @@ function validateOverlaps(annotations: Annotation[]): ValidationResult {
     return {
       canComplete: true,
       checks: [{
-        type: 'info',
+        type: 'info' as const,
         message: 'Не найдено перекрытых блюд',
         action: 'Убедитесь что все блюда видны полностью'
       }]
@@ -124,7 +124,7 @@ function validateBuzzers(
     return {
       canComplete: false,
       checks: [{
-        type: 'error',
+        type: 'error' as const,
         message: 'Buzzer не найден',
         action: 'Обычно на подносах есть buzzer. Нарисуйте bbox или пропустите задачу если уверены что его нет.'
       }]
@@ -147,7 +147,7 @@ function validateBuzzers(
     return {
       canComplete: false,
       checks: [{
-        type: 'error',
+        type: 'error' as const,
         message: 'Buzzer должен быть отмечен на обеих фотографиях',
         action: `Добавьте buzzer на ${mainBuzzers === 0 ? 'Main' : 'Quality'} фото`
       }]
@@ -166,7 +166,7 @@ function validateBottles(annotations: Annotation[]): ValidationResult {
     return {
       canComplete: false,
       checks: [{
-        type: 'error',
+        type: 'error' as const,
         message: `${withoutOrientation.length} бутылок без ориентации`,
         action: 'Укажите ориентацию для каждой бутылки (vertical/horizontal)'
       }]
@@ -184,7 +184,7 @@ function validateNonfood(annotations: Annotation[]): ValidationResult {
     return {
       canComplete: true,
       checks: [{
-        type: 'info',
+        type: 'info' as const,
         message: 'Другие предметы не найдены',
         action: 'Если на фото есть приборы, салфетки и т.п., отметьте их'
       }]
@@ -213,7 +213,7 @@ function validatePlates(
     return {
       canComplete: true,
       checks: [{
-        type: 'warning',
+        type: 'warning' as const,
         message: `Количество тарелок различается: Main=${mainPlates}, Quality=${qualityPlates}`,
         action: 'Проверьте что все тарелки отмечены на обеих фотографиях'
       }]

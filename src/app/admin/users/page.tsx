@@ -129,15 +129,15 @@ export default function AdminUsersPage() {
                           {new Date(u.created_at).toLocaleDateString('ru-RU')}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => router.push(`/admin/users/${u.id}`)}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => router.push(`/admin/users/${u.id}`)}
                             className="rounded-lg"
-                          >
+                            >
                             <Eye className="w-4 h-4 mr-1" />
-                            Просмотр
-                          </Button>
+                              Просмотр
+                            </Button>
                         </td>
                       </tr>
                     ))}
