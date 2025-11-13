@@ -406,15 +406,14 @@ def main():
             ann['bbox_y2'],
             ann['object_type'],
             ann['dish_index'] if ann['dish_index'] is not None else '',
-            ann['source'],
-            False  # is_deleted
+            ann['source']
         ])
     
     csv_buffer.seek(0)
     
     with conn.cursor() as cur:
         cur.copy_expert(
-            """COPY annotations (image_id, bbox_x1, bbox_y1, bbox_x2, bbox_y2, object_type, dish_index, source, is_deleted)
+            """COPY annotations (image_id, bbox_x1, bbox_y1, bbox_x2, bbox_y2, object_type, dish_index, source)
                FROM STDIN WITH (FORMAT CSV, NULL '')""",
             csv_buffer
         )
