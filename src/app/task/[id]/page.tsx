@@ -33,6 +33,8 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
   const [modifiedDishes, setModifiedDishes] = useState<any[] | null>(null)
   const [initialModifiedDishes, setInitialModifiedDishes] = useState<any[] | null>(null)
   const [activeImageId, setActiveImageId] = useState<string | null>(null)
+  const [buzzerItems, setBuzzerItems] = useState<Array<{id: string, color: string, name: string}>>([])
+  const [selectedBuzzerItemId, setSelectedBuzzerItemId] = useState<string | null>(null)
 
   // Initialize managers
   const taskManager = useTaskManager(resolvedParams.id)
@@ -313,16 +315,91 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                 )}
 
                 {currentStep.step.id === 'validate_buzzers' && (
-                  <BuzzerAnnotationPanel
-                    annotations={annotationManager.annotations.filter(
-                      a => a.object_type === 'buzzer' && !a.is_deleted
+                  <div className="space-y-3">
+                    {/* Список баззеров */}
+                    <div className="space-y-2">
+                      {buzzerItems.map((item) => {
+                        const itemAnnotations = annotationManager.annotations.filter(
+                          a => a.item_id === item.id && a.object_type === 'buzzer' && !a.is_deleted
+                        )
+                        const mainImg = task.images.find(i => i.image_type === 'main')
+                        const qualityImg = task.images.find(i => i.image_type === 'quality')
+                        const mainCount = mainImg ? itemAnnotations.filter(a => a.image_id === mainImg.id).length : 0
+                        const qualityCount = qualityImg ? itemAnnotations.filter(a => a.image_id === qualityImg.id).length : 0
+                        const isSelected = selectedBuzzerItemId === item.id
+                        
+                        return (
+                          <div
+                            key={item.id}
+                            className={`border rounded p-2 cursor-pointer ${isSelected ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200 hover:border-gray-300'}`}
+                            onClick={() => setSelectedBuzzerItemId(item.id)}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <div 
+                                className="w-3 h-3 rounded-full border"
+                                style={{ backgroundColor: item.color }}
+                              />
+                              <span className="text-sm font-medium">{item.name}</span>
+                            </div>
+                            <div className="flex gap-2 text-xs">
+                              <span className={mainCount === qualityCount && mainCount > 0 ? 'text-green-600' : 'text-red-600'}>
+                                Main: {mainCount}
+                              </span>
+                              <span className={mainCount === qualityCount && qualityCount > 0 ? 'text-green-600' : 'text-red-600'}>
+                                Quality: {qualityCount}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    
+                    {/* Кнопка создания нового Item */}
+                    <button
+                      onClick={() => {
+                        const newItem = {
+                          id: `buzzer_${Date.now()}`,
+                          color: '#ef4444',
+                          name: `Баззер #${buzzerItems.length + 1}`
+                        }
+                        setBuzzerItems([...buzzerItems, newItem])
+                        setSelectedBuzzerItemId(newItem.id)
+                        // НЕ запускаем drawing - пользователь сам нарисует на обеих картинках
+                      }}
+                      className="w-full px-3 py-2 text-sm border rounded hover:bg-gray-50 bg-blue-50 text-blue-700 font-medium"
+                    >
+                      + Добавить баззер
+                    </button>
+                    
+                    {/* Кнопка рисования для выбранного Item */}
+                    {selectedBuzzerItemId && (
+                      <button
+                        onClick={() => {
+                          const selectedItem = buzzerItems.find(i => i.id === selectedBuzzerItemId)
+                          if (selectedItem) {
+                            annotationManager.startDrawing('buzzer')
+                            annotationManager.setDrawingMetadata({ 
+                              color: 'red', 
+                              itemId: selectedItem.id 
+                            })
+                          }
+                        }}
+                        disabled={annotationManager.isDrawing}
+                        className="w-full px-3 py-2 text-sm border rounded hover:bg-gray-50"
+                      >
+                        {annotationManager.isDrawing 
+                          ? 'Рисуйте bbox...' 
+                          : `✏️ Нарисовать bbox для ${buzzerItems.find(i => i.id === selectedBuzzerItemId)?.name}`
+                        }
+                      </button>
                     )}
-                    onStartDrawing={(color) => {
-                      annotationManager.startDrawing('buzzer')
-                      annotationManager.setDrawingMetadata({ color })
-                    }}
-                    isDrawing={annotationManager.isDrawing}
-                  />
+                    
+                    {buzzerItems.length === 0 && (
+                      <div className="text-sm text-gray-500 text-center py-4">
+                        Сначала создайте элемент "Баззер",<br/>затем рисуйте его на обеих картинках
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {currentStep.step.id === 'validate_plates' && (
@@ -473,14 +550,14 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                           object_subtype: objectType === 'buzzer' ? metadata.color : null,
                           dish_index: selectedDishIndex,
                           custom_dish_name: null,
-                          item_id: null, // ДОБАВЛЕНО: для buzzers/plates может быть null
+                          item_id: metadata.itemId || null, // ИСПОЛЬЗУЕМ itemId из metadata!
                           is_overlapped: false,
                           is_deleted: false,
                           is_bottle_up: objectType === 'bottle' ? false : null,
                           is_error: false,
-                          is_manual: true, // ДОБАВЛЕНО: рисование вручную
-                          is_locked: false, // ДОБАВЛЕНО
-                          version: 1, // ДОБАВЛЕНО
+                          is_manual: true,
+                          is_locked: false,
+                          version: 1,
                           source: 'manual',
                           created_by: user.id,
                           updated_by: user.id,
