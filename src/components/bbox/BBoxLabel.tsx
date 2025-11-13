@@ -29,11 +29,11 @@ export function BBoxLabel({
 
   // Source icon
   const getSourceIcon = () => {
-    if (source === 'manual' || source === 'user') {
-      return '✏️'
-    }
     if (source === 'qwen_auto') {
       return '🤖'
+    }
+    if ((source as string) === 'manual' || (source as string) === 'user') {
+      return '✏️'
     }
     return ''
   }

@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get unassigned pending tasks
-    let query = supabase
+    const query = supabase
       .from('tasks')
       .select('id, task_scope')
       .eq('status', 'pending')

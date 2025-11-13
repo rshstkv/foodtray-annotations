@@ -128,7 +128,7 @@ function flattenDishes(dishesFromReceipt: DishFromReceipt[]) {
       groupIndex,
       flatIndex: groupIndex * 100 + dishIndex,
       hasAmbiguity: false,
-      variants: [],
+      variants: [] as any[],
     }))
   })
 }

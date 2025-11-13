@@ -72,6 +72,7 @@ export interface Dish {
   name: string
   count: number
   externalId: string
+  price?: number
 }
 
 export interface Recognition {
@@ -106,6 +107,7 @@ export interface TaskStep {
 export interface TaskScope {
   steps: TaskStep[]
   allow_menu_edit?: boolean
+  modified_dishes?: any[]
 }
 
 export interface StepProgress {

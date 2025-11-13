@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     // Построение запроса на задачи (с task_scope для получения modified_dishes)
     let tasksQuery = supabase
       .from('tasks')
-      .select('id, recognition_id, status, assigned_to, task_scope')
+      .select('id, recognition_id, status, assigned_to, task_scope, validated_state')
 
     if (userId && userId !== 'all') {
       tasksQuery = tasksQuery.eq('assigned_to', userId)
@@ -124,13 +124,13 @@ export async function GET(request: NextRequest) {
           
           if (completedSteps.length > 0) {
             // Последний завершенный этап содержит финальное состояние
-            const [lastStepId, lastStepSnapshot] = completedSteps[completedSteps.length - 1]
+            const [lastStepId, lastStepSnapshot] = completedSteps[completedSteps.length - 1] as [string, any]
             finalDishes = lastStepSnapshot.snapshot.dishes
             annotationsByImageId = lastStepSnapshot.snapshot.annotations
             
             // Собрать полную историю изменений из всех этапов
-            changesHistory = completedSteps.flatMap(([stepId, snapshot]) => 
-              snapshot.changes_log.map(change => ({ ...change, step_id: stepId }))
+            changesHistory = completedSteps.flatMap(([stepId, snapshot]: [string, any]) => 
+              snapshot.changes_log.map((change: any) => ({ ...change, step_id: stepId }))
             )
             
             console.log(`[export] Using validated_state for recognition ${recognition.recognition_id}: ${completedSteps.length} step(s), ${changesHistory.length} change(s)`)

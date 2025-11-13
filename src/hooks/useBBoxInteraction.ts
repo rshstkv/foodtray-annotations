@@ -88,7 +88,7 @@ export function useBBoxInteraction(): UseBBoxInteractionReturn {
 
     if (resizeHandle) {
       // Resize
-      let newBBox = { ...initial }
+      const newBBox = { ...initial }
 
       switch (resizeHandle) {
         case 'tl': // top-left

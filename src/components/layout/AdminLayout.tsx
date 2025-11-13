@@ -48,7 +48,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         <nav className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon
-            const active = isActive(item.href, item.exact)
+            const active = isActive(item.href)
             
             return (
               <Link

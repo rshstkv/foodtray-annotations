@@ -47,7 +47,7 @@ export default function CreateUserPage() {
         })
         router.push('/admin/users')
       }
-    } catch (err) {
+    } catch {
       toast({
         variant: 'destructive',
         title: 'Ошибка',

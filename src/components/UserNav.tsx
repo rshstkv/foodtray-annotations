@@ -12,9 +12,17 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useUser } from '@/hooks/useUser'
 
-export function UserNav() {
+interface UserNavProps {
+  userName?: string
+  userEmail?: string
+}
+
+export function UserNav({ userName: propUserName, userEmail: propUserEmail }: UserNavProps = {}) {
   const { user, loading } = useUser()
   const router = useRouter()
+  
+  const userName = propUserName || user?.full_name || user?.email
+  const userEmail = propUserEmail || user?.email
 
   const handleLogout = async () => {
     try {
@@ -37,7 +45,7 @@ export function UserNav() {
     )
   }
 
-  if (!user) {
+  if (!user && !userName) {
     return (
       <Button variant="outline" onClick={() => router.push('/login')}>
         Войти
@@ -45,10 +53,10 @@ export function UserNav() {
     )
   }
 
-  const displayName = user.full_name || user.email
-  const initials = user.full_name 
-    ? user.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-    : user.email[0].toUpperCase()
+  const displayName = userName || userEmail || 'User'
+  const initials = userName && userName.includes(' ')
+    ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : (userName || userEmail || 'U')[0].toUpperCase()
 
   return (
     <DropdownMenu>
@@ -59,7 +67,7 @@ export function UserNav() {
           </div>
           <div className="hidden md:flex flex-col items-start">
             <span className="text-sm font-medium">{displayName}</span>
-            <span className="text-xs text-gray-500">{user.role === 'admin' ? 'Администратор' : 'Аннотатор'}</span>
+            <span className="text-xs text-gray-500">{user?.role === 'admin' ? 'Администратор' : 'Аннотатор'}</span>
           </div>
         </Button>
       </DropdownMenuTrigger>
@@ -67,14 +75,14 @@ export function UserNav() {
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{displayName}</p>
-            <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+            <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => router.push('/tasks')}>
           📋 Задачи
         </DropdownMenuItem>
-        {user.role === 'admin' && (
+        {user?.role === 'admin' && (
           <DropdownMenuItem onClick={() => router.push('/admin')}>
             ⚙️ Админ панель
           </DropdownMenuItem>
