@@ -24,7 +24,7 @@ export function BuzzerAnnotationPanel({
 }: BuzzerAnnotationPanelProps) {
   const [selectedColor, setSelectedColor] = useState('red')
 
-  const buzzerCount = annotations.filter(a => !a).length
+  const buzzerCount = annotations.length
 
   return (
     <div className="space-y-3">

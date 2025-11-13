@@ -443,10 +443,14 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                           object_subtype: objectType === 'buzzer' ? metadata.color : null,
                           dish_index: selectedDishIndex,
                           custom_dish_name: null,
+                          item_id: null, // ДОБАВЛЕНО: для buzzers/plates может быть null
                           is_overlapped: false,
                           is_deleted: false,
                           is_bottle_up: objectType === 'bottle' ? false : null,
                           is_error: false,
+                          is_manual: true, // ДОБАВЛЕНО: рисование вручную
+                          is_locked: false, // ДОБАВЛЕНО
+                          version: 1, // ДОБАВЛЕНО
                           source: 'manual',
                           created_by: user.id,
                           updated_by: user.id,
