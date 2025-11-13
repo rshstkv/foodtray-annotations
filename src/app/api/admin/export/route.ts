@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const userId = searchParams.get('userId')
     const status = searchParams.get('status')
+    const requiredSteps = searchParams.getAll('steps') // Массив ID этапов для фильтрации
 
     // Построение запроса на задачи (с task_scope для получения modified_dishes)
     let tasksQuery = supabase
@@ -55,8 +56,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No tasks found' }, { status: 404 })
     }
 
-    // Получить recognition_ids
-    const recognitionIds = [...new Set(tasks.map(t => t.recognition_id))]
+    // Фильтрация по завершенным этапам если указано
+    let filteredTasks = tasks
+    if (requiredSteps.length > 0) {
+      filteredTasks = tasks.filter(task => {
+        if (!task.validated_state || !task.validated_state.steps) return false
+        
+        // Проверяем что все требуемые этапы завершены
+        return requiredSteps.every(stepId => {
+          const stepData = task.validated_state.steps[stepId]
+          return stepData && stepData.annotations && stepData.annotations.length > 0
+        })
+      })
+      
+      if (filteredTasks.length === 0) {
+        return NextResponse.json({ error: 'No tasks match the specified completed steps' }, { status: 404 })
+      }
+    }
+
+    // Получить recognition_ids (используем filteredTasks)
+    const recognitionIds = [...new Set(filteredTasks.map(t => t.recognition_id))]
 
     // Получить recognitions
     const { data: recognitions, error: recognitionsError } = await supabase
@@ -98,16 +117,17 @@ export async function GET(request: NextRequest) {
       filters: {
         user_id: userId || 'all',
         status: status || 'all',
+        required_steps: requiredSteps.length > 0 ? requiredSteps : 'none',
       },
       stats: {
-        tasks_count: tasks.length,
+        tasks_count: filteredTasks.length,
         recognitions_count: recognitions?.length || 0,
         images_count: images?.length || 0,
         annotations_count: annotations?.length || 0,
       },
       data: (recognitions || []).map(recognition => {
         const recognitionImages = (images || []).filter(img => img.recognition_id === recognition.recognition_id)
-        const recognitionTasks = tasks.filter(t => t.recognition_id === recognition.recognition_id)
+        const recognitionTasks = filteredTasks.filter(t => t.recognition_id === recognition.recognition_id)
         
         // Приоритет 1: Использовать validated_state если есть завершенные этапы
         const taskWithValidation = recognitionTasks.find(t => 

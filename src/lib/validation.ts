@@ -46,6 +46,7 @@ function validateDishes(
     // Подсчёт на main
     const mainImage = images.find(img => img.image_type === 'main')
     const mainCount = mainImage ? annotations.filter(a => 
+      !a.is_deleted &&
       a.object_type === 'dish' && 
       a.dish_index === i && 
       a.image_id === mainImage.id
@@ -54,6 +55,7 @@ function validateDishes(
     // Подсчёт на quality
     const qualityImage = images.find(img => img.image_type === 'quality')
     const qualityCount = qualityImage ? annotations.filter(a => 
+      !a.is_deleted &&
       a.object_type === 'dish' && 
       a.dish_index === i && 
       a.image_id === qualityImage.id
@@ -97,6 +99,7 @@ function validateOverlaps(annotations: Annotation[]): ValidationResult {
   // Проверяем что хотя бы одно блюдо отмечено как перекрытое
   // (это мягкая валидация, т.к. иногда перекрытий может не быть)
   const overlappedCount = annotations.filter(a => 
+    !a.is_deleted &&
     a.object_type === 'dish' && a.is_overlapped
   ).length
   
@@ -118,7 +121,7 @@ function validateBuzzers(
   annotations: Annotation[],
   images: { id: string; image_type: 'main' | 'quality' }[]
 ): ValidationResult {
-  const buzzerCount = annotations.filter(a => a.object_type === 'buzzer').length
+  const buzzerCount = annotations.filter(a => !a.is_deleted && a.object_type === 'buzzer').length
   
   if (buzzerCount === 0) {
     return {
@@ -136,10 +139,12 @@ function validateBuzzers(
   const qualityImage = images.find(img => img.image_type === 'quality')
   
   const mainBuzzers = mainImage ? annotations.filter(a => 
+    !a.is_deleted &&
     a.object_type === 'buzzer' && a.image_id === mainImage.id
   ).length : 0
   
   const qualityBuzzers = qualityImage ? annotations.filter(a => 
+    !a.is_deleted &&
     a.object_type === 'buzzer' && a.image_id === qualityImage.id
   ).length : 0
   
@@ -158,7 +163,7 @@ function validateBuzzers(
 }
 
 function validateBottles(annotations: Annotation[]): ValidationResult {
-  const bottles = annotations.filter(a => a.object_type === 'bottle')
+  const bottles = annotations.filter(a => !a.is_deleted && a.object_type === 'bottle')
   
   const withoutOrientation = bottles.filter(b => !b.object_subtype)
   
@@ -178,7 +183,7 @@ function validateBottles(annotations: Annotation[]): ValidationResult {
 
 function validateNonfood(annotations: Annotation[]): ValidationResult {
   // Мягкая валидация - nonfood опциональны
-  const nonfoodCount = annotations.filter(a => a.object_type === 'nonfood').length
+  const nonfoodCount = annotations.filter(a => !a.is_deleted && a.object_type === 'nonfood').length
   
   if (nonfoodCount === 0) {
     return {
@@ -202,10 +207,12 @@ function validatePlates(
   const qualityImage = images.find(img => img.image_type === 'quality')
   
   const mainPlates = mainImage ? annotations.filter(a => 
+    !a.is_deleted &&
     a.object_type === 'plate' && a.image_id === mainImage.id
   ).length : 0
   
   const qualityPlates = qualityImage ? annotations.filter(a => 
+    !a.is_deleted &&
     a.object_type === 'plate' && a.image_id === qualityImage.id
   ).length : 0
   

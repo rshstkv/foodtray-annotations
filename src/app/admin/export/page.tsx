@@ -13,6 +13,7 @@ import {
 import { useUser } from '@/hooks/useUser'
 import { apiFetch } from '@/lib/api-response'
 import { Download } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface User {
   id: string
@@ -20,11 +21,21 @@ interface User {
   full_name: string | null
 }
 
+const AVAILABLE_STEPS = [
+  { id: 'validate_dishes', label: 'Проверка блюд' },
+  { id: 'check_overlaps', label: 'Перекрытия' },
+  { id: 'validate_buzzers', label: 'Проверка баззеров' },
+  { id: 'validate_plates', label: 'Проверка тарелок' },
+  { id: 'validate_bottles', label: 'Проверка бутылок' },
+  { id: 'validate_nonfood', label: 'Другие предметы' },
+]
+
 export default function AdminExportPage() {
   const { user, isAdmin } = useUser()
   const [users, setUsers] = useState<User[]>([])
   const [selectedUserId, setSelectedUserId] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('completed')
+  const [selectedSteps, setSelectedSteps] = useState<string[]>([])
   const [exporting, setExporting] = useState(false)
   const [preview, setPreview] = useState<{ count: number } | null>(null)
 
@@ -36,7 +47,7 @@ export default function AdminExportPage() {
 
   useEffect(() => {
     loadPreview()
-  }, [selectedUserId, selectedStatus])
+  }, [selectedUserId, selectedStatus, selectedSteps])
 
   const loadUsers = async () => {
     try {
@@ -74,8 +85,8 @@ export default function AdminExportPage() {
       const params = new URLSearchParams()
       if (selectedUserId && selectedUserId !== 'all') params.append('userId', selectedUserId)
       if (selectedStatus && selectedStatus !== 'all') params.append('status', selectedStatus)
+      selectedSteps.forEach(step => params.append('steps', step))
 
-      // TODO: Implement export API
       const response = await fetch(`/api/admin/export?${params.toString()}`)
       
       if (!response.ok) {
@@ -147,6 +158,45 @@ export default function AdminExportPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Фильтр по завершенным этапам
+                </label>
+                <div className="space-y-2 p-3 bg-gray-50 rounded-lg border">
+                  {AVAILABLE_STEPS.map((step) => (
+                    <div key={step.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={step.id}
+                        checked={selectedSteps.includes(step.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedSteps([...selectedSteps, step.id])
+                          } else {
+                            setSelectedSteps(selectedSteps.filter(s => s !== step.id))
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={step.id}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        {step.label}
+                      </label>
+                    </div>
+                  ))}
+                  {selectedSteps.length === 0 && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Не выбрано - экспортируются все задачи
+                    </p>
+                  )}
+                  {selectedSteps.length > 0 && (
+                    <p className="text-xs text-blue-600 mt-2">
+                      Экспортируются только задачи, где завершены ВСЕ выбранные этапы
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Preview */}
@@ -154,6 +204,13 @@ export default function AdminExportPage() {
               <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="text-sm text-blue-900">
                   <strong>{preview.count}</strong> {preview.count === 1 ? 'задача' : 'задач'} будет экспортировано
+                  {selectedSteps.length > 0 && (
+                    <div className="mt-1 text-xs">
+                      С завершенными этапами: {selectedSteps.map(id => 
+                        AVAILABLE_STEPS.find(s => s.id === id)?.label
+                      ).join(', ')}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

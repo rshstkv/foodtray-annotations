@@ -27,6 +27,7 @@ interface BBoxAnnotatorProps {
   annotations: Annotation[]
   selectedDishIndex?: number | null
   highlightDishIndex?: number | null // NEW: для синхронной подсветки блюд на M+Q
+  hoveredAnnotationId?: string | null // NEW: для hover подсветки
   dishNames?: Record<number, string>
   originalAnnotations?: {
     qwen_dishes_detections?: unknown[]
@@ -50,6 +51,7 @@ interface BBoxAnnotatorProps {
   }) => Promise<void> | void
   onAnnotationSelect?: (annotation: Annotation | null) => void
   selectedAnnotation?: Annotation | null
+  onAnnotationHover?: (annotation: Annotation | null) => void // NEW: для hover событий
   drawingMode?: boolean
   readOnly?: boolean
   showControls?: boolean // NEW: показывать ли панель управления
@@ -81,6 +83,7 @@ export default function BBoxAnnotator({
   annotations,
   selectedDishIndex,
   highlightDishIndex,
+  hoveredAnnotationId,
   dishNames = {},
   originalAnnotations: _originalAnnotations,
   imageId: _imageId,
@@ -88,6 +91,7 @@ export default function BBoxAnnotator({
   onAnnotationUpdate,
   onAnnotationSelect,
   selectedAnnotation,
+  onAnnotationHover,
   drawingMode = false,
   readOnly = false,
   showControls = true,
@@ -478,14 +482,24 @@ export default function BBoxAnnotator({
           // Bbox считается выбранным если:
           // Выделен только если это конкретный bbox по id (для правильной работы стрелок)
           const isSelected = selectedAnnotation?.id === annotation.id
+          // Подсвечен если это блюдо выбрано в sidebar (highlightDishIndex)
+          const isHighlighted = highlightDishIndex !== null && 
+                                annotation.object_type === 'dish' && 
+                                annotation.dish_index === highlightDishIndex
+          // Hovered если наведение из списка
+          const isHovered = hoveredAnnotationId !== null && annotation.id === hoveredAnnotationId
           const color = getColor(annotation)
           const isPending = annotation.id === -1
 
-          // ТОЛЬКО КРАСНАЯ рамка для выделенного bbox (убрана желтая подсветка)
+          // Красная рамка для выделенного bbox, желтая для highlighted блюда, светло-желтая для hover
           const borderColor = isSelected 
-            ? '#dc2626'  // Ярко-красный для выделенного
+            ? '#dc2626'  // Ярко-красный для выделенного (редактируемого)
+            : isHighlighted
+            ? '#eab308'  // Желтая для подсвеченного блюда из sidebar
+            : isHovered
+            ? '#fbbf24'  // Светло-желтая для hover
             : (isPending ? '#666' : annotation.is_error ? '#dc2626' : color)
-          const borderWidth = isSelected ? 7 : 2
+          const borderWidth = isSelected ? 7 : (isHighlighted || isHovered) ? 4 : 2
           const borderStyle = isPending ? 'dashed' : 'solid'
           
           // Паттерн для перекрытых объектов
@@ -502,6 +516,12 @@ export default function BBoxAnnotator({
             }
             if (isSelected) {
               return 'rgba(239, 68, 68, 0.15)'
+            }
+            if (isHighlighted) {
+              return 'rgba(234, 179, 8, 0.1)'  // Желтая полупрозрачная заливка для highlighted
+            }
+            if (isHovered) {
+              return 'rgba(251, 191, 36, 0.08)'  // Светло-желтая для hover
             }
             if (isPending) {
               return 'rgba(102, 102, 102, 0.1)'
@@ -524,6 +544,16 @@ export default function BBoxAnnotator({
                 cursor: drawingMode ? 'not-allowed' : (isPending ? 'default' : (isSelected ? 'move' : 'pointer')),
                 pointerEvents: isPending ? 'none' : (drawingMode ? 'none' : 'auto'),
                 zIndex: isSelected ? 10 : 1,
+              }}
+              onMouseEnter={() => {
+                if (!drawingMode && !readOnly && onAnnotationHover) {
+                  onAnnotationHover(annotation)
+                }
+              }}
+              onMouseLeave={() => {
+                if (!drawingMode && !readOnly && onAnnotationHover) {
+                  onAnnotationHover(null)
+                }
               }}
               onClick={(e) => {
                 e.stopPropagation()

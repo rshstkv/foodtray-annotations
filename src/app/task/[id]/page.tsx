@@ -11,10 +11,12 @@ import { MainLayout } from '@/components/layout/MainLayout'
 import { StepIndicator } from '@/components/StepIndicator'
 import { ActionButtons } from '@/components/ActionButtons'
 import { TaskSidebar } from '@/components/task/TaskSidebar'
+import { TaskHeader } from '@/components/task/TaskHeader'
 import { ImageGrid } from '@/components/task/ImageGrid'
 import { DishSelectionPanel } from '@/components/task/DishSelectionPanel'
 import { BuzzerAnnotationPanel } from '@/components/task/BuzzerAnnotationPanel'
 import { PlateAnnotationPanel } from '@/components/task/PlateAnnotationPanel'
+import { BottleOrientationPanel } from '@/components/task/BottleOrientationPanel'
 import { OverlapAnnotationPanel } from '@/components/task/OverlapAnnotationPanel'
 import { MenuSearchPanel } from '@/components/task/MenuSearchPanel'
 import { ImageAnnotationInfo } from '@/components/task/ImageAnnotationInfo'
@@ -63,15 +65,10 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
   // Handler for dish selection
   const handleSelectDish = useCallback((dishIndex: number) => {
     setSelectedDishIndex(dishIndex)
+    // Устанавливаем highlighted для подсветки всех bbox этого блюда
     annotationManager.setHighlightedDishIndex(dishIndex)
-
-    // Select first annotation of this dish
-    const dishAnnotations = annotationManager.annotations.filter(
-      a => a.object_type === 'dish' && a.dish_index === dishIndex && !a.is_deleted
-    )
-    if (dishAnnotations.length > 0) {
-      annotationManager.setSelectedAnnotationId(dishAnnotations[0].id)
-    }
+    // Снимаем выделение конкретного bbox чтобы подсветились все
+    annotationManager.setSelectedAnnotationId(null)
   }, [annotationManager])
 
   // Handler for adding dish from menu
@@ -268,6 +265,9 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
       <AnnotationProvider value={annotationContextValue}>
         <MainLayout userName={user.email} userEmail={user.email} isAdmin={isAdmin}>
           <div className="flex flex-col h-[calc(100vh-8rem)]">
+            {/* Task header */}
+            <TaskHeader taskId={task.id} recognitionId={task.recognition_id} />
+            
             {/* Step indicator */}
             <div className="border-b border-gray-200 bg-white px-6 py-4">
               <StepIndicator
@@ -292,6 +292,7 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                     onDishCountChange={handleDishCountChange}
                     onResolveAmbiguity={handleResolveAmbiguity}
                     onDeleteAnnotation={annotationManager.deleteAnnotation}
+                    onAnnotationHover={annotationManager.setHoveredAnnotationId}
                   />
                 )}
 
@@ -322,6 +323,23 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                     })()}
                     onStartDrawing={() => {
                       annotationManager.startDrawing('plate')
+                    }}
+                    isDrawing={annotationManager.isDrawing}
+                  />
+                )}
+
+                {currentStep.step.id === 'validate_bottles' && (
+                  <BottleOrientationPanel
+                    annotations={annotationManager.annotations.filter(
+                      a => a.object_type === 'bottle' && !a.is_deleted
+                    )}
+                    onStartDrawing={() => {
+                      annotationManager.startDrawing('bottle')
+                    }}
+                    onUpdateOrientation={(annotationId, orientation) => {
+                      annotationManager.updateAnnotation(annotationId, {
+                        object_subtype: orientation
+                      })
                     }}
                     isDrawing={annotationManager.isDrawing}
                   />
@@ -385,12 +403,10 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                     a => a.image_id === image.id && relevantTypes.includes(a.object_type)
                   )
                   
-                  // Если выбрано блюдо (selectedDishIndex), подсвечиваем bbox этого блюда на текущей картинке
-                  const selectedForThisImage = selectedDishIndex !== null
-                    ? filteredAnnotations.find(a => a.object_type === 'dish' && a.dish_index === selectedDishIndex)
-                    : annotationManager.annotations.find(
-                        a => a.id === annotationManager.selectedAnnotationId && a.image_id === image.id
-                      )
+                  // Если есть выбранный конкретный bbox по ID
+                  const selectedForThisImage = annotationManager.annotations.find(
+                    a => a.id === annotationManager.selectedAnnotationId && a.image_id === image.id
+                  )
                   
                   return (
                   <div className="relative h-full">
@@ -409,9 +425,13 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
                       imageUrl={`/api/bbox-images/${image.storage_path}`}
                       annotations={filteredAnnotations}
                       selectedAnnotation={selectedForThisImage || null}
-                      highlightDishIndex={null}
+                      highlightDishIndex={selectedDishIndex}
+                      hoveredAnnotationId={annotationManager.hoveredAnnotationId}
                       drawingMode={annotationManager.isDrawing}
                       showControls={true}
+                      onAnnotationHover={(annotation) => {
+                        annotationManager.setHoveredAnnotationId(annotation?.id || null)
+                      }}
                       onAnnotationCreate={(bbox) => {
                         const objectType = annotationManager.drawingObjectType || 'dish'
                         const metadata = annotationManager.drawingMetadata || {}

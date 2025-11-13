@@ -20,16 +20,22 @@ export interface Annotation {
   // Классификация
   object_type: 'dish' | 'plate' | 'buzzer' | 'bottle' | 'nonfood'
   object_subtype: string | null  // 'vertical', 'horizontal' для bottle
-  dish_index: number | null       // Связь с correct_dishes[index]
+  
+  // Связь с Item (unified approach)
+  item_id: string | null          // NEW: Ссылка на Item (чек/список) - унифицированный подход
+  dish_index: number | null       // LEGACY: Связь с correct_dishes[index] - для обратной совместимости
   custom_dish_name: string | null // Для блюд не из чека (добавленных из меню)
   
-  // Флаги
+  // Флаги состояния
   is_overlapped: boolean          // Блюдо перекрыто другим объектом
   is_bottle_up: boolean | null    // Для bottle: стоит вертикально
   is_error: boolean               // Есть ошибка валидации
+  is_manual: boolean              // NEW: true если создано/изменено вручную пользователем
+  is_locked: boolean              // NEW: запрет редактирования (для overlaps этапа)
   
-  // Аудит
+  // Аудит и версионность
   source: 'qwen_auto' | 'manual'
+  version: number                 // NEW: инкрементируется при каждом изменении
   created_by: string | null
   updated_by: string | null
   created_at: string
@@ -73,6 +79,42 @@ export interface Dish {
   count: number
   externalId: string
   price?: number
+}
+
+// ============================================================================
+// Item Model (унифицированная модель для Dish/Plate/Buzzer/Bottle)
+// ============================================================================
+
+export interface Item {
+  id: string
+  type: 'dish' | 'plate' | 'buzzer' | 'bottle' | 'nonfood'
+  name: string
+  expected_count?: number  // Для dishes - из чека, для plates/buzzers - из validation
+  source: 'receipt' | 'menu' | 'qwen'  // Откуда взят item
+  is_manual: boolean  // Добавлен/изменен вручную
+  pairing_required: boolean  // Для plates/buzzers - требуется парность Main+Quality
+  metadata?: {
+    external_id?: string
+    dish_index?: number  // Для обратной совместимости с чеком
+    variants?: string[]  // Для неопределенности
+    [key: string]: any
+  }
+  created_at?: string
+  updated_at?: string
+}
+
+// ============================================================================
+// Snapshot Model (для Reset функционала)
+// ============================================================================
+
+export interface AnnotationSnapshot {
+  id: string
+  step_id: string
+  task_id: string
+  items: Item[]
+  annotations: Annotation[]
+  created_at: string
+  created_by: string
 }
 
 export interface Recognition {

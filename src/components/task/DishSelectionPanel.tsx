@@ -18,6 +18,7 @@ interface DishSelectionPanelProps {
   onDishCountChange?: (groupIndex: number, newCount: number) => void
   onResolveAmbiguity?: (dishIndex: number, selectedDishName: string) => void
   onDeleteAnnotation?: (annotationId: string) => void
+  onAnnotationHover?: (annotationId: string | null) => void
 }
 
 // Compact annotation list with hover details
@@ -27,12 +28,14 @@ function AnnotationListCompact({
   expected,
   annotations,
   onDeleteAnnotation,
+  onAnnotationHover,
 }: {
   imageType: 'main' | 'quality'
   dishIndex: number
   expected: number
   annotations: Annotation[]
   onDeleteAnnotation?: (annotationId: string) => void
+  onAnnotationHover?: (annotationId: string | null) => void
 }) {
   const count = annotations.length
   const hasError = count !== expected
@@ -77,7 +80,12 @@ function AnnotationListCompact({
               if (ann.bbox_x1 === undefined || ann.bbox_y1 === undefined) return null
               const coord = `(${Math.round(ann.bbox_x1)}, ${Math.round(ann.bbox_y1)})`
               return (
-                <div key={ann.id} className="flex items-center justify-between gap-2 text-xs py-0.5">
+                <div 
+                  key={ann.id} 
+                  className="flex items-center justify-between gap-2 text-xs py-0.5 hover:bg-yellow-50 rounded px-1"
+                  onMouseEnter={() => onAnnotationHover?.(ann.id)}
+                  onMouseLeave={() => onAnnotationHover?.(null)}
+                >
                   <span className="text-gray-600 font-mono">{coord}</span>
                   {onDeleteAnnotation && (
                     <Button
@@ -143,6 +151,7 @@ export function DishSelectionPanel({
   onDishCountChange,
   onResolveAmbiguity,
   onDeleteAnnotation,
+  onAnnotationHover,
 }: DishSelectionPanelProps) {
   const dishes = dishesFromReceipt ? flattenDishes(dishesFromReceipt) : []
   const [expandedAmbiguityIndex, setExpandedAmbiguityIndex] = useState<number | null>(null)
