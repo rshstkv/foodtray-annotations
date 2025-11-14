@@ -67,13 +67,13 @@ export async function middleware(request: NextRequest) {
 
   // Если пользователь авторизован и пытается зайти на страницу логина
   if (user && isLoginPage) {
-    const redirectUrl = new URL('/tasks', request.url)
+    const redirectUrl = new URL('/work', request.url)
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Перенаправляем с главной на задачи если залогинен
+  // Перенаправляем с главной на work если залогинен
   if (user && request.nextUrl.pathname === '/') {
-    const redirectUrl = new URL('/tasks', request.url)
+    const redirectUrl = new URL('/work', request.url)
     return NextResponse.redirect(redirectUrl)
   }
 

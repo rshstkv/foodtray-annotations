@@ -8,14 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "supabase migration up",
-    "db:reset": "./scripts/db_reset_wrapper.sh",
-    "db:reset:dangerous": "echo '⚠️  WARNING: This will delete ALL data! Use db:reset instead for safety checks.' && supabase db reset",
-    "db:restore:quick": "python3 scripts/quick_restore.py --count 100",
-    "db:restore:full": "python3 scripts/quick_restore.py --count 1000",
-    "db:check": "python3 scripts/check_storage.py",
-    "import:clarifications": "tsx scripts/import-clarifications.ts",
-    "import:clarification-states": "tsx scripts/import-clarification-states.ts",
-    "import:menu": "tsx scripts/import-menu.ts"
+    "db:reset": "supabase db reset",
+    "ingest:recognitions": "python3 scripts/ingest/ingest_recognitions.py",
+    "ingest:qwen": "python3 scripts/ingest/ingest_qwen.py",
+    "ingest:all": "npm run ingest:recognitions && npm run ingest:qwen",
+    "ingest:full": "python3 scripts/ingest/ingest_recognitions.py --limit 0 && python3 scripts/ingest/ingest_qwen.py"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.3",
@@ -27,6 +24,7 @@
     "@radix-ui/react-radio-group": "^1.3.8",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-toast": "^1.2.15",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.58.0",

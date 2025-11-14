@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase-server'
-import { MainLayout } from '@/components/layout/MainLayout'
-import { AdminLayout as AdminLayoutComponent } from '@/components/layout/AdminLayout'
+import { RootLayout } from '@/components/layouts/RootLayout'
+import { AdminLayout as AdminLayoutComponent } from '@/components/layouts/AdminLayout'
 
 export default async function AdminLayout({
   children,
@@ -12,29 +12,30 @@ export default async function AdminLayout({
   
   const { data: { user }, error } = await supabase.auth.getUser()
 
-  // Если не авторизован - middleware перенаправит на login
   if (error || !user) {
     redirect('/login')
   }
 
-  // Проверяем роль
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, full_name')
     .eq('id', user.id)
     .single()
 
-  // Если не админ - перенаправляем на задачи
   if (!profile || profile.role !== 'admin') {
-    redirect('/tasks')
+    redirect('/work')
   }
 
   return (
-    <MainLayout userName={user.email || ''} userEmail={user.email || ''} isAdmin={true}>
+    <RootLayout 
+      userName={profile.full_name || user.email || ''} 
+      userEmail={user.email || ''} 
+      isAdmin={true}
+    >
       <AdminLayoutComponent>
         {children}
       </AdminLayoutComponent>
-    </MainLayout>
+    </RootLayout>
   )
 }
 
