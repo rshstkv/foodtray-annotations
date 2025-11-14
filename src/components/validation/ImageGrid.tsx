@@ -130,6 +130,8 @@ export function ImageGrid({
               <div className="flex-1 min-h-0">
                 <BBoxCanvas
                   imageUrl={getImageUrl(image.storage_path)}
+                  imageWidth={image.width}
+                  imageHeight={image.height}
                   annotations={imageAnnotations}
                   selectedAnnotationId={selectedAnnotationId}
                   highlightedItemId={selectedItemId}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import Image from 'next/image'
 import type { BBox, ItemType } from '@/types/domain'
 import { ITEM_TYPE_COLORS } from '@/types/domain'
@@ -15,6 +15,8 @@ interface BBoxData {
 
 interface BBoxCanvasProps {
   imageUrl: string
+  imageWidth: number
+  imageHeight: number
   annotations: BBoxData[]
   selectedAnnotationId: number | null
   highlightedItemId: number | null
@@ -35,6 +37,8 @@ interface Point {
  */
 export function BBoxCanvas({
   imageUrl,
+  imageWidth,
+  imageHeight,
   annotations,
   selectedAnnotationId,
   highlightedItemId,
@@ -48,9 +52,11 @@ export function BBoxCanvas({
   const imageRef = useRef<HTMLImageElement>(null)
 
   const [imageLoaded, setImageLoaded] = useState(false)
-  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 })
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
   const [displayedImageSize, setDisplayedImageSize] = useState({ width: 0, height: 0, offsetX: 0, offsetY: 0 })
+  
+  // Use provided original image dimensions instead of naturalWidth/Height
+  const imageDimensions = useMemo(() => ({ width: imageWidth, height: imageHeight }), [imageWidth, imageHeight])
 
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false)
@@ -118,14 +124,24 @@ export function BBoxCanvas({
   useEffect(() => {
     const displayed = calculateDisplayedSize()
     setDisplayedImageSize(displayed)
-  }, [calculateDisplayedSize])
+    if (displayed.width > 0) {
+      console.log('[BBoxCanvas] Displayed size:', displayed)
+      console.log('[BBoxCanvas] Container size:', containerSize)
+      console.log('[BBoxCanvas] Image dimensions:', imageDimensions)
+      // Calculate scale directly instead of calling getScale to avoid circular dependency
+      const scale = {
+        x: imageDimensions.width / displayed.width,
+        y: imageDimensions.height / displayed.height,
+      }
+      console.log('[BBoxCanvas] Scale:', scale)
+    }
+  }, [calculateDisplayedSize, containerSize, imageDimensions])
 
   // Handle image load
-  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget
-    setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight })
+  const handleImageLoad = useCallback(() => {
     setImageLoaded(true)
-  }, [])
+    console.log('[BBoxCanvas] Image loaded, using original dimensions:', imageDimensions)
+  }, [imageDimensions])
 
   // Convert canvas coordinates to bbox coordinates
   const canvasToBBox = useCallback(
@@ -187,6 +203,13 @@ export function BBoxCanvas({
       const canvasSize = {
         w: w / getScale().x,
         h: h / getScale().y,
+      }
+      
+      if (ann.itemId === highlightedItemId) {
+        console.log('[BBoxCanvas] Drawing bbox:', { 
+          original: { x, y, w, h },
+          canvas: { x: canvasPos.x, y: canvasPos.y, w: canvasSize.w, h: canvasSize.h }
+        })
       }
 
       const color = ITEM_TYPE_COLORS[ann.itemType] || '#6B7280'
@@ -378,6 +401,7 @@ export function BBoxCanvas({
         src={imageUrl}
         alt="Recognition"
         fill
+        sizes="(max-width: 768px) 100vw, 50vw"
         className="object-contain"
         onLoad={handleImageLoad}
         priority
