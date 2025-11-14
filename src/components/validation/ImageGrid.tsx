@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { Image, AnnotationView, TrayItem, ItemType, RecipeLineOption } from '@/types/domain'
 import { BBoxCanvas } from './BBoxCanvas'
 import type { BBox } from '@/types/domain'
+import { ITEM_TYPE_COLORS } from '@/types/domain'
 
 interface ImageGridProps {
   images: Image[]
@@ -88,27 +89,59 @@ export function ImageGrid({
     <div className="grid grid-cols-2 gap-4 h-full">
       {images
         .sort((a, b) => a.camera_number - b.camera_number)
-        .map((image) => (
-          <div key={image.id} className="flex flex-col h-full">
-            <div className="flex-none mb-2">
-              <h3 className="text-sm font-medium text-gray-700">
-                Камера {image.camera_number}
-              </h3>
+        .map((image) => {
+          const imageAnnotations = getAnnotationsForImage(image.id)
+          const selectedItemAnnotations = selectedItemId 
+            ? imageAnnotations.filter(ann => ann.itemId === selectedItemId)
+            : []
+          
+          return (
+            <div key={image.id} className="flex flex-col h-full">
+              <div className="flex-none mb-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-gray-700">
+                    Камера {image.camera_number}
+                  </h3>
+                  {selectedItemId && selectedItemAnnotations.length > 0 && (
+                    <span className="text-xs text-gray-500">
+                      {selectedItemAnnotations.length} аннотаций
+                    </span>
+                  )}
+                </div>
+                {/* Show annotations for selected item */}
+                {selectedItemId && selectedItemAnnotations.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {selectedItemAnnotations.map((ann) => (
+                      <div
+                        key={ann.id}
+                        className="text-xs px-2 py-1 rounded"
+                        style={{ 
+                          backgroundColor: ITEM_TYPE_COLORS[ann.itemType] + '20',
+                          color: ITEM_TYPE_COLORS[ann.itemType],
+                          border: `1px solid ${ITEM_TYPE_COLORS[ann.itemType]}`
+                        }}
+                      >
+                        {ann.itemLabel || `#${ann.id}`}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-h-0">
+                <BBoxCanvas
+                  imageUrl={getImageUrl(image.storage_path)}
+                  annotations={imageAnnotations}
+                  selectedAnnotationId={selectedAnnotationId}
+                  highlightedItemId={selectedItemId}
+                  mode={mode}
+                  onAnnotationCreate={(bbox) => onAnnotationCreate(image.id, bbox)}
+                  onAnnotationUpdate={onAnnotationUpdate}
+                  onAnnotationSelect={handleAnnotationSelect}
+                />
+              </div>
             </div>
-            <div className="flex-1 min-h-0">
-              <BBoxCanvas
-                imageUrl={getImageUrl(image.storage_path)}
-                annotations={getAnnotationsForImage(image.id)}
-                selectedAnnotationId={selectedAnnotationId}
-                highlightedItemId={selectedItemId}
-                mode={mode}
-                onAnnotationCreate={(bbox) => onAnnotationCreate(image.id, bbox)}
-                onAnnotationUpdate={onAnnotationUpdate}
-                onAnnotationSelect={handleAnnotationSelect}
-              />
-            </div>
-          </div>
-        ))}
+          )
+        })}
     </div>
   )
 }

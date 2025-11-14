@@ -50,6 +50,7 @@ export function BBoxCanvas({
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 })
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+  const [displayedImageSize, setDisplayedImageSize] = useState({ width: 0, height: 0, offsetX: 0, offsetY: 0 })
 
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false)
@@ -61,14 +62,41 @@ export function BBoxCanvas({
   const [dragStart, setDragStart] = useState<Point | null>(null)
   const [editingAnnotation, setEditingAnnotation] = useState<BBoxData | null>(null)
 
+  // Calculate displayed image size (after object-contain scaling)
+  const calculateDisplayedSize = useCallback(() => {
+    if (!imageDimensions.width || !imageDimensions.height || !containerSize.width || !containerSize.height) {
+      return { width: 0, height: 0, offsetX: 0, offsetY: 0 }
+    }
+
+    const imageAspect = imageDimensions.width / imageDimensions.height
+    const containerAspect = containerSize.width / containerSize.height
+
+    let displayWidth, displayHeight, offsetX = 0, offsetY = 0
+
+    if (imageAspect > containerAspect) {
+      // Image is wider - fit to width
+      displayWidth = containerSize.width
+      displayHeight = containerSize.width / imageAspect
+      offsetY = (containerSize.height - displayHeight) / 2
+    } else {
+      // Image is taller - fit to height
+      displayHeight = containerSize.height
+      displayWidth = containerSize.height * imageAspect
+      offsetX = (containerSize.width - displayWidth) / 2
+    }
+
+    return { width: displayWidth, height: displayHeight, offsetX, offsetY }
+  }, [imageDimensions, containerSize])
+
   // Scale factor for converting canvas coordinates to bbox coordinates
   const getScale = useCallback(() => {
-    if (!imageDimensions.width || !containerSize.width) return { x: 1, y: 1 }
+    const displayed = calculateDisplayedSize()
+    if (!imageDimensions.width || !displayed.width) return { x: 1, y: 1 }
     return {
-      x: imageDimensions.width / containerSize.width,
-      y: imageDimensions.height / containerSize.height,
+      x: imageDimensions.width / displayed.width,
+      y: imageDimensions.height / displayed.height,
     }
-  }, [imageDimensions, containerSize])
+  }, [imageDimensions, calculateDisplayedSize])
 
   // Update container size on resize
   useEffect(() => {
@@ -86,6 +114,12 @@ export function BBoxCanvas({
     return () => window.removeEventListener('resize', updateSize)
   }, [])
 
+  // Update displayed image size when dimensions change
+  useEffect(() => {
+    const displayed = calculateDisplayedSize()
+    setDisplayedImageSize(displayed)
+  }, [calculateDisplayedSize])
+
   // Handle image load
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget
@@ -98,11 +132,11 @@ export function BBoxCanvas({
     (canvasX: number, canvasY: number): Point => {
       const scale = getScale()
       return {
-        x: canvasX * scale.x,
-        y: canvasY * scale.y,
+        x: (canvasX - displayedImageSize.offsetX) * scale.x,
+        y: (canvasY - displayedImageSize.offsetY) * scale.y,
       }
     },
-    [getScale]
+    [getScale, displayedImageSize]
   )
 
   // Convert bbox coordinates to canvas coordinates
@@ -110,24 +144,24 @@ export function BBoxCanvas({
     (bboxX: number, bboxY: number): Point => {
       const scale = getScale()
       return {
-        x: bboxX / scale.x,
-        y: bboxY / scale.y,
+        x: bboxX / scale.x + displayedImageSize.offsetX,
+        y: bboxY / scale.y + displayedImageSize.offsetY,
       }
     },
-    [getScale]
+    [getScale, displayedImageSize]
   )
 
-  // Get mouse position relative to canvas
+  // Get mouse position relative to canvas (adjusted for image offset)
   const getMousePos = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>): Point => {
       if (!canvasRef.current) return { x: 0, y: 0 }
       const rect = canvasRef.current.getBoundingClientRect()
       return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
+        x: e.clientX - rect.left - displayedImageSize.offsetX,
+        y: e.clientY - rect.top - displayedImageSize.offsetY,
       }
     },
-    []
+    [displayedImageSize]
   )
 
   // Draw all annotations
@@ -170,27 +204,6 @@ export function BBoxCanvas({
       ctx.fillRect(canvasPos.x, canvasPos.y, canvasSize.w, canvasSize.h)
 
       ctx.setLineDash([])
-
-      // Draw label above bbox
-      if (ann.itemLabel) {
-        ctx.font = '14px -apple-system, sans-serif'
-        const textMetrics = ctx.measureText(ann.itemLabel)
-        const padding = 6
-        const labelWidth = textMetrics.width + padding * 2
-        const labelHeight = 24
-
-        // Position label above bbox
-        const labelX = canvasPos.x
-        const labelY = Math.max(canvasPos.y - labelHeight - 4, 4)
-
-        // Draw label background
-        ctx.fillStyle = color
-        ctx.fillRect(labelX, labelY, labelWidth, labelHeight)
-
-        // Draw label text
-        ctx.fillStyle = 'white'
-        ctx.fillText(ann.itemLabel, labelX + padding, labelY + 17)
-      }
     })
 
     // Draw current drawing bbox

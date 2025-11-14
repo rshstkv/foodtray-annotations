@@ -168,18 +168,28 @@ BEGIN
   -- STEP 1: Create initial_tray_items from recipe (FOOD only)
   -- dish_X from Qwen corresponds to line_number from recipe (dish_0 = line 1)
   -- Expand quantity: if quantity=2, create 2 separate tray_items
-  WITH recipe_items_expanded AS (
+  -- Take ONLY first option per recipe_line to avoid duplicates
+  WITH first_options AS (
+    SELECT DISTINCT ON (recipe_line_id)
+      recipe_line_id,
+      id as recipe_line_option_id,
+      external_id,
+      name
+    FROM recipe_line_options
+    WHERE is_selected = true
+    ORDER BY recipe_line_id, id
+  ),
+  recipe_items_expanded AS (
     SELECT 
       r.recognition_id,
       rl.line_number,
-      rlo.id as recipe_line_option_id,
-      rlo.external_id,
-      rlo.name,
+      fo.recipe_line_option_id,
+      fo.external_id,
+      fo.name,
       generate_series(1, rl.quantity) as item_number
     FROM recipes r
     JOIN recipe_lines rl ON rl.recipe_id = r.id
-    JOIN recipe_line_options rlo ON rlo.recipe_line_id = rl.id
-    WHERE rlo.is_selected = true
+    JOIN first_options fo ON fo.recipe_line_id = rl.id
   ),
   inserted_recipe_items AS (
     INSERT INTO initial_tray_items (
