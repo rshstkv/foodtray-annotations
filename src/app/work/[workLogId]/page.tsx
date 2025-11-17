@@ -18,6 +18,7 @@ import {
 import { apiFetch } from '@/lib/api-response'
 import type { ValidationSession, BBox } from '@/types/domain'
 import { getItemTypeFromValidationType } from '@/types/domain'
+import { getValidationCapabilities } from '@/lib/validation-capabilities'
 import { CheckCircle, XCircle } from 'lucide-react'
 
 function ValidationSessionContent() {
@@ -50,6 +51,9 @@ function ValidationSessionContent() {
   const [showItemDialog, setShowItemDialog] = useState(false)
 
   const itemType = getItemTypeFromValidationType(session.workLog.validation_type)
+  
+  // Получаем capabilities для текущего типа валидации
+  const capabilities = getValidationCapabilities(session.workLog.validation_type)
 
   // Обработка Escape для снятия выделения
   useEffect(() => {
@@ -76,15 +80,35 @@ function ValidationSessionContent() {
   }
 
   const handleItemCreate = () => {
-    setShowItemDialog(true)
+    // Для простых типов (PLATE, BOTTLE) создаём сразу без диалога
+    if (itemType === 'PLATE' || itemType === 'BOTTLE') {
+      if (!capabilities.canCreateItems) {
+        alert('В данном режиме валидации нельзя создавать новые объекты')
+        return
+      }
+      createItem({
+        type: itemType,
+      })
+    } else {
+      // Для FOOD и BUZZER показываем диалог с опциями
+      setShowItemDialog(true)
+    }
   }
 
   const handleItemDialogSave = async (data: any) => {
+    if (!capabilities.canCreateItems) {
+      alert('В данном режиме валидации нельзя создавать новые объекты')
+      return
+    }
     await createItem(data)
     setShowItemDialog(false)
   }
 
   const handleAnnotationCreate = async (imageId: number, bbox: BBox) => {
+    if (!capabilities.canCreateAnnotations) {
+      alert('В данном режиме валидации нельзя создавать новые аннотации')
+      return
+    }
     if (!selectedItemId) {
       alert('Сначала выберите item')
       return
@@ -102,6 +126,52 @@ function ValidationSessionContent() {
     if (annotationId && itemId) {
       setSelectedItemId(itemId)
     }
+  }
+
+  // Обёрточные функции с проверками capabilities
+  const handleAnnotationUpdate = (id: number | string, data: any) => {
+    if (!capabilities.canEditAnnotationsBBox) {
+      alert('В данном режиме валидации нельзя редактировать границы аннотаций')
+      return
+    }
+    updateAnnotation(id, data)
+  }
+
+  const handleAnnotationDelete = (id: number | string) => {
+    if (!capabilities.canDeleteAnnotations) {
+      alert('В данном режиме валидации нельзя удалять аннотации')
+      return
+    }
+    deleteAnnotation(id)
+  }
+
+  const handleAnnotationToggleOcclusion = (id: number | string) => {
+    if (!capabilities.canToggleOcclusion) {
+      alert('В данном режиме валидации нельзя изменять статус окклюзии')
+      return
+    }
+    const ann = annotations.find(a => a.id === id)
+    if (ann) {
+      updateAnnotation(id, { 
+        is_occluded: !ann.is_occluded 
+      })
+    }
+  }
+
+  const handleItemDelete = (id: number) => {
+    if (!capabilities.canDeleteItems) {
+      alert('В данном режиме валидации нельзя удалять объекты')
+      return
+    }
+    deleteItem(id)
+  }
+
+  const handleItemUpdate = (id: number, data: any) => {
+    if (!capabilities.canUpdateItems) {
+      alert('В данном режиме валидации нельзя обновлять объекты')
+      return
+    }
+    updateItem(id, data)
   }
 
   const handleComplete = async () => {
@@ -169,8 +239,8 @@ function ValidationSessionContent() {
             recipeLineOptions={session.recipeLineOptions}
             onItemSelect={handleItemSelect}
             onItemCreate={handleItemCreate}
-            onItemDelete={deleteItem}
-            onItemUpdate={updateItem}
+            onItemDelete={handleItemDelete}
+            onItemUpdate={handleItemUpdate}
           />
         }
         images={
@@ -183,17 +253,10 @@ function ValidationSessionContent() {
             validationType={session.workLog.validation_type}
             mode={mode}
             onAnnotationCreate={handleAnnotationCreate}
-            onAnnotationUpdate={updateAnnotation}
+            onAnnotationUpdate={handleAnnotationUpdate}
             onAnnotationSelect={handleAnnotationSelect}
-            onAnnotationDelete={deleteAnnotation}
-            onAnnotationToggleOcclusion={(id) => {
-              const ann = annotations.find(a => a.id === id)
-              if (ann) {
-                updateAnnotation(id, { 
-                  is_occluded: !ann.is_occluded 
-                })
-              }
-            }}
+            onAnnotationDelete={handleAnnotationDelete}
+            onAnnotationToggleOcclusion={handleAnnotationToggleOcclusion}
           />
         }
         actions={

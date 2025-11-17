@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Plus, Trash2 } from 'lucide-react'
 import type { TrayItem, ItemType, ValidationType, RecipeLineOption } from '@/types/domain'
 import { ITEM_TYPE_LABELS, ITEM_TYPE_COLORS, getItemTypeFromValidationType } from '@/types/domain'
+import { getValidationCapabilities } from '@/lib/validation-capabilities'
 import { cn } from '@/lib/utils'
 
 interface ItemsListProps {
@@ -28,6 +29,9 @@ export function ItemsList({
   onItemDelete,
   onItemUpdate,
 }: ItemsListProps) {
+  // Получаем capabilities для текущего типа валидации
+  const capabilities = getValidationCapabilities(validationType)
+  
   // Filter items by validation type
   const itemType = getItemTypeFromValidationType(validationType)
   const filteredItems = itemType
@@ -64,8 +68,8 @@ export function ItemsList({
           <h2 className="text-lg font-semibold text-gray-900">
             {itemType ? ITEM_TYPE_LABELS[itemType] : 'Объекты'}
           </h2>
-          {/* Кнопка "Добавить" скрыта для BOTTLE_ORIENTATION_VALIDATION */}
-          {validationType !== 'BOTTLE_ORIENTATION_VALIDATION' && (
+          {/* Кнопка "Добавить" видна только если есть права */}
+          {capabilities.canCreateItems && (
             <Button size="sm" onClick={onItemCreate}>
               <Plus className="w-4 h-4 mr-1" />
               Добавить
@@ -115,8 +119,8 @@ export function ItemsList({
                       )}
                     </div>
                     
-                    {/* UI для ориентации бутылки (только для BOTTLE_ORIENTATION_VALIDATION) */}
-                    {validationType === 'BOTTLE_ORIENTATION_VALIDATION' && item.type === 'BOTTLE' && onItemUpdate && (
+                    {/* UI для ориентации бутылки (только если есть права) */}
+                    {capabilities.canSetBottleOrientation && item.type === 'BOTTLE' && onItemUpdate && (
                       <div className="mt-2 flex gap-1">
                         <Button
                           size="sm"
@@ -144,8 +148,8 @@ export function ItemsList({
                     )}
                   </div>
                   
-                  {/* Кнопка удаления (скрыта для BOTTLE_ORIENTATION_VALIDATION) */}
-                  {validationType !== 'BOTTLE_ORIENTATION_VALIDATION' && (
+                  {/* Кнопка удаления (видна только если есть права) */}
+                  {capabilities.canDeleteItems && (
                     <Button
                       size="sm"
                       variant="ghost"

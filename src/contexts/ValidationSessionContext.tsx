@@ -120,6 +120,7 @@ export function ValidationSessionProvider({
         type: data.type,
         recipe_line_id: data.recipe_line_id || null,
         quantity: data.quantity || 1,
+        bottle_orientation: null, // добавляем поле bottle_orientation
         is_deleted: false,
         is_modified: true,
         created_at: new Date().toISOString(),

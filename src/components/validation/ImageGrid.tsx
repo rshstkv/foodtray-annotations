@@ -5,6 +5,7 @@ import type { Image, AnnotationView, TrayItem, ItemType, RecipeLineOption, Valid
 import { BBoxCanvas } from './BBoxCanvas'
 import type { BBox } from '@/types/domain'
 import { ITEM_TYPE_COLORS, getItemTypeFromValidationType } from '@/types/domain'
+import { getValidationCapabilities } from '@/lib/validation-capabilities'
 
 interface ImageGridProps {
   images: Image[]
@@ -35,6 +36,9 @@ export function ImageGrid({
   onAnnotationDelete,
   onAnnotationToggleOcclusion,
 }: ImageGridProps) {
+  // Получаем capabilities для текущего типа валидации
+  const capabilities = getValidationCapabilities(validationType)
+  
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<number | null>(null)
 
   // Get storage URL
@@ -66,8 +70,8 @@ export function ImageGrid({
 
   // Фильтрация annotations по типу валидации
   const getRelevantAnnotations = (annotations: AnnotationView[]) => {
-    // Для OCCLUSION_VALIDATION показываем все типы
-    if (validationType === 'OCCLUSION_VALIDATION') {
+    // Если показываем все типы (например для OCCLUSION_VALIDATION)
+    if (capabilities.showAllItemTypes) {
       return annotations
     }
     
@@ -186,7 +190,7 @@ export function ImageGrid({
                   selectedAnnotationId={selectedAnnotationId}
                   highlightedItemId={selectedItemId}
                   mode={mode}
-                  canEdit={validationType !== 'BOTTLE_ORIENTATION_VALIDATION'}
+                  canEdit={capabilities.canEditAnnotationsBBox}
                   onAnnotationCreate={(bbox) => onAnnotationCreate(image.id, bbox)}
                   onAnnotationUpdate={onAnnotationUpdate}
                   onAnnotationSelect={(id) => {

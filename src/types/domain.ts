@@ -15,7 +15,7 @@ export type BuzzerColor = 'green' | 'blue' | 'red' | 'white'
 
 export type BottleOrientation = 'horizontal' | 'vertical'
 
-export type TrayItemSource = 'RECIPE_LINE_OPTION' | 'MENU_ITEM' | 'MANUAL'
+export type TrayItemSource = 'RECIPE_LINE_OPTION' | 'MENU_ITEM' | 'MANUAL' | 'MODEL'
 
 export type ValidationType =
   | 'FOOD_VALIDATION'
@@ -257,6 +257,7 @@ export interface UpdateItemRequest {
   type?: ItemType
   recipe_line_id?: number | null
   quantity?: number
+  bottle_orientation?: BottleOrientation | null
   is_deleted?: boolean
 }
 

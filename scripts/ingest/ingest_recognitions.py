@@ -90,7 +90,7 @@ def process_recognition_dir(recognition_dir: Path, supabase_client, limit: int =
         try:
             # Check if file already exists
             try:
-                supabase_client.storage().from_('rrs-photos').list(path=f"recognitions/{recognition_id}")
+                supabase_client.storage.from_('rrs-photos').list(path=f"recognitions/{recognition_id}")
                 # File exists, skip upload
                 uploaded_paths.append(f"camera{camera_num}.jpg")
                 continue
@@ -110,7 +110,7 @@ def process_recognition_dir(recognition_dir: Path, supabase_client, limit: int =
                 buffer.seek(0)
                 
                 # Upload to Supabase Storage
-                supabase_client.storage().from_('rrs-photos').upload(
+                supabase_client.storage.from_('rrs-photos').upload(
                     path=storage_path,
                     file=buffer.getvalue(),
                     file_options={"content-type": "image/jpeg"}

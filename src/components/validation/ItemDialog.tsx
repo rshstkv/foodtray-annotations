@@ -21,7 +21,6 @@ import {
 import type {
   ItemType,
   BuzzerColor,
-  TrayItemSource,
   RecipeLineOption,
   ActiveMenuItem,
 } from '@/types/domain'
@@ -31,9 +30,8 @@ interface ItemDialogProps {
   open: boolean
   onClose: () => void
   onSave: (data: {
-    item_type: ItemType
-    source: TrayItemSource
-    recipe_line_option_id?: number
+    type: ItemType
+    recipe_line_id?: number
     menu_item_external_id?: string
     metadata?: Record<string, unknown>
   }) => void
@@ -50,7 +48,6 @@ export function ItemDialog({
   recipeLineOptions = [],
   activeMenu = [],
 }: ItemDialogProps) {
-  const [source, setSource] = useState<TrayItemSource>('MANUAL')
   const [selectedRecipeOption, setSelectedRecipeOption] = useState<string>('')
   const [selectedMenuItem, setSelectedMenuItem] = useState<string>('')
   const [buzzerColor, setBuzzerColor] = useState<BuzzerColor>('green')
@@ -58,26 +55,29 @@ export function ItemDialog({
 
   const handleSave = () => {
     const data: {
-      item_type: ItemType
-      source: TrayItemSource
-      recipe_line_option_id?: number
+      type: ItemType
+      recipe_line_id?: number
       menu_item_external_id?: string
       metadata?: Record<string, unknown>
     } = {
-      item_type: itemType,
-      source,
+      type: itemType,
     }
 
-    if (source === 'RECIPE_LINE_OPTION' && selectedRecipeOption) {
-      data.recipe_line_option_id = parseInt(selectedRecipeOption, 10)
-    } else if (source === 'MENU_ITEM' && selectedMenuItem) {
+    // Для FOOD с выбором из чека
+    if (itemType === 'FOOD' && selectedRecipeOption) {
+      data.recipe_line_id = parseInt(selectedRecipeOption, 10)
+    }
+    // Для FOOD с выбором из меню
+    else if (itemType === 'FOOD' && selectedMenuItem) {
       data.menu_item_external_id = selectedMenuItem
-    } else if (source === 'MANUAL') {
-      if (itemType === 'BUZZER') {
-        data.metadata = { color: buzzerColor }
-      } else if (customLabel) {
-        data.metadata = { label: customLabel }
-      }
+    }
+    // Для BUZZER - сохраняем цвет
+    else if (itemType === 'BUZZER') {
+      data.metadata = { color: buzzerColor }
+    }
+    // Для других типов с кастомным лейблом
+    else if (customLabel) {
+      data.metadata = { label: customLabel }
     }
 
     onSave(data)
@@ -94,27 +94,8 @@ export function ItemDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Source */}
-          <div className="space-y-2">
-            <Label>Источник</Label>
-            <Select value={source} onValueChange={(v) => setSource(v as TrayItemSource)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {itemType === 'FOOD' && recipeLineOptions.length > 0 && (
-                  <SelectItem value="RECIPE_LINE_OPTION">Из чека</SelectItem>
-                )}
-                {itemType === 'FOOD' && activeMenu.length > 0 && (
-                  <SelectItem value="MENU_ITEM">Из меню</SelectItem>
-                )}
-                <SelectItem value="MANUAL">Вручную</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Recipe option */}
-          {source === 'RECIPE_LINE_OPTION' && recipeLineOptions.length > 0 && (
+          {/* Для FOOD: выбор из чека или меню */}
+          {itemType === 'FOOD' && recipeLineOptions.length > 0 && (
             <div className="space-y-2">
               <Label>Блюдо из чека</Label>
               <Select value={selectedRecipeOption} onValueChange={setSelectedRecipeOption}>
@@ -132,8 +113,7 @@ export function ItemDialog({
             </div>
           )}
 
-          {/* Menu item */}
-          {source === 'MENU_ITEM' && activeMenu.length > 0 && (
+          {itemType === 'FOOD' && activeMenu.length > 0 && (
             <div className="space-y-2">
               <Label>Блюдо из меню</Label>
               <Select value={selectedMenuItem} onValueChange={setSelectedMenuItem}>
@@ -151,40 +131,38 @@ export function ItemDialog({
             </div>
           )}
 
-          {/* Manual input */}
-          {source === 'MANUAL' && (
-            <>
-              {itemType === 'BUZZER' && (
-                <div className="space-y-2">
-                  <Label>Цвет пейджера</Label>
-                  <Select
-                    value={buzzerColor}
-                    onValueChange={(v) => setBuzzerColor(v as BuzzerColor)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(Object.keys(BUZZER_COLOR_LABELS) as BuzzerColor[]).map((color) => (
-                        <SelectItem key={color} value={color}>
-                          {BUZZER_COLOR_LABELS[color]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {itemType !== 'BUZZER' && itemType !== 'FOOD' && (
-                <div className="space-y-2">
-                  <Label>Название</Label>
-                  <Input
-                    value={customLabel}
-                    onChange={(e) => setCustomLabel(e.target.value)}
-                    placeholder="Введите название"
-                  />
-                </div>
-              )}
-            </>
+          {/* Для BUZZER: выбор цвета */}
+          {itemType === 'BUZZER' && (
+            <div className="space-y-2">
+              <Label>Цвет пейджера</Label>
+              <Select
+                value={buzzerColor}
+                onValueChange={(v) => setBuzzerColor(v as BuzzerColor)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(BUZZER_COLOR_LABELS) as BuzzerColor[]).map((color) => (
+                    <SelectItem key={color} value={color}>
+                      {BUZZER_COLOR_LABELS[color]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Для других типов: название (если нужно) */}
+          {itemType !== 'BUZZER' && itemType !== 'FOOD' && itemType !== 'PLATE' && itemType !== 'BOTTLE' && (
+            <div className="space-y-2">
+              <Label>Название</Label>
+              <Input
+                value={customLabel}
+                onChange={(e) => setCustomLabel(e.target.value)}
+                placeholder="Введите название"
+              />
+            </div>
           )}
         </div>
 
