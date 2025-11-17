@@ -208,10 +208,15 @@ export async function POST() {
       .in('recipe_line_id', recipeLineIds.length > 0 ? recipeLineIds : [0])
 
     // Active menu (stored in recognition_active_menu_items)
-    const { data: activeMenuItems } = await supabase
+    const { data: activeMenuItems, error: activeMenuError } = await supabase
       .from('recognition_active_menu_items')
       .select('*')
       .eq('recognition_id', selectedRecognition.id)
+    
+    console.log(`[validation/start] Recognition ${selectedRecognition.id}: loaded ${activeMenuItems?.length || 0} active menu items`)
+    if (activeMenuError) {
+      console.error('[validation/start] Error loading active menu:', activeMenuError)
+    }
 
     // Загрузить work_items и work_annotations (созданы триггером)
     const { data: workItems } = await supabase
@@ -233,7 +238,7 @@ export async function POST() {
       recipe: recipe || null,
       recipeLines: recipeLines || [],
       recipeLineOptions: recipeLineOptions || [],
-      activeMenu: activeMenuItems?.map((item) => item.menu_item_data) || [],
+      activeMenu: activeMenuItems || [],
       workItems: workItems || [],
       workAnnotations: workAnnotations || [],
     }

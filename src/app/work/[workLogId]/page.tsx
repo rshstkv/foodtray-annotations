@@ -27,6 +27,7 @@ function ValidationSessionContent() {
     session,
     loading,
     error,
+    readOnly,
     items,
     selectedItemId,
     setSelectedItemId,
@@ -252,8 +253,9 @@ function ValidationSessionContent() {
             validationType={session.workLog.validation_type}
             hasUnsavedChanges={hasUnsavedChanges}
             validationStatus={validationStatus}
-            onReset={handleReset}
+            onReset={readOnly ? undefined : handleReset}
             onSelectFirstError={handleSelectFirstError}
+            readOnly={readOnly}
           />
         }
         sidebar={
@@ -286,20 +288,28 @@ function ValidationSessionContent() {
           />
         }
         actions={
-          <div className="flex items-center justify-end gap-3">
-            <Button variant="outline" onClick={handleSkip}>
-              <XCircle className="w-4 h-4 mr-2" />
-              Пропустить
-            </Button>
-            <Button 
-              onClick={handleComplete}
-              disabled={!validationStatus.canComplete}
-              title={!validationStatus.canComplete ? 'Исправьте ошибки валидации перед завершением' : 'Завершить задачу'}
-            >
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Завершить
-            </Button>
-          </div>
+          !readOnly ? (
+            <div className="flex items-center justify-end gap-3">
+              <Button variant="outline" onClick={handleSkip}>
+                <XCircle className="w-4 h-4 mr-2" />
+                Пропустить
+              </Button>
+              <Button 
+                onClick={handleComplete}
+                disabled={!validationStatus.canComplete}
+                title={!validationStatus.canComplete ? 'Исправьте ошибки валидации перед завершением' : 'Завершить задачу'}
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Завершить
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-end gap-3">
+              <Button variant="outline" onClick={() => router.back()}>
+                Назад
+              </Button>
+            </div>
+          )
         }
       />
 
@@ -323,8 +333,16 @@ function ValidationSessionContent() {
   )
 }
 
-export default function WorkSessionPage({ params }: { params: Promise<{ workLogId: string }> }) {
+export default function WorkSessionPage({ 
+  params,
+  searchParams,
+}: { 
+  params: Promise<{ workLogId: string }>
+  searchParams: Promise<{ readonly?: string }>
+}) {
   const { workLogId } = use(params)
+  const resolvedSearchParams = use(searchParams)
+  const readOnly = resolvedSearchParams.readonly === 'true'
   const { user, isAdmin } = useUser()
   const [session, setSession] = useState<ValidationSession | null>(null)
   const [loading, setLoading] = useState(true)
@@ -365,7 +383,7 @@ export default function WorkSessionPage({ params }: { params: Promise<{ workLogI
   }
 
   return (
-    <ValidationSessionProvider initialSession={session}>
+    <ValidationSessionProvider initialSession={session} readOnly={readOnly}>
       <ValidationSessionContent />
     </ValidationSessionProvider>
   )

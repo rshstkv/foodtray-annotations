@@ -1,10 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
+import type {
+  ValidationExportData,
+  ValidationExportRecognition,
+  ValidationExportItem,
+  ValidationExportImage,
+  ValidationExportAnnotation,
+  ExportRecipe,
+  ExportRecipeLine,
+  ValidationInfo,
+  ValidationType,
+  ActiveMenuItem,
+} from '@/types/domain'
 
 /**
  * GET /api/admin/export
  * 
- * Экспорт аннотаций в JSON формате
+ * Экспорт валидированных данных в JSON формате для data scientists
+ * Query params:
+ * - recognitionIds: comma-separated список recognition IDs (required)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -27,211 +41,344 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Получение параметров фильтрации
+    // Получение параметров
     const searchParams = request.nextUrl.searchParams
-    const userId = searchParams.get('userId')
-    const status = searchParams.get('status')
-    const requiredSteps = searchParams.getAll('steps') // Массив ID этапов для фильтрации
+    const recognitionIdsParam = searchParams.get('recognitionIds')
 
-    // Построение запроса на задачи (с task_scope для получения modified_dishes)
-    let tasksQuery = supabase
-      .from('tasks')
-      .select('id, recognition_id, status, assigned_to, task_scope, validated_state')
-
-    if (userId && userId !== 'all') {
-      tasksQuery = tasksQuery.eq('assigned_to', userId)
+    if (!recognitionIdsParam) {
+      return NextResponse.json({ error: 'recognitionIds parameter is required' }, { status: 400 })
     }
 
-    if (status && status !== 'all') {
-      tasksQuery = tasksQuery.eq('status', status)
+    const recognitionIds = recognitionIdsParam.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))
+
+    if (recognitionIds.length === 0) {
+      return NextResponse.json({ error: 'No valid recognition IDs provided' }, { status: 400 })
     }
-
-    const { data: tasks, error: tasksError } = await tasksQuery
-
-    if (tasksError) {
-      return NextResponse.json({ error: tasksError.message }, { status: 500 })
-    }
-
-    if (!tasks || tasks.length === 0) {
-      return NextResponse.json({ error: 'No tasks found' }, { status: 404 })
-    }
-
-    // Фильтрация по завершенным этапам если указано
-    let filteredTasks = tasks
-    if (requiredSteps.length > 0) {
-      filteredTasks = tasks.filter(task => {
-        if (!task.validated_state || !task.validated_state.steps) return false
-        
-        // Проверяем что все требуемые этапы завершены
-        return requiredSteps.every(stepId => {
-          const stepData = task.validated_state.steps[stepId]
-          return stepData && stepData.annotations && stepData.annotations.length > 0
-        })
-      })
-      
-      if (filteredTasks.length === 0) {
-        return NextResponse.json({ error: 'No tasks match the specified completed steps' }, { status: 404 })
-      }
-    }
-
-    // Получить recognition_ids (используем filteredTasks)
-    const recognitionIds = [...new Set(filteredTasks.map(t => t.recognition_id))]
 
     // Получить recognitions
     const { data: recognitions, error: recognitionsError } = await supabase
       .from('recognitions')
-      .select('*')
-      .in('recognition_id', recognitionIds)
+      .select('id, batch_id')
+      .in('id', recognitionIds)
+      .order('id')
 
     if (recognitionsError) {
+      console.error('[export] Error fetching recognitions:', recognitionsError)
       return NextResponse.json({ error: recognitionsError.message }, { status: 500 })
     }
 
-    // Получить images для этих recognitions
+    if (!recognitions || recognitions.length === 0) {
+      return NextResponse.json({ error: 'No recognitions found' }, { status: 404 })
+    }
+
+    // Получить все completed work logs для этих recognitions
+    const { data: workLogs, error: workLogsError } = await supabase
+      .from('validation_work_log')
+      .select('id, recognition_id, validation_type, completed_at, assigned_to')
+      .in('recognition_id', recognitionIds)
+      .eq('status', 'completed')
+      .order('recognition_id')
+      .order('completed_at', { ascending: false })
+
+    if (workLogsError) {
+      console.error('[export] Error fetching work logs:', workLogsError)
+      return NextResponse.json({ error: workLogsError.message }, { status: 500 })
+    }
+
+    // Группировать work logs по recognition_id (берем последний для каждого типа валидации)
+    const workLogsByRecognition = new Map<number, Map<string, any>>()
+    
+    for (const log of workLogs || []) {
+      if (!workLogsByRecognition.has(log.recognition_id)) {
+        workLogsByRecognition.set(log.recognition_id, new Map())
+      }
+      
+      const recLogs = workLogsByRecognition.get(log.recognition_id)!
+      // Берем только первую (последнюю по времени) для каждого типа
+      if (!recLogs.has(log.validation_type)) {
+        recLogs.set(log.validation_type, log)
+      }
+    }
+
+    // Собрать все типы валидаций, которые есть в данных
+    const allValidationTypes = new Set<ValidationType>()
+    for (const logs of workLogsByRecognition.values()) {
+      for (const type of logs.keys()) {
+        allValidationTypes.add(type as ValidationType)
+      }
+    }
+
+    // Получить work_log_ids для загрузки items и annotations
+    const workLogIds = Array.from(workLogsByRecognition.values())
+      .flatMap(logs => Array.from(logs.values()).map(log => log.id))
+
+    // Загрузить work_items для всех work_logs
+    const { data: workItems, error: workItemsError } = await supabase
+      .from('work_items')
+      .select('*')
+      .in('work_log_id', workLogIds)
+      .eq('is_deleted', false)
+
+    if (workItemsError) {
+      console.error('[export] Error fetching work items:', workItemsError)
+      return NextResponse.json({ error: workItemsError.message }, { status: 500 })
+    }
+
+    // Загрузить work_annotations для всех work_logs
+    const { data: workAnnotations, error: workAnnotationsError } = await supabase
+      .from('work_annotations')
+      .select('*')
+      .in('work_log_id', workLogIds)
+      .eq('is_deleted', false)
+
+    if (workAnnotationsError) {
+      console.error('[export] Error fetching work annotations:', workAnnotationsError)
+      return NextResponse.json({ error: workAnnotationsError.message }, { status: 500 })
+    }
+
+    // Загрузить images для всех recognitions
     const { data: images, error: imagesError } = await supabase
       .from('images')
       .select('*')
       .in('recognition_id', recognitionIds)
+      .order('recognition_id')
+      .order('camera_number')
 
     if (imagesError) {
+      console.error('[export] Error fetching images:', imagesError)
       return NextResponse.json({ error: imagesError.message }, { status: 500 })
     }
 
-    // Получить image_ids
-    const imageIds = (images || []).map(img => img.id)
-
-    // Получить ВСЕ аннотации для этих изображений (включая новые и обновленные)
-    const { data: annotations, error: annotationsError } = await supabase
-      .from('annotations')
+    // Загрузить recipes для всех recognitions
+    const { data: recipes, error: recipesError } = await supabase
+      .from('recipes')
       .select('*')
-      .in('image_id', imageIds)
-      .eq('is_deleted', false) // Только активные аннотации
+      .in('recognition_id', recognitionIds)
 
-    if (annotationsError) {
-      return NextResponse.json({ error: annotationsError.message }, { status: 500 })
+    if (recipesError) {
+      console.error('[export] Error fetching recipes:', recipesError)
     }
 
-    // Формирование результата
-    const exportData = {
-      exported_at: new Date().toISOString(),
-      filters: {
-        user_id: userId || 'all',
-        status: status || 'all',
-        required_steps: requiredSteps.length > 0 ? requiredSteps : 'none',
-      },
-      stats: {
-        tasks_count: filteredTasks.length,
-        recognitions_count: recognitions?.length || 0,
-        images_count: images?.length || 0,
-        annotations_count: annotations?.length || 0,
-      },
-      data: (recognitions || []).map(recognition => {
-        const recognitionImages = (images || []).filter(img => img.recognition_id === recognition.recognition_id)
-        const recognitionTasks = filteredTasks.filter(t => t.recognition_id === recognition.recognition_id)
-        
-        // Приоритет 1: Использовать validated_state если есть завершенные этапы
-        const taskWithValidation = recognitionTasks.find(t => 
-          t.validated_state && Object.keys(t.validated_state.steps).length > 0
-        )
-        
-        let finalDishes = recognition.correct_dishes
-        let annotationsByImageId: { [key: string]: any[] } = {}
-        let changesHistory: any[] = []
+    // Загрузить recipe lines
+    const recipeIds = recipes?.map(r => r.id) || []
+    const { data: recipeLines, error: recipeLinesError } = await supabase
+      .from('recipe_lines')
+      .select('*')
+      .in('recipe_id', recipeIds)
+      .order('recipe_id')
+      .order('line_number')
 
-        if (taskWithValidation?.validated_state) {
-          // Используем данные из последнего завершенного этапа
-          const completedSteps = Object.entries(taskWithValidation.validated_state.steps)
-          
-          if (completedSteps.length > 0) {
-            // Последний завершенный этап содержит финальное состояние
-            const [lastStepId, lastStepSnapshot] = completedSteps[completedSteps.length - 1] as [string, any]
-            finalDishes = lastStepSnapshot.snapshot.dishes
-            annotationsByImageId = lastStepSnapshot.snapshot.annotations
-            
-            // Собрать полную историю изменений из всех этапов
-            changesHistory = completedSteps.flatMap(([stepId, snapshot]: [string, any]) => 
-              snapshot.changes_log.map((change: any) => ({ ...change, step_id: stepId }))
-            )
-            
-            console.log(`[export] Using validated_state for recognition ${recognition.recognition_id}: ${completedSteps.length} step(s), ${changesHistory.length} change(s)`)
-          }
-        } else {
-          // Fallback: использовать текущие данные из БД (старая логика)
-          const taskWithModifications = recognitionTasks.find(t => t.task_scope?.modified_dishes) || recognitionTasks[0]
-          finalDishes = taskWithModifications?.task_scope?.modified_dishes || recognition.correct_dishes
-          
-          // Группировать аннотации по image_id
-          for (const image of recognitionImages) {
-            const imageAnnotations = (annotations || []).filter(ann => 
-              ann.image_id === image.id && !ann.is_deleted
-            )
-            if (imageAnnotations.length > 0) {
-              annotationsByImageId[image.id] = imageAnnotations
-            }
-          }
-          
-          console.log(`[export] Using fallback data for recognition ${recognition.recognition_id}`)
+    if (recipeLinesError) {
+      console.error('[export] Error fetching recipe lines:', recipeLinesError)
+    }
+
+    // Загрузить recipe line options
+    const recipeLineIds = recipeLines?.map(rl => rl.id) || []
+    const { data: recipeLineOptions, error: recipeLineOptionsError } = await supabase
+      .from('recipe_line_options')
+      .select('*')
+      .in('recipe_line_id', recipeLineIds.length > 0 ? recipeLineIds : [0])
+
+    if (recipeLineOptionsError) {
+      console.error('[export] Error fetching recipe line options:', recipeLineOptionsError)
+    }
+
+    // Загрузить active menu items
+    const { data: activeMenuItems, error: activeMenuError } = await supabase
+      .from('recognition_active_menu_items')
+      .select('*')
+      .in('recognition_id', recognitionIds)
+
+    if (activeMenuError) {
+      console.error('[export] Error fetching active menu:', activeMenuError)
+    }
+
+    // Создать maps для быстрого доступа
+    const workItemsByWorkLog = new Map<number, any[]>()
+    for (const item of workItems || []) {
+      if (!workItemsByWorkLog.has(item.work_log_id)) {
+        workItemsByWorkLog.set(item.work_log_id, [])
+      }
+      workItemsByWorkLog.get(item.work_log_id)!.push(item)
+    }
+
+    const workAnnotationsByWorkLog = new Map<number, any[]>()
+    for (const ann of workAnnotations || []) {
+      if (!workAnnotationsByWorkLog.has(ann.work_log_id)) {
+        workAnnotationsByWorkLog.set(ann.work_log_id, [])
+      }
+      workAnnotationsByWorkLog.get(ann.work_log_id)!.push(ann)
+    }
+
+    const imagesByRecognition = new Map<number, any[]>()
+    for (const img of images || []) {
+      if (!imagesByRecognition.has(img.recognition_id)) {
+        imagesByRecognition.set(img.recognition_id, [])
+      }
+      imagesByRecognition.get(img.recognition_id)!.push(img)
+    }
+
+    const recipesByRecognition = new Map<number, any>()
+    for (const recipe of recipes || []) {
+      recipesByRecognition.set(recipe.recognition_id, recipe)
+    }
+
+    const recipeLinesByRecipeId = new Map<number, any[]>()
+    for (const line of recipeLines || []) {
+      if (!recipeLinesByRecipeId.has(line.recipe_id)) {
+        recipeLinesByRecipeId.set(line.recipe_id, [])
+      }
+      recipeLinesByRecipeId.get(line.recipe_id)!.push(line)
+    }
+
+    const recipeLineOptionsByLineId = new Map<number, any[]>()
+    for (const option of recipeLineOptions || []) {
+      if (!recipeLineOptionsByLineId.has(option.recipe_line_id)) {
+        recipeLineOptionsByLineId.set(option.recipe_line_id, [])
+      }
+      recipeLineOptionsByLineId.get(option.recipe_line_id)!.push(option)
+    }
+
+    const activeMenuByRecognition = new Map<number, ActiveMenuItem[]>()
+    for (const item of activeMenuItems || []) {
+      if (!activeMenuByRecognition.has(item.recognition_id)) {
+        activeMenuByRecognition.set(item.recognition_id, [])
+      }
+      activeMenuByRecognition.get(item.recognition_id)!.push({
+        external_id: item.external_id,
+        name: item.name,
+        category: item.category,
+        price: item.price,
+      })
+    }
+
+    // Собрать данные для каждого recognition
+    const exportRecognitions: ValidationExportRecognition[] = []
+
+    for (const recognition of recognitions) {
+      const recId = recognition.id
+      const recWorkLogs = workLogsByRecognition.get(recId)
+
+      if (!recWorkLogs || recWorkLogs.size === 0) {
+        continue // Пропускаем recognitions без completed валидаций
+      }
+
+      // Получить последний work_log (любого типа, но берем самый поздний)
+      const allLogs = Array.from(recWorkLogs.values())
+      const latestLog = allLogs.reduce((latest, log) => {
+        return new Date(log.completed_at) > new Date(latest.completed_at) ? log : latest
+      }, allLogs[0])
+
+      // Собрать items из последнего work_log
+      const items = workItemsByWorkLog.get(latestLog.id) || []
+      const exportItems: ValidationExportItem[] = items.map(item => ({
+        id: item.id,
+        type: item.type,
+        quantity: item.quantity,
+        recipe_line_id: item.recipe_line_id,
+        bottle_orientation: item.bottle_orientation,
+        metadata: item.metadata,
+      }))
+
+      // Собрать annotations из последнего work_log
+      const annotations = workAnnotationsByWorkLog.get(latestLog.id) || []
+      
+      // Группировать annotations по image_id
+      const annotationsByImageId = new Map<number, any[]>()
+      for (const ann of annotations) {
+        if (!annotationsByImageId.has(ann.image_id)) {
+          annotationsByImageId.set(ann.image_id, [])
         }
+        annotationsByImageId.get(ann.image_id)!.push(ann)
+      }
 
-        // Формируем images массив из annotationsByImageId
-        const exportImages = recognitionImages.map(image => {
-          const imageAnnotations = annotationsByImageId[image.id] || []
-          
-          return {
-            image_id: image.id,
-            image_type: image.image_type,
-            storage_path: image.storage_path,
-            width: image.width,
-            height: image.height,
-            annotations: imageAnnotations.map(ann => ({
-              id: ann.id,
-              object_type: ann.object_type,
-              object_subtype: ann.object_subtype,
-              dish_index: ann.dish_index,
-              custom_dish_name: ann.custom_dish_name,
-              bbox: {
-                x1: ann.bbox_x1,
-                y1: ann.bbox_y1,
-                x2: ann.bbox_x2,
-                y2: ann.bbox_y2,
-              },
-              is_overlapped: ann.is_overlapped,
-              source: ann.source,
-              created_by: ann.created_by,
-              updated_by: ann.updated_by,
-              created_at: ann.created_at,
-              updated_at: ann.updated_at,
-            })),
-          }
-        })
+      // Собрать images с annotations
+      const recImages = imagesByRecognition.get(recId) || []
+      const exportImages: ValidationExportImage[] = recImages.map(img => {
+        const imgAnnotations = annotationsByImageId.get(img.id) || []
         
         return {
-          recognition_id: recognition.recognition_id,
-          recognition_date: recognition.recognition_date,
-          validated_dishes: finalDishes, // Финальная версия после валидации
-          original_dishes: recognition.correct_dishes, // Оригинальная версия из Qwen
-          correct_dishes: finalDishes, // Backward compatibility
-          menu_all: recognition.menu_all,
-          images: exportImages,
-          changes_history: changesHistory, // Полная история изменений
+          id: img.id,
+          camera_number: img.camera_number,
+          image_name: img.camera_number === 1 ? 'Main' : 'Qualifying',
+          storage_path: img.storage_path,
+          width: img.width,
+          height: img.height,
+          annotations: imgAnnotations.map(ann => ({
+            id: ann.id,
+            item_id: ann.work_item_id,
+            bbox: ann.bbox,
+            is_occluded: ann.is_occluded,
+            occlusion_metadata: ann.occlusion_metadata,
+          })),
         }
-      }),
+      })
+
+      // Собрать recipe
+      let exportRecipe: ExportRecipe | null = null
+      const recipe = recipesByRecognition.get(recId)
+      
+      if (recipe) {
+        const lines = recipeLinesByRecipeId.get(recipe.id) || []
+        const exportLines: ExportRecipeLine[] = lines.map(line => ({
+          id: line.id,
+          line_number: line.line_number,
+          quantity: line.quantity,
+          options: recipeLineOptionsByLineId.get(line.id) || [],
+        }))
+
+        exportRecipe = {
+          id: recipe.id,
+          total_amount: recipe.total_amount,
+          lines: exportLines,
+        }
+      }
+
+      // Собрать validation info
+      const validationInfo: Record<string, ValidationInfo> = {}
+      for (const [validationType, log] of recWorkLogs.entries()) {
+        validationInfo[validationType] = {
+          completed_at: log.completed_at,
+          assigned_to: log.assigned_to,
+          work_log_id: log.id,
+        }
+      }
+
+      exportRecognitions.push({
+        recognition_id: recId,
+        batch_id: recognition.batch_id,
+        items: exportItems,
+        images: exportImages,
+        recipe: exportRecipe,
+        active_menu: activeMenuByRecognition.get(recId) || [],
+        validation_info: validationInfo,
+      })
+    }
+
+    // Формирование финального результата
+    const exportData: ValidationExportData = {
+      export_metadata: {
+        exported_at: new Date().toISOString(),
+        recognition_count: exportRecognitions.length,
+        validation_types_included: Array.from(allValidationTypes),
+      },
+      recognitions: exportRecognitions,
     }
 
     // Возврат JSON с правильными заголовками
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5)
     return new NextResponse(JSON.stringify(exportData, null, 2), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Content-Disposition': `attachment; filename="export_${userId || 'all'}_${Date.now()}.json"`,
+        'Content-Disposition': `attachment; filename="validation_export_${timestamp}.json"`,
       },
     })
   } catch (error) {
-    console.error('[API] Error exporting data:', error)
+    console.error('[export] Error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
   }
 }
-

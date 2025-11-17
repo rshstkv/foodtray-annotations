@@ -13,6 +13,7 @@ interface ValidationSessionHeaderProps {
   validationStatus?: SessionValidationResult
   onReset?: () => void
   onSelectFirstError?: () => void
+  readOnly?: boolean
 }
 
 export function ValidationSessionHeader({
@@ -22,6 +23,7 @@ export function ValidationSessionHeader({
   validationStatus,
   onReset,
   onSelectFirstError,
+  readOnly = false,
 }: ValidationSessionHeaderProps) {
   // Подсчёт количества items с ошибками
   const itemsWithErrors = validationStatus ? validationStatus.itemErrors.size : 0
@@ -34,9 +36,16 @@ export function ValidationSessionHeader({
           <h1 className="text-xl font-semibold text-gray-900">
             Recognition #{recognitionId}
           </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            {VALIDATION_TYPE_LABELS[validationType]}
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-gray-600">
+              {VALIDATION_TYPE_LABELS[validationType]}
+            </p>
+            {readOnly && (
+              <span className="px-2 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-medium text-gray-700">
+                Режим просмотра
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -63,8 +72,8 @@ export function ValidationSessionHeader({
             )
           )}
 
-          {/* Индикатор несохраненных изменений */}
-          {hasUnsavedChanges && (
+          {/* Индикатор несохраненных изменений - только в edit режиме */}
+          {!readOnly && hasUnsavedChanges && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md">
               <AlertCircle className="w-4 h-4 text-blue-600" />
               <span className="text-sm font-medium text-blue-700">
@@ -73,8 +82,8 @@ export function ValidationSessionHeader({
             </div>
           )}
 
-          {/* Кнопка Reset */}
-          {onReset && (
+          {/* Кнопка Reset - только в edit режиме */}
+          {!readOnly && onReset && (
             <Button
               variant="outline"
               size="sm"

@@ -90,10 +90,15 @@ export async function GET(
       .in('recipe_line_id', recipeLineIds.length > 0 ? recipeLineIds : [0])
 
     // 5. Загрузить active menu
-    const { data: activeMenuItems } = await supabase
+    const { data: activeMenuItems, error: activeMenuError } = await supabase
       .from('recognition_active_menu_items')
       .select('*')
       .eq('recognition_id', recognitionId)
+    
+    console.log(`[validation/session] Recognition ${recognitionId}: loaded ${activeMenuItems?.length || 0} active menu items`)
+    if (activeMenuError) {
+      console.error('[validation/session] Error loading active menu:', activeMenuError)
+    }
 
     // 6. Загрузить work_items (рабочие копии для этой сессии)
     const { data: workItems } = await supabase
@@ -128,7 +133,7 @@ export async function GET(
       recipe: recipe || null,
       recipeLines: recipeLines || [],
       recipeLineOptions: recipeLineOptions || [],
-      activeMenu: activeMenuItems?.map((item) => item.menu_item_data) || [],
+      activeMenu: activeMenuItems || [],
       items,
       annotations,
     }

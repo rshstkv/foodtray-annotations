@@ -526,3 +526,87 @@ export function mergeAnnotations(
   return merged.filter((ann) => !ann.is_deleted)
 }
 
+// ============================================================================
+// Export Types
+// ============================================================================
+
+export interface ValidationExportItem {
+  id: number
+  type: ItemType
+  quantity: number
+  recipe_line_id: number | null
+  bottle_orientation: BottleOrientation | null
+  metadata: Record<string, any> | null
+}
+
+export interface ValidationExportAnnotation {
+  id: number
+  item_id: number
+  bbox: BBox
+  is_occluded: boolean
+  occlusion_metadata: Record<string, unknown> | null
+}
+
+export interface ValidationExportImage {
+  id: number
+  camera_number: 1 | 2
+  image_name: string
+  storage_path: string
+  width: number | null
+  height: number | null
+  annotations: ValidationExportAnnotation[]
+}
+
+export interface ExportRecipeLine {
+  id: number
+  line_number: number
+  quantity: number
+  options: RecipeLineOption[]
+}
+
+export interface ExportRecipe {
+  id: number
+  total_amount: number | null
+  lines: ExportRecipeLine[]
+}
+
+export interface ValidationInfo {
+  completed_at: string
+  assigned_to: string
+  work_log_id: number
+}
+
+export interface ValidationExportRecognition {
+  recognition_id: number
+  batch_id: string | null
+  items: ValidationExportItem[]
+  images: ValidationExportImage[]
+  recipe: ExportRecipe | null
+  active_menu: ActiveMenuItem[]
+  validation_info: Record<string, ValidationInfo>
+}
+
+export interface ValidationExportData {
+  export_metadata: {
+    exported_at: string
+    recognition_count: number
+    validation_types_included: ValidationType[]
+  }
+  recognitions: ValidationExportRecognition[]
+}
+
+// Completed validation list for admin statistics
+export interface CompletedValidationInfo {
+  validation_type: ValidationType
+  work_log_id: number
+  completed_at: string
+  assigned_to: string
+  assigned_to_email?: string
+}
+
+export interface RecognitionWithValidations {
+  recognition_id: number
+  batch_id: string | null
+  completed_validations: CompletedValidationInfo[]
+}
+

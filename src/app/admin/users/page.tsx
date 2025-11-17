@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import { useUser } from '@/hooks/useUser'
 import { apiFetch } from '@/lib/api-response'
 import { UserPlus, Eye } from 'lucide-react'
+import { CreateUserDialog } from '@/components/admin/CreateUserDialog'
 
 interface User {
   id: string
@@ -21,6 +22,7 @@ export default function AdminUsersPage() {
   const { user, isAdmin } = useUser()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
 
   useEffect(() => {
     if (isAdmin) {
@@ -56,7 +58,7 @@ export default function AdminUsersPage() {
               <p className="text-gray-600 mt-2 text-base">Управление пользователями системы</p>
             </div>
             
-            <Button onClick={() => router.push('/admin/create-user')} className="h-10 rounded-lg">
+            <Button onClick={() => setCreateDialogOpen(true)} className="h-10 rounded-lg">
               <UserPlus className="w-4 h-4 mr-2" />
               Создать пользователя
             </Button>
@@ -146,6 +148,12 @@ export default function AdminUsersPage() {
               </div>
             </Card>
           )}
+
+          <CreateUserDialog
+            open={createDialogOpen}
+            onOpenChange={setCreateDialogOpen}
+            onUserCreated={loadUsers}
+          />
         </div>
   )
 }

@@ -20,6 +20,7 @@ interface ItemsListProps {
   onItemCreate: () => void
   onItemDelete: (id: number) => void
   onItemUpdate?: (id: number, data: UpdateItemRequest) => void
+  readOnly?: boolean
 }
 
 export function ItemsList({
@@ -31,12 +32,14 @@ export function ItemsList({
   onItemCreate,
   onItemDelete,
   onItemUpdate,
+  readOnly = false,
 }: ItemsListProps) {
   // State для редактирования
   const [editingItem, setEditingItem] = useState<TrayItem | null>(null)
 
-  // Получаем validationStatus из контекста
-  const { validationStatus } = useValidationSession()
+  // Получаем validationStatus из контекста (может быть undefined в read-only режиме)
+  const context = useValidationSession()
+  const validationStatus = context?.validationStatus || { itemErrors: new Map(), globalErrors: [], canComplete: false }
 
   // Получаем capabilities для текущего типа валидации
   const capabilities = getValidationCapabilities(validationType)
@@ -92,8 +95,8 @@ export function ItemsList({
           <h2 className="text-lg font-semibold text-gray-900">
             {itemType ? ITEM_TYPE_LABELS[itemType] : 'Объекты'}
           </h2>
-          {/* Кнопка "Добавить" видна только если есть права */}
-          {capabilities.canCreateItems && (
+          {/* Кнопка "Добавить" видна только если есть права и не read-only */}
+          {!readOnly && capabilities.canCreateItems && (
             <Button size="sm" onClick={onItemCreate}>
               <Plus className="w-4 h-4 mr-1" />
               Добавить
@@ -164,8 +167,8 @@ export function ItemsList({
                       </div>
                     )}
                     
-                    {/* UI для ориентации бутылки - показываем если выбран этот item */}
-                    {isSelected && capabilities.canSetBottleOrientation && item.type === 'FOOD' && onItemUpdate && (
+                    {/* UI для ориентации бутылки - показываем если выбран этот item и не read-only */}
+                    {!readOnly && isSelected && capabilities.canSetBottleOrientation && item.type === 'FOOD' && onItemUpdate && (
                       <div className="mt-2 flex gap-1 border-t border-gray-200 pt-2">
                         <span className="text-xs text-gray-600 self-center mr-1">Ориентация:</span>
                         <Button
@@ -208,38 +211,40 @@ export function ItemsList({
                     )}
                   </div>
                   
-                  {/* Кнопки действий */}
-                  <div className="flex-none flex gap-1">
-                    {/* Кнопка редактирования */}
-                    {capabilities.canUpdateItems && onItemUpdate && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setEditingItem(item)
-                        }}
-                      >
-                        <Pencil className="w-4 h-4 text-gray-400 hover:text-blue-600" />
-                      </Button>
-                    )}
-                    
-                    {/* Кнопка удаления */}
-                    {capabilities.canDeleteItems && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onItemDelete(item.id)
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-600" />
-                      </Button>
-                    )}
-                  </div>
+                  {/* Кнопки действий - только если не read-only */}
+                  {!readOnly && (
+                    <div className="flex-none flex gap-1">
+                      {/* Кнопка редактирования */}
+                      {capabilities.canUpdateItems && onItemUpdate && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingItem(item)
+                          }}
+                        >
+                          <Pencil className="w-4 h-4 text-gray-400 hover:text-blue-600" />
+                        </Button>
+                      )}
+                      
+                      {/* Кнопка удаления */}
+                      {capabilities.canDeleteItems && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onItemDelete(item.id)
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-600" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </Card>
             )

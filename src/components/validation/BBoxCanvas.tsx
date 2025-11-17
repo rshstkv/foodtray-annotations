@@ -696,7 +696,7 @@ export function BBoxCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full bg-gray-900 rounded-lg overflow-hidden"
+      className="relative w-full h-full min-h-[400px] bg-gray-900 rounded-lg overflow-hidden"
     >
       {/* Image */}
       <Image

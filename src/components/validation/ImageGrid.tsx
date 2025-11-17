@@ -106,22 +106,25 @@ export function ImageGrid({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4 h-full">
+    <div className="grid grid-cols-2 gap-4 h-full min-h-0">
       {images
         .sort((a, b) => a.camera_number - b.camera_number)
         .map((image) => {
           const allImageAnnotations = getAnnotationsForImage(image.id)
           
           // Если выбран объект - показываем только его аннотации
-          // Если не выбран - для OCCLUSION_VALIDATION показываем все, для остальных пустой список
+          // Если не выбран:
+          //   - В режиме view - показываем все аннотации
+          //   - Для OCCLUSION_VALIDATION - показываем все
+          //   - Для остальных типов валидации в режиме редактирования - пустой список
           const imageAnnotations = selectedItemId 
             ? allImageAnnotations.filter(ann => ann.itemId === selectedItemId)
-            : (capabilities.showAllItemTypes ? allImageAnnotations : [])
+            : (mode === 'view' || capabilities.showAllItemTypes ? allImageAnnotations : [])
           
           return (
-            <div key={image.id} className="flex flex-col h-full">
+            <div key={image.id} className="flex flex-col h-full min-h-0">
               {/* Фиксированная высота для заголовка и списка аннотаций */}
-              <div className="flex-none h-20 mb-2 flex flex-col">
+              <div className="flex-none mb-2 flex flex-col" style={{ minHeight: '60px', maxHeight: '120px' }}>
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="text-sm font-medium text-gray-700">
                     Камера {image.camera_number}

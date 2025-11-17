@@ -29,6 +29,7 @@ interface ValidationSessionContextValue {
   session: ValidationSession | null
   loading: boolean
   error: string | null
+  readOnly: boolean
 
   // Items
   items: TrayItem[]
@@ -72,11 +73,13 @@ export function useValidationSession() {
 interface ValidationSessionProviderProps {
   children: ReactNode
   initialSession: ValidationSession
+  readOnly?: boolean
 }
 
 export function ValidationSessionProvider({
   children,
   initialSession,
+  readOnly = false,
 }: ValidationSessionProviderProps) {
   const [session, setSession] = useState<ValidationSession>(initialSession)
   const [loading, setLoading] = useState(false)
@@ -112,6 +115,11 @@ export function ValidationSessionProvider({
   // Create item (локально, без API)
   const createItem = useCallback(
     (data: Omit<CreateItemRequest, 'work_log_id' | 'recognition_id'>) => {
+      if (readOnly) {
+        console.warn('[ValidationSession] Cannot create item in read-only mode')
+        return
+      }
+      
       // Создаем временный ID
       const tempId = tempIdCounter
       setTempIdCounter(tempId - 1)
@@ -147,11 +155,16 @@ export function ValidationSessionProvider({
         }
       })
     },
-    [session.workLog.id, session.recognition.id, tempIdCounter]
+    [session.workLog.id, session.recognition.id, tempIdCounter, readOnly]
   )
 
   // Update item (локально, без API)
   const updateItem = useCallback((id: number, data: UpdateItemRequest) => {
+    if (readOnly) {
+      console.warn('[ValidationSession] Cannot update item in read-only mode')
+      return
+    }
+    
     // Обновляем в локальном state
     setSession((prev) => ({
       ...prev,
@@ -189,10 +202,15 @@ export function ValidationSessionProvider({
         updatedItems: newUpdatedItems,
       }
     })
-  }, [])
+  }, [readOnly])
 
   // Delete item (локально, без API)
   const deleteItem = useCallback((id: number) => {
+    if (readOnly) {
+      console.warn('[ValidationSession] Cannot delete item in read-only mode')
+      return
+    }
+    
     // Удаляем из локального state
     setSession((prev) => ({
       ...prev,
@@ -227,11 +245,16 @@ export function ValidationSessionProvider({
         deletedItems: newDeletedItems,
       }
     })
-  }, [])
+  }, [readOnly])
 
   // Create annotation (локально, без API)
   const createAnnotation = useCallback(
     (data: Omit<CreateAnnotationRequest, 'work_log_id'> & { image_id: number }) => {
+      if (readOnly) {
+        console.warn('[ValidationSession] Cannot create annotation in read-only mode')
+        return
+      }
+      
       // Создаем временный string ID
       const tempId = `temp_${Date.now()}_${Math.random()}`
       
@@ -267,12 +290,17 @@ export function ValidationSessionProvider({
         }
       })
     },
-    [session.workLog.id]
+    [session.workLog.id, readOnly]
   )
 
   // Update annotation (локально, без API)
   const updateAnnotation = useCallback(
     (id: number | string, data: UpdateAnnotationRequest) => {
+      if (readOnly) {
+        console.warn('[ValidationSession] Cannot update annotation in read-only mode')
+        return
+      }
+      
       // Обновляем в локальном state
       setSession((prev) => ({
         ...prev,
@@ -313,11 +341,16 @@ export function ValidationSessionProvider({
         }
       })
     },
-    []
+    [readOnly]
   )
 
   // Delete annotation (локально, без API)
   const deleteAnnotation = useCallback((id: number | string) => {
+    if (readOnly) {
+      console.warn('[ValidationSession] Cannot delete annotation in read-only mode')
+      return
+    }
+    
     // Удаляем из локального state
     setSession((prev) => ({
       ...prev,
@@ -350,10 +383,15 @@ export function ValidationSessionProvider({
         deletedAnnotations: newDeletedAnnotations,
       }
     })
-  }, [])
+  }, [readOnly])
 
   // Сохранить все изменения в БД
   const saveAllChanges = useCallback(async () => {
+    if (readOnly) {
+      console.warn('[ValidationSession] Cannot save changes in read-only mode')
+      return
+    }
+    
     if (!hasUnsavedChanges) {
       return
     }
@@ -462,10 +500,15 @@ export function ValidationSessionProvider({
     } finally {
       setLoading(false)
     }
-  }, [hasUnsavedChanges, changesTracking, session.workLog.id, session.recognition.id])
+  }, [hasUnsavedChanges, changesTracking, session.workLog.id, session.recognition.id, readOnly])
   
   // Reset к начальному состоянию
   const resetToInitial = useCallback(async () => {
+    if (readOnly) {
+      console.warn('[ValidationSession] Cannot reset in read-only mode')
+      return
+    }
+    
     try {
       setLoading(true)
       setError(null)
@@ -503,10 +546,15 @@ export function ValidationSessionProvider({
     } finally {
       setLoading(false)
     }
-  }, [session.workLog.id])
+  }, [session.workLog.id, readOnly])
 
   // Complete validation
   const completeValidation = useCallback(async () => {
+    if (readOnly) {
+      console.warn('[ValidationSession] Cannot complete validation in read-only mode')
+      return
+    }
+    
     try {
       setLoading(true)
       setError(null)
@@ -526,10 +574,15 @@ export function ValidationSessionProvider({
     } finally {
       setLoading(false)
     }
-  }, [session.workLog.id])
+  }, [session.workLog.id, readOnly])
 
   // Abandon validation
   const abandonValidation = useCallback(async () => {
+    if (readOnly) {
+      console.warn('[ValidationSession] Cannot abandon validation in read-only mode')
+      return
+    }
+    
     try {
       setLoading(true)
       setError(null)
@@ -549,7 +602,7 @@ export function ValidationSessionProvider({
     } finally {
       setLoading(false)
     }
-  }, [session.workLog.id])
+  }, [session.workLog.id, readOnly])
 
   // Вычисляем статус валидации в реальном времени
   const validationStatus = useMemo(() => {
@@ -566,6 +619,7 @@ export function ValidationSessionProvider({
     session,
     loading,
     error,
+    readOnly,
     items: session.items,
     selectedItemId,
     setSelectedItemId,
