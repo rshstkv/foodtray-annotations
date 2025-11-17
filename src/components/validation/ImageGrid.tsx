@@ -120,10 +120,10 @@ export function ImageGrid({
           const allImageAnnotations = getAnnotationsForImage(image.id)
           
           // Если выбран объект - показываем только его аннотации
-          // Если не выбран - показываем все (для режима просмотра)
+          // Если не выбран - для OCCLUSION_VALIDATION показываем все, для остальных пустой список
           const imageAnnotations = selectedItemId 
             ? allImageAnnotations.filter(ann => ann.itemId === selectedItemId)
-            : allImageAnnotations
+            : (capabilities.showAllItemTypes ? allImageAnnotations : [])
           
           return (
             <div key={image.id} className="flex flex-col h-full">
@@ -133,14 +133,14 @@ export function ImageGrid({
                   <h3 className="text-sm font-medium text-gray-700">
                     Камера {image.camera_number}
                   </h3>
-                  {selectedItemId && imageAnnotations.length > 0 && (
+                  {imageAnnotations.length > 0 && (
                     <span className="text-xs text-gray-500">
                       {imageAnnotations.length} аннотаций
                     </span>
                   )}
                 </div>
-                {/* Show annotations for selected item - с фиксированной высотой и скроллом */}
-                {selectedItemId && imageAnnotations.length > 0 && (
+                {/* Show annotations - с фиксированной высотой и скроллом */}
+                {imageAnnotations.length > 0 && (
                   <div className="flex-1 overflow-y-auto">
                     <div className="flex flex-wrap gap-1">
                       {imageAnnotations.map((ann, idx) => {
