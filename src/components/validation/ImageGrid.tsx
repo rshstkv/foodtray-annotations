@@ -148,33 +148,36 @@ export function ImageGrid({
                         return (
                           <div
                             key={`ann-${image.id}-${ann.id}-${idx}`}
-                            className={`text-xs px-2 py-1 rounded cursor-pointer flex items-center gap-1 transition-all ${
+                            className={`text-xs px-2 py-1 rounded cursor-pointer flex items-center gap-2 transition-all ${
                               isSelected ? 'ring-2 ring-offset-1' : 'hover:brightness-90'
-                            } ${ann.isOccluded ? 'opacity-60' : ''}`}
+                            }`}
                             style={{ 
                               backgroundColor: ITEM_TYPE_COLORS[ann.itemType] + (isSelected ? '40' : '20'),
                               color: ITEM_TYPE_COLORS[ann.itemType],
-                              border: `${isSelected ? '2px' : '1px'} solid ${ITEM_TYPE_COLORS[ann.itemType]}`
+                              border: `${isSelected ? '2px' : '1px'} solid ${ITEM_TYPE_COLORS[ann.itemType]}`,
+                              opacity: ann.isOccluded ? 0.6 : 1
                             }}
                             onClick={() => handleAnnotationSelect(ann.id, ann.itemId)}
                           >
-                            <span className="flex items-center gap-1">
-                              {ann.isOccluded && <span title="Перекрыто">🔲</span>}
-                              {ann.itemLabel || `Аннотация #${idx + 1}`}
+                            <span className="flex-1">
+                              {ann.itemLabel || `#${idx + 1}`}
                             </span>
                             {isSelected && (capabilities.canToggleOcclusion || capabilities.canDeleteAnnotations) && (
-                              <div className="flex items-center gap-1 ml-1">
+                              <div className="flex items-center gap-2 border-l border-current/20 pl-2">
                                 {capabilities.canToggleOcclusion && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      onAnnotationToggleOcclusion(ann.id)
-                                    }}
-                                    className="hover:scale-110 transition-transform"
-                                    title={ann.isOccluded ? 'Снять перекрытие' : 'Отметить как перекрытое'}
+                                  <label
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="flex items-center gap-1 cursor-pointer hover:opacity-80"
+                                    title="Отметить перекрытие"
                                   >
-                                    {ann.isOccluded ? '📋' : '🔲'}
-                                  </button>
+                                    <input
+                                      type="checkbox"
+                                      checked={ann.isOccluded || false}
+                                      onChange={() => onAnnotationToggleOcclusion(ann.id)}
+                                      className="w-3 h-3 cursor-pointer"
+                                    />
+                                    <span className="text-[10px] whitespace-nowrap">Перекрыт</span>
+                                  </label>
                                 )}
                                 {capabilities.canDeleteAnnotations && (
                                   <button
