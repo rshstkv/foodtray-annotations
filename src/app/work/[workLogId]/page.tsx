@@ -263,6 +263,7 @@ function ValidationSessionContent() {
             items={items}
             recipeLineOptions={session.recipeLineOptions}
             selectedItemId={selectedItemId}
+            selectedAnnotationId={selectedAnnotationId}
             validationType={session.workLog.validation_type}
             mode={mode}
             onAnnotationCreate={handleAnnotationCreate}

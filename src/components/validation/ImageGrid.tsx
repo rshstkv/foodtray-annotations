@@ -13,6 +13,7 @@ interface ImageGridProps {
   items: TrayItem[]
   recipeLineOptions: RecipeLineOption[]
   selectedItemId: number | null
+  selectedAnnotationId: number | string | null
   validationType: ValidationType
   mode: 'view' | 'draw' | 'edit'
   onAnnotationCreate: (imageId: number, bbox: BBox) => void
@@ -28,6 +29,7 @@ export function ImageGrid({
   items,
   recipeLineOptions,
   selectedItemId,
+  selectedAnnotationId,
   validationType,
   mode,
   onAnnotationCreate,
@@ -38,8 +40,6 @@ export function ImageGrid({
 }: ImageGridProps) {
   // Получаем capabilities для текущего типа валидации
   const capabilities = getValidationCapabilities(validationType)
-  
-  const [hoveredAnnotationId, setHoveredAnnotationId] = useState<number | null>(null)
 
   // Get storage URL
   const getImageUrl = (storagePath: string) => {
@@ -105,13 +105,6 @@ export function ImageGrid({
       })
   }
 
-  const [selectedAnnotationId, setSelectedAnnotationId] = useState<number | string | null>(null)
-
-  const handleAnnotationSelect = (id: number | string | null, itemId?: number) => {
-    setSelectedAnnotationId(id)
-    onAnnotationSelect(id, itemId)
-  }
-
   return (
     <div className="grid grid-cols-2 gap-4 h-full">
       {images
@@ -157,7 +150,7 @@ export function ImageGrid({
                               border: `${isSelected ? '2px' : '1px'} solid ${ITEM_TYPE_COLORS[ann.itemType]}`,
                               opacity: ann.isOccluded ? 0.6 : 1
                             }}
-                            onClick={() => handleAnnotationSelect(ann.id, ann.itemId)}
+                            onClick={() => onAnnotationSelect(ann.id, ann.itemId)}
                           >
                             <span className="flex-1">
                               {ann.itemLabel || `#${idx + 1}`}
@@ -217,7 +210,7 @@ export function ImageGrid({
                   onAnnotationUpdate={onAnnotationUpdate}
                   onAnnotationSelect={(id) => {
                     const ann = imageAnnotations.find(a => a.id === id)
-                    handleAnnotationSelect(id, ann?.itemId)
+                    onAnnotationSelect(id, ann?.itemId)
                   }}
                   onAnnotationDelete={onAnnotationDelete}
                   onAnnotationToggleOcclusion={onAnnotationToggleOcclusion}
