@@ -121,6 +121,7 @@ function ValidationSessionContent() {
   }
 
   const handleAnnotationSelect = (annotationId: number | string | null, itemId?: number) => {
+    console.log('[handleAnnotationSelect] annotationId:', annotationId, 'itemId:', itemId)
     setSelectedAnnotationId(annotationId)
     // Если выбрана аннотация и передан itemId, автоматически выбираем item
     if (annotationId && itemId) {

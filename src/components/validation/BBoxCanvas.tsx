@@ -406,29 +406,28 @@ export function BBoxCanvas({
   // Mouse down
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      // Отключаем все редактирование в read-only режиме
-      if (!canEdit) {
-        return
-      }
-      
       const pos = getMousePos(e)
 
+      // Для режима draw требуется canEdit
       if (mode === 'draw') {
+        if (!canEdit) return
         setIsDrawing(true)
         setStartPoint(pos)
         setCurrentPoint(pos)
       } else if (mode === 'edit') {
-        // Сначала проверяем, кликнули ли на ручку ресайза выбранной аннотации
-        const selectedAnn = annotations.find(a => a.id === selectedAnnotationId)
-        if (selectedAnn) {
-          const handle = getResizeHandle(pos, selectedAnn)
-          if (handle) {
-            // Начинаем ресайз
-            setIsResizing(true)
-            setResizeHandle(handle)
-            setResizeStart({ pos, bbox: { ...selectedAnn.bbox } })
-            setEditingAnnotation(selectedAnn)
-            return
+        // Сначала проверяем, кликнули ли на ручку ресайза выбранной аннотации (только если canEdit)
+        if (canEdit) {
+          const selectedAnn = annotations.find(a => a.id === selectedAnnotationId)
+          if (selectedAnn) {
+            const handle = getResizeHandle(pos, selectedAnn)
+            if (handle) {
+              // Начинаем ресайз
+              setIsResizing(true)
+              setResizeHandle(handle)
+              setResizeStart({ pos, bbox: { ...selectedAnn.bbox } })
+              setEditingAnnotation(selectedAnn)
+              return
+            }
           }
         }
 
@@ -449,17 +448,27 @@ export function BBoxCanvas({
         })
 
         if (clicked) {
-          // Клик по существующей аннотации - выбираем её и начинаем перетаскивание
+          // Клик по существующей аннотации - выбираем её
+          console.log('[BBoxCanvas] Clicked on annotation:', clicked.id, 'calling onAnnotationSelect')
           onAnnotationSelect?.(clicked.id)
-          setIsDragging(true)
-          setDragStart(pos)
-          setEditingAnnotation(clicked)
+          
+          // Начинаем перетаскивание только если canEdit
+          if (canEdit) {
+            setIsDragging(true)
+            setDragStart(pos)
+            setEditingAnnotation(clicked)
+          }
         } else {
-          // Клик по пустому месту - рисуем новую аннотацию
+          // Клик по пустому месту - снимаем выделение
+          console.log('[BBoxCanvas] Clicked on empty space, deselecting')
           onAnnotationSelect?.(null)
-          setIsDrawing(true)
-          setStartPoint(pos)
-          setCurrentPoint(pos)
+          
+          // Создание новой аннотации только если canEdit
+          if (canEdit) {
+            setIsDrawing(true)
+            setStartPoint(pos)
+            setCurrentPoint(pos)
+          }
         }
       }
     },

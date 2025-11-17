@@ -210,7 +210,9 @@ export function ImageGrid({
                   onAnnotationCreate={(bbox) => onAnnotationCreate(image.id, bbox)}
                   onAnnotationUpdate={onAnnotationUpdate}
                   onAnnotationSelect={(id) => {
+                    console.log('[ImageGrid onAnnotationSelect] id:', id)
                     const ann = imageAnnotations.find(a => a.id === id)
+                    console.log('[ImageGrid onAnnotationSelect] found ann:', ann)
                     onAnnotationSelect(id, ann?.itemId)
                   }}
                   onAnnotationDelete={onAnnotationDelete}
