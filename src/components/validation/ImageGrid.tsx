@@ -138,6 +138,7 @@ export function ImageGrid({
                     <div className="flex flex-wrap gap-1">
                       {imageAnnotations.map((ann, idx) => {
                         const isSelected = ann.id === selectedAnnotationId
+                        console.log('[ImageGrid] ann.id:', ann.id, 'selectedAnnotationId:', selectedAnnotationId, 'isSelected:', isSelected)
                         return (
                           <div
                             key={`ann-${image.id}-${ann.id}-${idx}`}
