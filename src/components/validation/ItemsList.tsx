@@ -3,12 +3,13 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Plus, Trash2, Pencil } from 'lucide-react'
+import { Plus, Trash2, Pencil, AlertCircle } from 'lucide-react'
 import type { TrayItem, ItemType, ValidationType, RecipeLineOption, BuzzerColor, UpdateItemRequest } from '@/types/domain'
 import { ITEM_TYPE_LABELS, ITEM_TYPE_COLORS, BUZZER_COLOR_LABELS, getItemTypeFromValidationType } from '@/types/domain'
 import { getValidationCapabilities } from '@/lib/validation-capabilities'
 import { cn } from '@/lib/utils'
 import { EditItemDialog } from './EditItemDialog'
+import { useValidationSession } from '@/contexts/ValidationSessionContext'
 
 interface ItemsListProps {
   items: TrayItem[]
@@ -33,6 +34,9 @@ export function ItemsList({
 }: ItemsListProps) {
   // State для редактирования
   const [editingItem, setEditingItem] = useState<TrayItem | null>(null)
+
+  // Получаем validationStatus из контекста
+  const { validationStatus } = useValidationSession()
 
   // Получаем capabilities для текущего типа валидации
   const capabilities = getValidationCapabilities(validationType)
@@ -112,12 +116,16 @@ export function ItemsList({
             // Все work_items имеют уникальные ID
             const uniqueKey = item.id
 
+            const itemErrors = validationStatus.itemErrors.get(item.id)
+            const hasErrors = itemErrors && itemErrors.length > 0
+
             return (
               <Card
                 key={uniqueKey}
                 className={cn(
                   'p-3 cursor-pointer transition-all hover:shadow-md',
-                  isSelected && 'ring-2 ring-blue-500 bg-blue-50'
+                  isSelected && 'ring-2 ring-blue-500 bg-blue-50',
+                  hasErrors && 'border-2 border-red-400 bg-red-50 shadow-sm'
                 )}
                 onClick={() => onItemSelect(item.id)}
               >
@@ -131,6 +139,12 @@ export function ItemsList({
                       <span className="text-sm font-medium text-gray-900 truncate">
                         {getItemLabel(item)}
                       </span>
+                      {hasErrors && (
+                        <AlertCircle 
+                          className="w-5 h-5 text-red-600 flex-none animate-pulse" 
+                          title={itemErrors.join('\n')}
+                        />
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-gray-500">
                       <span>{ITEM_TYPE_LABELS[item.type]}</span>
@@ -138,6 +152,17 @@ export function ItemsList({
                         <span className="text-gray-400 text-[10px]">ID: {item.initial_item_id}</span>
                       )}
                     </div>
+                    
+                    {/* Показываем ошибки валидации */}
+                    {hasErrors && (
+                      <div className="mt-2 space-y-1">
+                        {itemErrors.map((error, idx) => (
+                          <div key={idx} className="text-xs text-red-700 bg-red-100 px-2 py-1 rounded">
+                            {error}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     
                     {/* UI для ориентации бутылки - показываем если выбран этот item */}
                     {isSelected && capabilities.canSetBottleOrientation && item.type === 'FOOD' && onItemUpdate && (

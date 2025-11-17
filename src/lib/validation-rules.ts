@@ -1,10 +1,189 @@
-import type { TrayItem, AnnotationView, Image } from '@/types/domain'
+import type { TrayItem, AnnotationView, Image, RecipeLine, ValidationType, ItemType } from '@/types/domain'
 
 export interface ValidationResult {
   valid: boolean
   errors: string[]
   warnings: string[]
 }
+
+/**
+ * Новая система валидации с визуальными индикаторами
+ */
+
+export interface SessionValidationResult {
+  canComplete: boolean
+  itemErrors: Map<number, string[]> // itemId -> errors
+  globalErrors: string[]
+}
+
+/**
+ * Определение ожидаемого количества аннотаций для item
+ * 
+ * Логика:
+ * 1. Если есть recipe_line_id (блюдо из чека):
+ *    - Если пользователь изменил quantity -> верим ему (item.quantity)
+ *    - Иначе -> берём из чека (recipeLine.quantity)
+ * 2. Если нет recipe_line_id (вручную добавленное):
+ *    - Всегда item.quantity
+ */
+export function getExpectedQuantity(
+  item: TrayItem,
+  recipeLines: RecipeLine[]
+): number {
+  // Если есть recipe_line_id - сравниваем с чеком
+  if (item.recipe_line_id) {
+    const recipeLine = recipeLines.find(rl => rl.id === item.recipe_line_id)
+    if (recipeLine) {
+      // Если пользователь изменил quantity - верим ему
+      // Иначе используем quantity из чека как источник правды
+      return item.quantity !== recipeLine.quantity 
+        ? item.quantity 
+        : recipeLine.quantity
+    }
+  }
+  // Для items без чека - всегда используем item.quantity
+  return item.quantity
+}
+
+/**
+ * Валидация аннотаций для конкретного item
+ * Проверяет количество на каждой камере
+ */
+export function validateItemAnnotations(
+  item: TrayItem,
+  annotations: AnnotationView[],
+  images: Image[],
+  expectedQuantity: number
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = []
+
+  // Пропускаем удалённые items
+  if (item.is_deleted) {
+    return { valid: true, errors: [] }
+  }
+
+  // Получаем аннотации для этого item
+  const itemAnnotations = annotations.filter(
+    (ann) => ann.work_item_id === item.id && !ann.is_deleted
+  )
+
+  // Подсчитываем количество на каждой камере
+  const countsByCamera = new Map<number, number>()
+  images.forEach(image => {
+    const count = itemAnnotations.filter(ann => ann.image_id === image.id).length
+    countsByCamera.set(image.camera_number, count)
+  })
+
+  // Для PLATE и BUZZER: проверяем только соответствие между камерами
+  // Не проверяем соответствие ожидаемому количеству, т.к. его нет в чеке
+  if (item.type === 'PLATE' || item.type === 'BUZZER') {
+    const counts = Array.from(countsByCamera.values())
+    if (counts.length > 1) {
+      const allEqual = counts.every(c => c === counts[0])
+      if (!allEqual) {
+        const countStr = images.map(img => 
+          `камера ${img.camera_number} = ${countsByCamera.get(img.camera_number) || 0}`
+        ).join(', ')
+        errors.push(`Количество не совпадает между камерами: ${countStr}`)
+      }
+    }
+  } else {
+    // Для FOOD: проверяем соответствие ожидаемому количеству на каждой камере
+    images.forEach(image => {
+      const count = countsByCamera.get(image.camera_number) || 0
+      if (count !== expectedQuantity) {
+        errors.push(
+          `На камере ${image.camera_number}: ${count} ${count === 1 ? 'аннотация' : count > 1 && count < 5 ? 'аннотации' : 'аннотаций'}, ожидается ${expectedQuantity}`
+        )
+      }
+    })
+
+    // И также проверяем что количество совпадает между камерами
+    const counts = Array.from(countsByCamera.values())
+    if (counts.length > 1) {
+      const allEqual = counts.every(c => c === counts[0])
+      if (!allEqual) {
+        const countStr = images.map(img => 
+          `камера ${img.camera_number} = ${countsByCamera.get(img.camera_number) || 0}`
+        ).join(', ')
+        errors.push(`Количество не совпадает между камерами: ${countStr}`)
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  }
+}
+
+/**
+ * Главная функция валидации для всей сессии
+ * Используется для реактивного обновления UI
+ */
+export function validateSession(
+  items: TrayItem[],
+  annotations: AnnotationView[],
+  images: Image[],
+  recipeLines: RecipeLine[],
+  validationType: ValidationType
+): SessionValidationResult {
+  // Для OCCLUSION и BOTTLE_ORIENTATION валидация не требуется
+  if (validationType === 'OCCLUSION_VALIDATION' || validationType === 'BOTTLE_ORIENTATION_VALIDATION') {
+    return {
+      canComplete: true,
+      itemErrors: new Map(),
+      globalErrors: []
+    }
+  }
+
+  const itemErrors = new Map<number, string[]>()
+  const globalErrors: string[] = []
+
+  // Определяем какие типы items проверять для данного типа валидации
+  const relevantItemTypes: ItemType[] = []
+  switch (validationType) {
+    case 'FOOD_VALIDATION':
+      relevantItemTypes.push('FOOD')
+      break
+    case 'PLATE_VALIDATION':
+      relevantItemTypes.push('PLATE')
+      break
+    case 'BUZZER_VALIDATION':
+      relevantItemTypes.push('BUZZER')
+      break
+  }
+
+  // Проверяем только релевантные items
+  items.forEach(item => {
+    if (item.is_deleted) return
+    
+    // Пропускаем items не относящиеся к данному типу валидации
+    if (relevantItemTypes.length > 0 && !relevantItemTypes.includes(item.type)) {
+      return
+    }
+
+    const expectedQuantity = getExpectedQuantity(item, recipeLines)
+    const result = validateItemAnnotations(item, annotations, images, expectedQuantity)
+
+    if (!result.valid) {
+      itemErrors.set(item.id, result.errors)
+    }
+  })
+
+  // Можем завершить только если нет ошибок
+  const canComplete = itemErrors.size === 0 && globalErrors.length === 0
+
+  return {
+    canComplete,
+    itemErrors,
+    globalErrors
+  }
+}
+
+// ============================================================================
+// Старые функции валидации (оставлены для совместимости)
+// ============================================================================
 
 /**
  * Валидация полноты аннотаций
@@ -23,7 +202,7 @@ export function validateAnnotationCompleteness(
     if (item.is_deleted) return
 
     const itemAnnotations = annotations.filter(
-      (ann) => ann.tray_item_id === item.id && !ann.is_deleted
+      (ann) => ann.work_item_id === item.id && !ann.is_deleted
     )
 
     // Проверка: есть ли аннотации на обеих камерах
@@ -31,7 +210,7 @@ export function validateAnnotationCompleteness(
       const hasAnnotation = itemAnnotations.some((ann) => ann.image_id === image.id)
       if (!hasAnnotation) {
         errors.push(
-          `Объект ${item.id} (${item.item_type}) отсутствует на камере ${image.camera_number}`
+          `Объект ${item.id} (${item.type}) отсутствует на камере ${image.camera_number}`
         )
       }
     })
@@ -69,21 +248,21 @@ export function validateAnnotationCount(
     if (item.is_deleted) return
 
     const itemAnnotations = annotations.filter(
-      (ann) => ann.tray_item_id === item.id && !ann.is_deleted
+      (ann) => ann.work_item_id === item.id && !ann.is_deleted
     )
 
     images.forEach((image) => {
       const imageAnnotations = itemAnnotations.filter((ann) => ann.image_id === image.id)
 
       // Для не-FOOD items должна быть максимум одна аннотация на камеру
-      if (item.item_type !== 'FOOD' && imageAnnotations.length > 1) {
+      if (item.type !== 'FOOD' && imageAnnotations.length > 1) {
         errors.push(
-          `Объект ${item.id} (${item.item_type}) имеет ${imageAnnotations.length} аннотаций на камере ${image.camera_number}, ожидается максимум 1`
+          `Объект ${item.id} (${item.type}) имеет ${imageAnnotations.length} аннотаций на камере ${image.camera_number}, ожидается максимум 1`
         )
       }
 
       // Предупреждение: слишком много аннотаций для FOOD
-      if (item.item_type === 'FOOD' && imageAnnotations.length > 5) {
+      if (item.type === 'FOOD' && imageAnnotations.length > 5) {
         warnings.push(
           `Объект ${item.id} (FOOD) имеет ${imageAnnotations.length} аннотаций на камере ${image.camera_number}, это кажется много`
         )
@@ -192,7 +371,7 @@ export function getItemAnnotationStatus(
   if (item.is_deleted) return 'complete'
 
   const itemAnnotations = annotations.filter(
-    (ann) => ann.tray_item_id === item.id && !ann.is_deleted
+    (ann) => ann.work_item_id === item.id && !ann.is_deleted
   )
 
   if (itemAnnotations.length === 0) return 'missing'

@@ -42,6 +42,7 @@ function ValidationSessionContent() {
     hasUnsavedChanges,
     saveAllChanges,
     resetToInitial,
+    validationStatus,
     completeValidation,
     abandonValidation,
   } = useValidationSession()
@@ -233,6 +234,15 @@ function ValidationSessionContent() {
     }
   }
 
+  const handleSelectFirstError = () => {
+    // Находим первый item с ошибкой и выделяем его
+    if (validationStatus.itemErrors.size > 0) {
+      const firstErrorItemId = Array.from(validationStatus.itemErrors.keys())[0]
+      setSelectedItemId(firstErrorItemId)
+      setSelectedAnnotationId(null)
+    }
+  }
+
   return (
     <>
       <WorkLayout
@@ -241,7 +251,9 @@ function ValidationSessionContent() {
             recognitionId={session.recognition.id}
             validationType={session.workLog.validation_type}
             hasUnsavedChanges={hasUnsavedChanges}
+            validationStatus={validationStatus}
             onReset={handleReset}
+            onSelectFirstError={handleSelectFirstError}
           />
         }
         sidebar={
@@ -279,7 +291,11 @@ function ValidationSessionContent() {
               <XCircle className="w-4 h-4 mr-2" />
               Пропустить
             </Button>
-            <Button onClick={handleComplete}>
+            <Button 
+              onClick={handleComplete}
+              disabled={!validationStatus.canComplete}
+              title={!validationStatus.canComplete ? 'Исправьте ошибки валидации перед завершением' : 'Завершить задачу'}
+            >
               <CheckCircle className="w-4 h-4 mr-2" />
               Завершить
             </Button>

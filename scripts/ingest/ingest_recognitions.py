@@ -98,13 +98,18 @@ def process_recognition_dir(recognition_dir: Path, supabase_client, limit: int =
         
         try:
             # Check if file already exists
+            file_exists = False
             try:
-                supabase_client.storage.from_('rrs-photos').list(path=f"recognitions/{recognition_id}")
+                objects = supabase_client.storage.from_('rrs-photos').list(path=f"recognitions/{recognition_id}")
+                if objects:
+                    file_exists = any(obj.get('name') == f"camera{camera_num}.jpg" for obj in objects)
+            except:
+                file_exists = False
+            
+            if file_exists:
                 # File exists, skip upload but keep dimensions
                 uploaded_data.append((f"camera{camera_num}.jpg", img_width, img_height))
                 continue
-            except:
-                pass
             
             # Read and potentially resize image
             with Image.open(img_path) as img:
@@ -122,7 +127,7 @@ def process_recognition_dir(recognition_dir: Path, supabase_client, limit: int =
                 supabase_client.storage.from_('rrs-photos').upload(
                     path=storage_path,
                     file=buffer.getvalue(),
-                    file_options={"content-type": "image/jpeg"}
+                    file_options={"content-type": "image/jpeg", "upsert": "true"}
                 )
                 
                 uploaded_data.append((f"camera{camera_num}.jpg", img_width, img_height))

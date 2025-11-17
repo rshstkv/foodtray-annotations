@@ -12,6 +12,7 @@ import type {
   BBox,
 } from '@/types/domain'
 import { apiFetch } from '@/lib/api-response'
+import { validateSession, type SessionValidationResult } from '@/lib/validation-rules'
 
 // Tracking для несохраненных изменений
 interface ChangesTracking {
@@ -49,6 +50,9 @@ interface ValidationSessionContextValue {
   hasUnsavedChanges: boolean
   saveAllChanges: () => Promise<void>
   resetToInitial: () => Promise<void>
+
+  // Validation status
+  validationStatus: SessionValidationResult
 
   // Session actions
   completeValidation: () => Promise<void>
@@ -547,6 +551,17 @@ export function ValidationSessionProvider({
     }
   }, [session.workLog.id])
 
+  // Вычисляем статус валидации в реальном времени
+  const validationStatus = useMemo(() => {
+    return validateSession(
+      session.items,
+      session.annotations,
+      session.images,
+      session.recipeLines,
+      session.workLog.validation_type
+    )
+  }, [session.items, session.annotations, session.images, session.recipeLines, session.workLog.validation_type])
+
   const value: ValidationSessionContextValue = {
     session,
     loading,
@@ -566,6 +581,7 @@ export function ValidationSessionProvider({
     hasUnsavedChanges,
     saveAllChanges,
     resetToInitial,
+    validationStatus,
     completeValidation,
     abandonValidation,
   }

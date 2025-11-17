@@ -40,7 +40,7 @@ export function getValidationCapabilities(type: ValidationType): ValidationCapab
         canCreateAnnotations: true,
         canEditAnnotationsBBox: true,
         canDeleteAnnotations: true,
-        canToggleOcclusion: true,
+        canToggleOcclusion: false,  // Только в OCCLUSION_VALIDATION
         canSetBottleOrientation: false,
         showAllItemTypes: false,
       }
