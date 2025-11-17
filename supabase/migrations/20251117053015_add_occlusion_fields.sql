@@ -18,3 +18,4 @@ COMMENT ON COLUMN annotations.is_occluded IS 'Аннотация перекры�
 COMMENT ON COLUMN annotations.occlusion_metadata IS 'Дополнительная информация об окклюзии (степень перекрытия, что перекрывает)';
 
 
+
