@@ -2,57 +2,40 @@ name: Supabase Migrations
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
     paths:
-      - 'supabase/migrations/**'
+      - "supabase/migrations/**"
+      - "supabase/**"
+      - ".github/workflows/supabase-migrations.yml"
   workflow_dispatch:
-    inputs:
-      reset_database:
-        description: 'Reset database (⚠️ Удалит все данные!)'
-        required: false
-        type: boolean
-        default: false
 
 jobs:
-  deploy-migrations:
+  db-push:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
+    env:
+      # Требуется создать секрет SUPABASE_ACCESS_TOKEN в настройках репозитория
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      # Рекомендуется завести переменную репозитория (Variables) SUPABASE_PROJECT_ID
+      SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate env
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "SUPABASE_ACCESS_TOKEN is missing"; exit 1; }
+          test -n "$SUPABASE_PROJECT_ID" || { echo "SUPABASE_PROJECT_ID variable is missing"; exit 1; }
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           version: latest
 
-      - name: Link to Supabase project
-        run: |
-          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password ${{ secrets.SUPABASE_DB_PASSWORD }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
-      - name: Reset database (if requested)
-        if: ${{ github.event.inputs.reset_database == 'true' }}
+      - name: Push migrations to remote
         run: |
-          echo "⚠️ RESETTING DATABASE - All data will be lost!"
-          supabase db reset --linked
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Push migrations
-        if: ${{ github.event.inputs.reset_database != 'true' }}
-        run: |
-          echo "📦 Pushing migrations..."
-          supabase db push --linked
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Check migration status
-        run: |
-          echo "✅ Checking migration status..."
-          supabase migration list --linked
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          echo "📤 Pushing migrations to remote..."
+          supabase db push --debug
