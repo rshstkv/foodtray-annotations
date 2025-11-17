@@ -17,3 +17,4 @@ COMMENT ON COLUMN initial_annotations.is_occluded IS 'Аннотация пер�
 COMMENT ON COLUMN annotations.is_occluded IS 'Аннотация перекрыта другим объектом на фото';
 COMMENT ON COLUMN annotations.occlusion_metadata IS 'Дополнительная информация об окклюзии (степень перекрытия, что перекрывает)';
 
+

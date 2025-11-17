@@ -84,3 +84,4 @@ SELECT
 FROM active_types at
 CROSS JOIN recognition_count rc;
 
+

@@ -62,19 +62,25 @@ export async function POST(
       .eq('work_log_id', workLogIdNum)
 
     // Пересоздаем work_items из initial_tray_items
+    // Используем LEFT JOIN с recipe_line_options чтобы получить recipe_line_id для блюд
     const { data: initialItems } = await supabase
       .from('initial_tray_items')
-      .select('*')
+      .select(`
+        *,
+        recipe_line_options(recipe_line_id)
+      `)
       .eq('recognition_id', workLog.recognition_id)
 
     if (initialItems && initialItems.length > 0) {
-      const workItemsToInsert = initialItems.map(item => ({
+      const workItemsToInsert = initialItems.map((item: any) => ({
         work_log_id: workLogIdNum,
         initial_item_id: item.id,
         recognition_id: workLog.recognition_id,
         type: item.item_type,
-        recipe_line_id: null, // initial items не имеют recipe_line_id напрямую
+        recipe_line_id: item.recipe_line_options?.recipe_line_id || null,
         quantity: 1,
+        bottle_orientation: item.bottle_orientation || null,
+        metadata: item.metadata || null,
         is_deleted: false,
       }))
       

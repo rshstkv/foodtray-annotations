@@ -101,3 +101,4 @@ curl -I "http://127.0.0.1:54321/storage/v1/object/public/rrs-photos/recognitions
 - ✅ Все изображения доступны через API
 - ✅ Валидация работает корректно
 
+
