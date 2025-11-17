@@ -449,7 +449,6 @@ export function BBoxCanvas({
 
         if (clicked) {
           // Клик по существующей аннотации - выбираем её
-          console.log('[BBoxCanvas] Clicked on annotation:', clicked.id, 'calling onAnnotationSelect')
           onAnnotationSelect?.(clicked.id)
           
           // Начинаем перетаскивание только если canEdit
@@ -460,7 +459,6 @@ export function BBoxCanvas({
           }
         } else {
           // Клик по пустому месту - снимаем выделение
-          console.log('[BBoxCanvas] Clicked on empty space, deselecting')
           onAnnotationSelect?.(null)
           
           // Создание новой аннотации только если canEdit

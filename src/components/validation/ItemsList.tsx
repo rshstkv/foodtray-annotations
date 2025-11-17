@@ -139,30 +139,45 @@ export function ItemsList({
                       )}
                     </div>
                     
-                    {/* UI для ориентации бутылки (только если есть права) */}
-                    {capabilities.canSetBottleOrientation && item.type === 'BOTTLE' && onItemUpdate && (
-                      <div className="mt-2 flex gap-1">
+                    {/* UI для ориентации бутылки - показываем если выбран этот item */}
+                    {isSelected && capabilities.canSetBottleOrientation && item.type === 'FOOD' && onItemUpdate && (
+                      <div className="mt-2 flex gap-1 border-t border-gray-200 pt-2">
+                        <span className="text-xs text-gray-600 self-center mr-1">Ориентация:</span>
                         <Button
                           size="sm"
                           variant={item.bottle_orientation === 'horizontal' ? 'default' : 'outline'}
-                          className="flex-1 h-7 text-xs"
+                          className="h-7 text-xs px-2"
                           onClick={(e) => {
                             e.stopPropagation()
                             onItemUpdate(item.id, { bottle_orientation: 'horizontal' })
                           }}
+                          title="Горизонтально"
                         >
-                          Горизонтально
+                          —
                         </Button>
                         <Button
                           size="sm"
                           variant={item.bottle_orientation === 'vertical' ? 'default' : 'outline'}
-                          className="flex-1 h-7 text-xs"
+                          className="h-7 text-xs px-2"
                           onClick={(e) => {
                             e.stopPropagation()
                             onItemUpdate(item.id, { bottle_orientation: 'vertical' })
                           }}
+                          title="Вертикально"
                         >
-                          Вертикально
+                          |
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={!item.bottle_orientation ? 'default' : 'outline'}
+                          className="h-7 text-xs px-2"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onItemUpdate(item.id, { bottle_orientation: null })
+                          }}
+                          title="Не указано"
+                        >
+                          ✕
                         </Button>
                       </div>
                     )}
