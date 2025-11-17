@@ -31,6 +31,31 @@ ON CONFLICT (id) DO UPDATE SET
   email = EXCLUDED.email,
   encrypted_password = EXCLUDED.encrypted_password;
 
+-- Create identity for email provider
+DELETE FROM auth.identities WHERE user_id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+INSERT INTO auth.identities (
+  provider_id,
+  user_id,
+  identity_data,
+  provider,
+  last_sign_in_at,
+  created_at,
+  updated_at
+) VALUES (
+  'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::uuid,
+  jsonb_build_object(
+    'sub', 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', 
+    'email', 'admin@test.com',
+    'email_verified', true,
+    'provider', 'email'
+  ),
+  'email',
+  NOW(),
+  NOW(),
+  NOW()
+);
+
 -- Create profile for admin
 INSERT INTO public.profiles (id, email, full_name, role)
 VALUES (
