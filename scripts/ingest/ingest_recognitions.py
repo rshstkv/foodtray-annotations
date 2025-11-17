@@ -44,7 +44,8 @@ def get_dataset_path():
 def process_recognition_dir(recognition_dir: Path, supabase_client, limit: int = None):
     """
     Process a single recognition directory
-    Returns tuple: (recognition_id, batch_id, active_menu, image1_path, image2_path, correct_dishes)
+    Returns tuple: (recognition_id, batch_id, active_menu, image1_path, image2_path, 
+                    image1_width, image1_height, image2_width, image2_height, correct_dishes)
     """
     # Extract recognition_id from directory name (e.g., "recognition_100024" -> 100024)
     dir_name = recognition_dir.name
@@ -81,18 +82,26 @@ def process_recognition_dir(recognition_dir: Path, supabase_client, limit: int =
     # Sort images to ensure consistent camera1/camera2 assignment
     image_files.sort()
     
-    # Upload images to storage
-    uploaded_paths = []
+    # Upload images to storage and get dimensions
+    uploaded_data = []  # [(path, width, height), ...]
     for idx, img_path in enumerate(image_files, start=1):
         camera_num = idx
         storage_path = f"recognitions/{recognition_id}/camera{camera_num}.jpg"
+        
+        # First, get image dimensions
+        try:
+            with Image.open(img_path) as img:
+                img_width, img_height = img.width, img.height
+        except Exception as e:
+            log(f"Failed to read image {img_path.name}: {e}", "ERROR")
+            return None
         
         try:
             # Check if file already exists
             try:
                 supabase_client.storage.from_('rrs-photos').list(path=f"recognitions/{recognition_id}")
-                # File exists, skip upload
-                uploaded_paths.append(f"camera{camera_num}.jpg")
+                # File exists, skip upload but keep dimensions
+                uploaded_data.append((f"camera{camera_num}.jpg", img_width, img_height))
                 continue
             except:
                 pass
@@ -116,25 +125,29 @@ def process_recognition_dir(recognition_dir: Path, supabase_client, limit: int =
                     file_options={"content-type": "image/jpeg"}
                 )
                 
-                uploaded_paths.append(f"camera{camera_num}.jpg")
+                uploaded_data.append((f"camera{camera_num}.jpg", img_width, img_height))
         
         except Exception as e:
             # If duplicate, it's OK - file already there
             if 'Duplicate' in str(e) or 'already exists' in str(e):
-                uploaded_paths.append(f"camera{camera_num}.jpg")
+                uploaded_data.append((f"camera{camera_num}.jpg", img_width, img_height))
             else:
                 log(f"Failed to upload {img_path.name}: {e}", "ERROR")
                 return None
     
-    if len(uploaded_paths) != 2:
+    if len(uploaded_data) != 2:
         return None
     
     return (
         recognition_id,
         "manual_load",  # batch_id
         json.dumps(active_menu) if active_menu else None,
-        uploaded_paths[0],
-        uploaded_paths[1],
+        uploaded_data[0][0],  # image1_path
+        uploaded_data[1][0],  # image2_path
+        uploaded_data[0][1],  # image1_width
+        uploaded_data[0][2],  # image1_height
+        uploaded_data[1][1],  # image2_width
+        uploaded_data[1][2],  # image2_height
         recipe
     )
 
@@ -185,14 +198,18 @@ def main():
         result = process_recognition_dir(rec_dir, supabase, args.limit)
         
         if result:
-            recognition_id, batch_id, active_menu, img1, img2, recipe = result
+            recognition_id, batch_id, active_menu, img1, img2, img1_w, img1_h, img2_w, img2_h, recipe = result
             
             recognition_rows.append((
                 recognition_id,
                 batch_id,
                 active_menu,
                 img1,
-                img2
+                img2,
+                img1_w,
+                img1_h,
+                img2_w,
+                img2_h
             ))
             
             if recipe:
@@ -209,7 +226,8 @@ def main():
         copy_to_table(
             conn,
             "raw.recognition_files",
-            ["recognition_id", "batch_id", "active_menu", "image1_path", "image2_path"],
+            ["recognition_id", "batch_id", "active_menu", "image1_path", "image2_path", 
+             "image1_width", "image1_height", "image2_width", "image2_height"],
             recognition_rows
         )
     

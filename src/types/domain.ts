@@ -130,6 +130,7 @@ export interface WorkItem {
   recipe_line_id: number | null
   quantity: number
   bottle_orientation: BottleOrientation | null
+  metadata: Record<string, any> | null // Для BUZZER: {color}, для кастомных: {label}
   is_deleted: boolean
   created_at: string
   updated_at: string
@@ -251,6 +252,7 @@ export interface CreateItemRequest {
   type: ItemType
   recipe_line_id?: number | null
   quantity?: number
+  metadata?: Record<string, any> | null
 }
 
 export interface UpdateItemRequest {
@@ -258,6 +260,7 @@ export interface UpdateItemRequest {
   recipe_line_id?: number | null
   quantity?: number
   bottle_orientation?: BottleOrientation | null
+  metadata?: Record<string, any> | null
   is_deleted?: boolean
 }
 

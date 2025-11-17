@@ -28,60 +28,132 @@ export async function POST() {
       .order('order_in_session', { ascending: true })
 
     if (prioritiesError || !priorities || priorities.length === 0) {
+      console.log('[validation/start] No active validation types found')
       return apiError('No active validation types', 404, ApiErrorCode.NOT_FOUND)
     }
 
-    // 2. Найти recognition для валидации
-    // Для каждого validation_type, находим recognitions которые еще не валидированы
+    console.log('[validation/start] Active priorities:', priorities.length)
+
+    // 2. Проверить последнюю завершенную валидацию этого пользователя
+    const { data: lastCompleted } = await supabase
+      .from('validation_work_log')
+      .select('recognition_id, validation_type')
+      .eq('assigned_to', user.id)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+      .limit(1)
+
+    console.log('[validation/start] Last completed:', lastCompleted)
+
     let selectedRecognition: any = null
     let selectedValidationType: string | null = null
 
-    for (const priority of priorities) {
-      const validationType = priority.validation_type
-
-      // Найти recognitions которые:
-      // - Не имеют completed work_log для этого validation_type
-      // - Не имеют in_progress work_log для этого validation_type (кроме старых > 30 мин)
-      const { data: completedIds } = await supabase
+    // 2.1. Если есть последняя завершенная - попробовать продолжить тот же recognition
+    if (lastCompleted && lastCompleted.length > 0) {
+      const lastRecognitionId = lastCompleted[0].recognition_id
+      
+      console.log('[validation/start] Checking for continuation of recognition:', lastRecognitionId)
+      
+      // Найти для этого recognition незавершенные типы валидации
+      const { data: completedForRecognition } = await supabase
         .from('validation_work_log')
-        .select('recognition_id')
-        .eq('validation_type', validationType)
+        .select('validation_type')
+        .eq('recognition_id', lastRecognitionId)
         .eq('status', 'completed')
-
-      const completedRecognitionIds = completedIds?.map((r) => r.recognition_id) || []
-
-      const { data: inProgressIds } = await supabase
+      
+      const completedTypes = completedForRecognition?.map(w => w.validation_type) || []
+      
+      const { data: inProgressForRecognition } = await supabase
         .from('validation_work_log')
-        .select('recognition_id')
-        .eq('validation_type', validationType)
+        .select('validation_type')
+        .eq('recognition_id', lastRecognitionId)
         .eq('status', 'in_progress')
         .gte('started_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
-
-      const inProgressRecognitionIds = inProgressIds?.map((r) => r.recognition_id) || []
-
-      const excludedIds = [...completedRecognitionIds, ...inProgressRecognitionIds]
-
-      // Найти первый доступный recognition
-      let query = supabase
-        .from('recognitions')
-        .select('*')
-        .order('id', { ascending: true })
-        .limit(1)
-
-      if (excludedIds.length > 0) {
-        query = query.not('id', 'in', `(${excludedIds.join(',')})`)
-      }
-
-      const { data: recognitions } = await query
-
-      if (recognitions && recognitions.length > 0) {
-        selectedRecognition = recognitions[0]
-        selectedValidationType = validationType
-        break
+      
+      const inProgressTypes = inProgressForRecognition?.map(w => w.validation_type) || []
+      
+      console.log('[validation/start] Completed types for recognition:', completedTypes)
+      console.log('[validation/start] In progress types for recognition:', inProgressTypes)
+      
+      // Найти первый незавершенный тип по order_in_session
+      const availableType = priorities.find(p => 
+        !completedTypes.includes(p.validation_type) &&
+        !inProgressTypes.includes(p.validation_type)
+      )
+      
+      if (availableType) {
+        console.log('[validation/start] Found available type for same recognition:', availableType.validation_type)
+        
+        // Загрузить recognition
+        const { data: recog } = await supabase
+          .from('recognitions')
+          .select('*')
+          .eq('id', lastRecognitionId)
+          .single()
+        
+        if (recog) {
+          selectedRecognition = recog
+          selectedValidationType = availableType.validation_type
+        }
       }
     }
 
+    // 2.2. Если не нашли продолжение - искать новый recognition
+    if (!selectedRecognition) {
+      console.log('[validation/start] Looking for new recognition')
+      
+      for (const priority of priorities) {
+        const validationType = priority.validation_type
+
+        // Найти recognitions которые:
+        // - Не имеют completed work_log для этого validation_type
+        // - Не имеют in_progress work_log для этого validation_type (кроме старых > 30 мин)
+        const { data: completedIds } = await supabase
+          .from('validation_work_log')
+          .select('recognition_id')
+          .eq('validation_type', validationType)
+          .eq('status', 'completed')
+
+        const completedRecognitionIds = completedIds?.map((r) => r.recognition_id) || []
+
+        const { data: inProgressIds } = await supabase
+          .from('validation_work_log')
+          .select('recognition_id')
+          .eq('validation_type', validationType)
+          .eq('status', 'in_progress')
+          .gte('started_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
+
+        const inProgressRecognitionIds = inProgressIds?.map((r) => r.recognition_id) || []
+
+        const excludedIds = [...completedRecognitionIds, ...inProgressRecognitionIds]
+
+        // Найти первый доступный recognition
+        let query = supabase
+          .from('recognitions')
+          .select('*')
+          .order('id', { ascending: true })
+          .limit(1)
+
+        if (excludedIds.length > 0) {
+          query = query.not('id', 'in', `(${excludedIds.join(',')})`)
+        }
+
+        const { data: recognitions } = await query
+
+        if (recognitions && recognitions.length > 0) {
+          selectedRecognition = recognitions[0]
+          selectedValidationType = validationType
+          console.log('[validation/start] Found new recognition:', selectedRecognition.id, 'for type:', validationType)
+          break
+        }
+      }
+    }
+
+    console.log('[validation/start] Selected recognition:', selectedRecognition?.id)
+    console.log('[validation/start] Selected type:', selectedValidationType)
+
     if (!selectedRecognition || !selectedValidationType) {
+      console.log('[validation/start] No recognitions available for validation')
       return apiSuccess(null, 'No recognitions available for validation')
     }
 
@@ -99,8 +171,12 @@ export async function POST() {
       .single()
 
     if (workLogError || !workLog) {
+      console.error('[validation/start] Work log error:', workLogError)
+      console.error('[validation/start] Work log data:', workLog)
       return apiError('Failed to create work log', 500, ApiErrorCode.INTERNAL_ERROR)
     }
+    
+    console.log('[validation/start] Work log created:', workLog.id)
 
     // 4. Загрузить данные для UI
     // Images

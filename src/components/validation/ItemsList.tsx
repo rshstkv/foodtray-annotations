@@ -1,12 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Plus, Trash2 } from 'lucide-react'
-import type { TrayItem, ItemType, ValidationType, RecipeLineOption } from '@/types/domain'
-import { ITEM_TYPE_LABELS, ITEM_TYPE_COLORS, getItemTypeFromValidationType } from '@/types/domain'
+import { Plus, Trash2, Pencil } from 'lucide-react'
+import type { TrayItem, ItemType, ValidationType, RecipeLineOption, BuzzerColor, UpdateItemRequest } from '@/types/domain'
+import { ITEM_TYPE_LABELS, ITEM_TYPE_COLORS, BUZZER_COLOR_LABELS, getItemTypeFromValidationType } from '@/types/domain'
 import { getValidationCapabilities } from '@/lib/validation-capabilities'
 import { cn } from '@/lib/utils'
+import { EditItemDialog } from './EditItemDialog'
 
 interface ItemsListProps {
   items: TrayItem[]
@@ -16,7 +18,7 @@ interface ItemsListProps {
   onItemSelect: (id: number) => void
   onItemCreate: () => void
   onItemDelete: (id: number) => void
-  onItemUpdate?: (id: number, data: { bottle_orientation?: 'horizontal' | 'vertical' }) => void
+  onItemUpdate?: (id: number, data: UpdateItemRequest) => void
 }
 
 export function ItemsList({
@@ -29,6 +31,9 @@ export function ItemsList({
   onItemDelete,
   onItemUpdate,
 }: ItemsListProps) {
+  // State для редактирования
+  const [editingItem, setEditingItem] = useState<TrayItem | null>(null)
+
   // Получаем capabilities для текущего типа валидации
   const capabilities = getValidationCapabilities(validationType)
   
@@ -40,24 +45,39 @@ export function ItemsList({
 
   // Get item label - showing names from recipe_line (from check)
   const getItemLabel = (item: TrayItem): string => {
-    // For FOOD items with recipe_line_id, find the recipe line and show selected option
-    if (item.recipe_line_id && item.type === 'FOOD') {
-      // Найти selected option для этого recipe_line
+    let label = ''
+    
+    // Для FOOD: название блюда
+    if (item.type === 'FOOD' && item.recipe_line_id) {
       const selectedOption = recipeLineOptions.find(
         (opt) => opt.recipe_line_id === item.recipe_line_id && opt.is_selected
       )
-      if (selectedOption?.name) {
-        return selectedOption.name
-      }
+      label = selectedOption?.name || ITEM_TYPE_LABELS[item.type]
+      
       // Если нет selected, показываем первый доступный
-      const anyOption = recipeLineOptions.find((opt) => opt.recipe_line_id === item.recipe_line_id)
-      if (anyOption?.name) {
-        return anyOption.name
+      if (!selectedOption) {
+        const anyOption = recipeLineOptions.find((opt) => opt.recipe_line_id === item.recipe_line_id)
+        if (anyOption?.name) {
+          label = anyOption.name
+        }
       }
     }
+    // Для BUZZER: цвет
+    else if (item.type === 'BUZZER' && item.metadata?.color) {
+      const colorLabel = BUZZER_COLOR_LABELS[item.metadata.color as BuzzerColor] || item.metadata.color
+      label = `${ITEM_TYPE_LABELS[item.type]} (${colorLabel})`
+    }
+    // Остальные типы
+    else {
+      label = ITEM_TYPE_LABELS[item.type]
+    }
     
-    // Fallback: показываем тип
-    return ITEM_TYPE_LABELS[item.type]
+    // Добавить quantity если > 1
+    if (item.quantity > 1) {
+      label = `${item.quantity}x ${label}`
+    }
+    
+    return label
   }
 
   return (
@@ -148,26 +168,55 @@ export function ItemsList({
                     )}
                   </div>
                   
-                  {/* Кнопка удаления (видна только если есть права) */}
-                  {capabilities.canDeleteItems && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="flex-none h-8 w-8 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onItemDelete(item.id)
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-600" />
-                    </Button>
-                  )}
+                  {/* Кнопки действий */}
+                  <div className="flex-none flex gap-1">
+                    {/* Кнопка редактирования */}
+                    {capabilities.canUpdateItems && onItemUpdate && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setEditingItem(item)
+                        }}
+                      >
+                        <Pencil className="w-4 h-4 text-gray-400 hover:text-blue-600" />
+                      </Button>
+                    )}
+                    
+                    {/* Кнопка удаления */}
+                    {capabilities.canDeleteItems && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onItemDelete(item.id)
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-600" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </Card>
             )
           })
         )}
       </div>
+
+      {/* Диалог редактирования */}
+      {editingItem && onItemUpdate && (
+        <EditItemDialog
+          open={Boolean(editingItem)}
+          onClose={() => setEditingItem(null)}
+          onSave={onItemUpdate}
+          item={editingItem}
+          recipeLineOptions={recipeLineOptions}
+        />
+      )}
     </div>
   )
 }

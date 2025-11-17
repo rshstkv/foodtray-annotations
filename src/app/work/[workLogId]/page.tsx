@@ -16,7 +16,7 @@ import {
   useValidationSession,
 } from '@/contexts/ValidationSessionContext'
 import { apiFetch } from '@/lib/api-response'
-import type { ValidationSession, BBox } from '@/types/domain'
+import type { ValidationSession, BBox, StartValidationResponse } from '@/types/domain'
 import { getItemTypeFromValidationType } from '@/types/domain'
 import { getValidationCapabilities } from '@/lib/validation-capabilities'
 import { CheckCircle, XCircle } from 'lucide-react'
@@ -182,7 +182,20 @@ function ValidationSessionContent() {
       }
       // Затем помечаем как завершенную
       await completeValidation()
-      router.push('/work')
+      
+      // Автоматически попробовать взять следующую задачу
+      const response = await apiFetch<StartValidationResponse>(
+        '/api/validation/start',
+        { method: 'POST' }
+      )
+      
+      if (response.success && response.data) {
+        // Есть следующая задача
+        router.push(`/work/${response.data.workLog.id}`)
+      } else {
+        // Нет задач - вернуться к списку
+        router.push('/work')
+      }
     } catch (err) {
       console.error('Failed to complete validation:', err)
       alert('Ошибка при завершении валидации')

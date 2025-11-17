@@ -52,15 +52,18 @@ export function ItemDialog({
   const [selectedMenuItem, setSelectedMenuItem] = useState<string>('')
   const [buzzerColor, setBuzzerColor] = useState<BuzzerColor>('green')
   const [customLabel, setCustomLabel] = useState('')
+  const [quantity, setQuantity] = useState(1)
 
   const handleSave = () => {
     const data: {
       type: ItemType
       recipe_line_id?: number
       menu_item_external_id?: string
+      quantity?: number
       metadata?: Record<string, unknown>
     } = {
       type: itemType,
+      quantity,
     }
 
     // Для FOOD с выбором из чека
@@ -103,7 +106,7 @@ export function ItemDialog({
                   <SelectValue placeholder="Выберите блюдо" />
                 </SelectTrigger>
                 <SelectContent>
-                  {recipeLineOptions.map((option) => (
+                  {recipeLineOptions.filter(option => option && option.id).map((option) => (
                     <SelectItem key={option.id} value={String(option.id)}>
                       {option.name} ({option.external_id})
                     </SelectItem>
@@ -121,7 +124,7 @@ export function ItemDialog({
                   <SelectValue placeholder="Выберите блюдо" />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeMenu.map((item) => (
+                  {activeMenu.filter(item => item && item.external_id).map((item) => (
                     <SelectItem key={item.external_id} value={item.external_id}>
                       {item.name} ({item.external_id})
                     </SelectItem>
@@ -164,6 +167,17 @@ export function ItemDialog({
               />
             </div>
           )}
+
+          {/* Количество (для всех типов) */}
+          <div className="space-y-2">
+            <Label>Количество</Label>
+            <Input
+              type="number"
+              min={1}
+              value={quantity}
+              onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+            />
+          </div>
         </div>
 
         <DialogFooter>
