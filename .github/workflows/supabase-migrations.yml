@@ -30,7 +30,7 @@ jobs:
         with:
           version: latest
 
-      - name: Link and push
+      - name: Push migrations with db-url
         run: |
-          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
-          supabase db push
+          DB_URL="postgresql://postgres.vnoizgfveiwvguvijuos:${SUPABASE_DB_PASSWORD}@aws-1-eu-north-1.pooler.supabase.com:5432/postgres"
+          supabase db push --db-url "$DB_URL"
