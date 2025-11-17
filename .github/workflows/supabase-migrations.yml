@@ -45,7 +45,7 @@ jobs:
         if: ${{ github.event.inputs.reset_database == 'true' }}
         run: |
           echo "🔴 RESETTING DATABASE - All data will be lost!"
-          supabase db reset --linked --debug
+          yes | supabase db reset --linked --debug
 
       - name: Check for migration conflicts
         if: ${{ github.event.inputs.reset_database != 'true' }}
