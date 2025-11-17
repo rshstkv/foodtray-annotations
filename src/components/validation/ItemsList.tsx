@@ -15,6 +15,7 @@ interface ItemsListProps {
   onItemSelect: (id: number) => void
   onItemCreate: () => void
   onItemDelete: (id: number) => void
+  onItemUpdate?: (id: number, data: { bottle_orientation?: 'horizontal' | 'vertical' }) => void
 }
 
 export function ItemsList({
@@ -25,39 +26,34 @@ export function ItemsList({
   onItemSelect,
   onItemCreate,
   onItemDelete,
+  onItemUpdate,
 }: ItemsListProps) {
   // Filter items by validation type
   const itemType = getItemTypeFromValidationType(validationType)
   const filteredItems = itemType
-    ? items.filter((item) => item.item_type === itemType)
+    ? items.filter((item) => item.type === itemType)
     : items
 
-  // Get item label - showing names from recipe_line_options (from check)
+  // Get item label - showing names from recipe_line (from check)
   const getItemLabel = (item: TrayItem): string => {
-    // First priority: if item has recipe_line_option_id, get name from recipe
-    if (item.recipe_line_option_id) {
-      const option = recipeLineOptions.find((opt) => opt.id === item.recipe_line_option_id)
-      if (option?.name) {
-        return option.name
+    // For FOOD items with recipe_line_id, find the recipe line and show selected option
+    if (item.recipe_line_id && item.type === 'FOOD') {
+      // Найти selected option для этого recipe_line
+      const selectedOption = recipeLineOptions.find(
+        (opt) => opt.recipe_line_id === item.recipe_line_id && opt.is_selected
+      )
+      if (selectedOption?.name) {
+        return selectedOption.name
+      }
+      // Если нет selected, показываем первый доступный
+      const anyOption = recipeLineOptions.find((opt) => opt.recipe_line_id === item.recipe_line_id)
+      if (anyOption?.name) {
+        return anyOption.name
       }
     }
     
-    // Second priority: name from metadata
-    if (item.metadata?.name) {
-      return String(item.metadata.name)
-    }
-    
-    // Third priority: external_id (для новых элементов, добавленных вручную)
-    if (item.menu_item_external_id) {
-      return item.menu_item_external_id
-    }
-    
-    // For non-FOOD items, show color if available
-    if (item.metadata?.color) {
-      return `${ITEM_TYPE_LABELS[item.item_type]} (${item.metadata.color})`
-    }
-    
-    return ITEM_TYPE_LABELS[item.item_type]
+    // Fallback: показываем тип
+    return ITEM_TYPE_LABELS[item.type]
   }
 
   return (
@@ -68,10 +64,13 @@ export function ItemsList({
           <h2 className="text-lg font-semibold text-gray-900">
             {itemType ? ITEM_TYPE_LABELS[itemType] : 'Объекты'}
           </h2>
-          <Button size="sm" onClick={onItemCreate}>
-            <Plus className="w-4 h-4 mr-1" />
-            Добавить
-          </Button>
+          {/* Кнопка "Добавить" скрыта для BOTTLE_ORIENTATION_VALIDATION */}
+          {validationType !== 'BOTTLE_ORIENTATION_VALIDATION' && (
+            <Button size="sm" onClick={onItemCreate}>
+              <Plus className="w-4 h-4 mr-1" />
+              Добавить
+            </Button>
+          )}
         </div>
         <p className="text-sm text-gray-500">{filteredItems.length} объектов</p>
       </div>
@@ -85,11 +84,13 @@ export function ItemsList({
         ) : (
           filteredItems.map((item) => {
             const isSelected = item.id === selectedItemId
-            const color = ITEM_TYPE_COLORS[item.item_type]
+            const color = ITEM_TYPE_COLORS[item.type]
+            // Все work_items имеют уникальные ID
+            const uniqueKey = item.id
 
             return (
               <Card
-                key={item.id}
+                key={uniqueKey}
                 className={cn(
                   'p-3 cursor-pointer transition-all hover:shadow-md',
                   isSelected && 'ring-2 ring-blue-500 bg-blue-50'
@@ -108,23 +109,55 @@ export function ItemsList({
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                      <span>{ITEM_TYPE_LABELS[item.item_type]}</span>
-                      {item.is_modified && (
-                        <span className="text-blue-600 font-medium">изменено</span>
+                      <span>{ITEM_TYPE_LABELS[item.type]}</span>
+                      {item.initial_item_id !== null && (
+                        <span className="text-gray-400 text-[10px]">ID: {item.initial_item_id}</span>
                       )}
                     </div>
+                    
+                    {/* UI для ориентации бутылки (только для BOTTLE_ORIENTATION_VALIDATION) */}
+                    {validationType === 'BOTTLE_ORIENTATION_VALIDATION' && item.type === 'BOTTLE' && onItemUpdate && (
+                      <div className="mt-2 flex gap-1">
+                        <Button
+                          size="sm"
+                          variant={item.bottle_orientation === 'horizontal' ? 'default' : 'outline'}
+                          className="flex-1 h-7 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onItemUpdate(item.id, { bottle_orientation: 'horizontal' })
+                          }}
+                        >
+                          Горизонтально
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={item.bottle_orientation === 'vertical' ? 'default' : 'outline'}
+                          className="flex-1 h-7 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onItemUpdate(item.id, { bottle_orientation: 'vertical' })
+                          }}
+                        >
+                          Вертикально
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="flex-none h-8 w-8 p-0"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onItemDelete(item.id)
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-600" />
-                  </Button>
+                  
+                  {/* Кнопка удаления (скрыта для BOTTLE_ORIENTATION_VALIDATION) */}
+                  {validationType !== 'BOTTLE_ORIENTATION_VALIDATION' && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="flex-none h-8 w-8 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onItemDelete(item.id)
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-600" />
+                    </Button>
+                  )}
                 </div>
               </Card>
             )

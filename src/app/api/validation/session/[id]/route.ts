@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase-server'
 import { apiSuccess, apiError, ApiErrorCode } from '@/lib/api-response'
-import type { ValidationSession } from '@/types/domain'
-import { mergeItems, mergeAnnotations } from '@/types/domain'
+import type { ValidationSession, WorkItem, WorkAnnotation, TrayItem, AnnotationView } from '@/types/domain'
 
 /**
  * GET /api/validation/session/[id]
@@ -96,35 +95,31 @@ export async function GET(
       .select('*')
       .eq('recognition_id', recognitionId)
 
-    // 6. Загрузить items (initial + current)
-    const { data: initialItems } = await supabase
-      .from('initial_tray_items')
+    // 6. Загрузить work_items (рабочие копии для этой сессии)
+    const { data: workItems } = await supabase
+      .from('work_items')
       .select('*')
-      .eq('recognition_id', recognitionId)
+      .eq('work_log_id', workLogId)
+      .eq('is_deleted', false) // не показываем удаленные
 
-    const { data: currentItems } = await supabase
-      .from('current_tray_items')
+    // 7. Загрузить work_annotations (рабочие копии для этой сессии)
+    const { data: workAnnotations } = await supabase
+      .from('work_annotations')
       .select('*')
-      .eq('recognition_id', recognitionId)
+      .eq('work_log_id', workLogId)
+      .eq('is_deleted', false) // не показываем удаленные
 
-    // 7. Загрузить annotations (initial + current)
-    const imageIds = images?.map((img) => img.id) || []
-    const { data: initialAnnotations } = await supabase
-      .from('initial_annotations')
-      .select('*')
-      .in('image_id', imageIds.length > 0 ? imageIds : [0])
+    // 8. Преобразуем в UI типы
+    const items: TrayItem[] = (workItems || []).map(item => ({
+      ...item,
+      is_modified: true,
+    }))
 
-    const { data: currentAnnotations } = await supabase
-      .from('annotations')
-      .select('*')
-      .in('image_id', imageIds.length > 0 ? imageIds : [0])
-
-    // 8. Merge items and annotations
-    const mergedItems = mergeItems(initialItems || [], currentItems || [])
-    const mergedAnnotations = mergeAnnotations(
-      initialAnnotations || [],
-      currentAnnotations || []
-    )
+    const annotations: AnnotationView[] = (workAnnotations || []).map(ann => ({
+      ...ann,
+      is_modified: true,
+      is_temp: false,
+    }))
 
     const session: ValidationSession = {
       workLog,
@@ -134,8 +129,8 @@ export async function GET(
       recipeLines: recipeLines || [],
       recipeLineOptions: recipeLineOptions || [],
       activeMenu: activeMenuItems?.map((item) => item.menu_item_data) || [],
-      items: mergedItems,
-      annotations: mergedAnnotations,
+      items,
+      annotations,
     }
 
     return apiSuccess({ session })

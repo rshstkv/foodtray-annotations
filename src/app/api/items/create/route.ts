@@ -5,21 +5,20 @@ import type { CreateItemRequest } from '@/types/domain'
 /**
  * POST /api/items/create
  * 
- * Создать новый item в current_tray_items
+ * Создать новый work_item в рамках validation сессии
  */
 export async function POST(request: Request) {
   try {
     const body: CreateItemRequest = await request.json()
     const {
+      work_log_id,
       recognition_id,
-      item_type,
-      source,
-      recipe_line_option_id,
-      menu_item_external_id,
-      metadata,
+      type,
+      recipe_line_id,
+      quantity = 1,
     } = body
 
-    if (!recognition_id || !item_type || !source) {
+    if (!work_log_id || !recognition_id || !type) {
       return apiError(
         'Missing required fields',
         400,
@@ -34,19 +33,17 @@ export async function POST(request: Request) {
       return apiError('Authentication required', 401, ApiErrorCode.UNAUTHORIZED)
     }
 
-    // Создать новый item
+    // Создать новый work_item
     const { data: item, error: createError } = await supabase
-      .from('current_tray_items')
+      .from('work_items')
       .insert({
+        work_log_id,
         recognition_id,
-        item_type,
-        source,
-        recipe_line_option_id: recipe_line_option_id || null,
-        menu_item_external_id: menu_item_external_id || null,
-        metadata: metadata || null,
-        initial_tray_item_id: null, // Новый item
+        type,
+        recipe_line_id: recipe_line_id || null,
+        quantity,
+        initial_item_id: null, // Новый item (не из initial)
         is_deleted: false,
-        created_by: user.id,
       })
       .select()
       .single()

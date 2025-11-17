@@ -13,6 +13,8 @@ export type ItemType = 'FOOD' | 'BUZZER' | 'PLATE' | 'BOTTLE' | 'OTHER'
 
 export type BuzzerColor = 'green' | 'blue' | 'red' | 'white'
 
+export type BottleOrientation = 'horizontal' | 'vertical'
+
 export type TrayItemSource = 'RECIPE_LINE_OPTION' | 'MENU_ITEM' | 'MANUAL'
 
 export type ValidationType =
@@ -113,38 +115,29 @@ export interface InitialTrayItem {
   recipe_line_option_id: number | null
   menu_item_external_id: string | null
   metadata: Record<string, unknown> | null
+  bottle_orientation: BottleOrientation | null
   created_at: string
 }
 
-export interface CurrentTrayItem {
+// Рабочая копия объекта для validation сессии
+// Копируется из initial_tray_items при создании work_log
+export interface WorkItem {
   id: number
+  work_log_id: number
+  initial_item_id: number | null // NULL для новых объектов
   recognition_id: number
-  initial_tray_item_id: number | null
-  item_type: ItemType
-  source: TrayItemSource
-  recipe_line_option_id: number | null
-  menu_item_external_id: string | null
-  metadata: Record<string, unknown> | null
+  type: ItemType
+  recipe_line_id: number | null
+  quantity: number
+  bottle_orientation: BottleOrientation | null
   is_deleted: boolean
-  created_by: string | null
   created_at: string
   updated_at: string
 }
 
-// Merged view for UI
-export interface TrayItem {
-  id: number
-  recognition_id: number
-  item_type: ItemType
-  source: TrayItemSource
-  recipe_line_option_id: number | null
-  menu_item_external_id: string | null
-  metadata: Record<string, unknown> | null
-  is_modified: boolean // true if from current_tray_items
-  is_deleted: boolean
-  created_by: string | null
-  created_at: string
-  updated_at: string
+// Alias для UI (используем WorkItem напрямую)
+export type TrayItem = WorkItem & {
+  is_modified: boolean // всегда true для work_items (все отредактированные)
 }
 
 // ============================================================================
@@ -164,32 +157,30 @@ export interface InitialAnnotation {
   initial_tray_item_id: number
   bbox: BBox
   source: string
+  is_occluded: boolean
   created_at: string
 }
 
-export interface Annotation {
+// Рабочая копия аннотации для validation сессии
+// Копируется из initial_annotations при создании work_log
+export interface WorkAnnotation {
   id: number
+  work_log_id: number
+  initial_annotation_id: number | null // NULL для новых аннотаций
   image_id: number
-  current_tray_item_id: number | null
-  initial_tray_item_id: number | null
+  work_item_id: number
   bbox: BBox
   is_deleted: boolean
-  created_by: string | null
+  is_occluded: boolean
+  occlusion_metadata: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
 
-// Merged view for UI
-export interface AnnotationView {
-  id: number
-  image_id: number
-  tray_item_id: number // references either current or initial
-  bbox: BBox
-  is_modified: boolean // true if from annotations table
-  is_deleted: boolean
-  created_by: string | null
-  created_at: string
-  updated_at: string
+// Alias для UI (используем WorkAnnotation напрямую)
+export type AnnotationView = WorkAnnotation & {
+  is_modified: boolean // всегда true для work_annotations
+  is_temp?: boolean // true для временных (еще не сохраненных)
 }
 
 // ============================================================================
@@ -246,8 +237,8 @@ export interface StartValidationResponse {
   recipeLines: RecipeLine[]
   recipeLineOptions: RecipeLineOption[]
   activeMenu: ActiveMenuItem[]
-  initialItems: InitialTrayItem[]
-  initialAnnotations: InitialAnnotation[]
+  workItems: WorkItem[] // Рабочие копии (уже скопированы триггером)
+  workAnnotations: WorkAnnotation[] // Рабочие копии (уже скопированы триггером)
 }
 
 export interface ValidationSessionResponse {
@@ -255,31 +246,43 @@ export interface ValidationSessionResponse {
 }
 
 export interface CreateItemRequest {
+  work_log_id: number
   recognition_id: number
-  item_type: ItemType
-  source: TrayItemSource
-  recipe_line_option_id?: number | null
-  menu_item_external_id?: string | null
-  metadata?: Record<string, unknown> | null
+  type: ItemType
+  recipe_line_id?: number | null
+  quantity?: number
 }
 
 export interface UpdateItemRequest {
-  item_type?: ItemType
-  source?: TrayItemSource
-  recipe_line_option_id?: number | null
-  menu_item_external_id?: string | null
-  metadata?: Record<string, unknown> | null
+  type?: ItemType
+  recipe_line_id?: number | null
+  quantity?: number
+  is_deleted?: boolean
 }
 
 export interface CreateAnnotationRequest {
+  work_log_id: number
   image_id: number
-  tray_item_id: number // Will determine current vs initial
+  work_item_id: number
   bbox: BBox
+  is_occluded?: boolean
+  occlusion_metadata?: Record<string, unknown> | null
 }
 
 export interface UpdateAnnotationRequest {
   bbox?: BBox
-  tray_item_id?: number
+  work_item_id?: number
+  is_occluded?: boolean
+  occlusion_metadata?: Record<string, unknown> | null
+  is_deleted?: boolean
+}
+
+// DEPRECATED: не используется в новой архитектуре (каждая операция выполняется отдельно)
+export interface BatchSaveAnnotationsRequest {
+  recognition_id: number
+  created: Array<any>
+  updated: Array<any>
+  deleted: number[]
 }
 
 export interface CompleteValidationRequest {
@@ -346,10 +349,18 @@ export function getItemTypeFromValidationType(
   }
 }
 
-// Helper to merge initial and current items
+// Преобразует WorkItem в TrayItem для UI
+export function workItemToTrayItem(item: WorkItem): TrayItem {
+  return {
+    ...item,
+    is_modified: true,
+  }
+}
+
+// DEPRECATED: старая функция merge, больше не используется
 export function mergeItems(
   initial: InitialTrayItem[],
-  current: CurrentTrayItem[]
+  current: any[]
 ): TrayItem[] {
   const currentMap = new Map<number | null, CurrentTrayItem>()
   
@@ -423,10 +434,20 @@ export function mergeItems(
   return merged.filter((item) => !item.is_deleted)
 }
 
-// Helper to merge initial and current annotations
+// Преобразует WorkAnnotation в AnnotationView для UI
+export function workAnnotationToView(annotation: WorkAnnotation): AnnotationView {
+  return {
+    ...annotation,
+    is_modified: true,
+    is_temp: false,
+  }
+}
+
+// DEPRECATED: старая функция merge, больше не используется
 export function mergeAnnotations(
   initial: InitialAnnotation[],
-  current: Annotation[]
+  current: any[],
+  images?: Image[]
 ): AnnotationView[] {
   const currentMap = new Map<number, Annotation>()
   
@@ -452,6 +473,9 @@ export function mergeAnnotations(
         bbox: currentAnn.bbox,
         is_modified: true,
         is_deleted: currentAnn.is_deleted,
+        is_occluded: currentAnn.is_occluded,
+        occlusion_metadata: currentAnn.occlusion_metadata,
+        is_temp: false,
         created_by: currentAnn.created_by,
         created_at: currentAnn.created_at,
         updated_at: currentAnn.updated_at,
@@ -465,6 +489,9 @@ export function mergeAnnotations(
         bbox: ann.bbox,
         is_modified: false,
         is_deleted: false,
+        is_occluded: ann.is_occluded,
+        occlusion_metadata: null,
+        is_temp: false,
         created_by: null,
         created_at: ann.created_at,
         updated_at: ann.created_at,
@@ -482,6 +509,9 @@ export function mergeAnnotations(
         bbox: ann.bbox,
         is_modified: true,
         is_deleted: ann.is_deleted,
+        is_occluded: ann.is_occluded,
+        occlusion_metadata: ann.occlusion_metadata,
+        is_temp: false,
         created_by: ann.created_by,
         created_at: ann.created_at,
         updated_at: ann.updated_at,

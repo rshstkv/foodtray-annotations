@@ -46,3 +46,4 @@ CREATE INDEX idx_recipe_line_options_external ON recipe_line_options(external_id
 -- No separate table for now - active_menu is per-recognition JSONB
 
 
+

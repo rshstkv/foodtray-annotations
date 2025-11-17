@@ -20,3 +20,4 @@ CREATE INDEX idx_recipe_lines_lookup ON recipe_lines(recipe_id, line_number);
 CREATE INDEX idx_recipe_options_selected ON recipe_line_options(recipe_line_id, is_selected);
 
 
+

@@ -51,17 +51,25 @@ export async function POST(request: Request) {
       return apiError('Work log is not in progress', 400, ApiErrorCode.VALIDATION_ERROR)
     }
 
-    // 2. Обновить work log
-    const { error: updateError } = await supabase
+    // 2. Удалить все work_items и work_annotations для этого work_log
+    await supabase
+      .from('work_items')
+      .delete()
+      .eq('work_log_id', work_log_id)
+
+    await supabase
+      .from('work_annotations')
+      .delete()
+      .eq('work_log_id', work_log_id)
+
+    // 3. Удалить work log (возвращаем задачу в пул)
+    const { error: deleteError } = await supabase
       .from('validation_work_log')
-      .update({
-        status: 'abandoned',
-        completed_at: new Date().toISOString(),
-      })
+      .delete()
       .eq('id', work_log_id)
 
-    if (updateError) {
-      console.error('[validation/abandon] Update error:', updateError)
+    if (deleteError) {
+      console.error('[validation/abandon] Delete error:', deleteError)
       return apiError('Failed to abandon validation', 500, ApiErrorCode.INTERNAL_ERROR)
     }
 

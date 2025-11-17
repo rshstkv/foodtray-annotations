@@ -137,17 +137,18 @@ export async function POST() {
       .select('*')
       .eq('recognition_id', selectedRecognition.id)
 
-    // Initial tray items
-    const { data: initialItems } = await supabase
-      .from('initial_tray_items')
+    // Загрузить work_items и work_annotations (созданы триггером)
+    const { data: workItems } = await supabase
+      .from('work_items')
       .select('*')
-      .eq('recognition_id', selectedRecognition.id)
+      .eq('work_log_id', workLog.id)
+      .eq('is_deleted', false)
 
-    // Initial annotations
-    const { data: initialAnnotations } = await supabase
-      .from('initial_annotations')
+    const { data: workAnnotations } = await supabase
+      .from('work_annotations')
       .select('*')
-      .in('image_id', images?.map((img) => img.id) || [])
+      .eq('work_log_id', workLog.id)
+      .eq('is_deleted', false)
 
     const response: StartValidationResponse = {
       workLog,
@@ -157,8 +158,8 @@ export async function POST() {
       recipeLines: recipeLines || [],
       recipeLineOptions: recipeLineOptions || [],
       activeMenu: activeMenuItems?.map((item) => item.menu_item_data) || [],
-      initialItems: initialItems || [],
-      initialAnnotations: initialAnnotations || [],
+      workItems: workItems || [],
+      workAnnotations: workAnnotations || [],
     }
 
     return apiSuccess(response)

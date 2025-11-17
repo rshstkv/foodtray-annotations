@@ -11,11 +11,11 @@ import { AnnotationsList } from '@/components/validation/AnnotationsList'
 import { ItemDialog } from '@/components/validation/ItemDialog'
 import { Button } from '@/components/ui/button'
 import { useUser } from '@/hooks/useUser'
-import { apiFetch } from '@/lib/api-response'
 import {
   ValidationSessionProvider,
   useValidationSession,
 } from '@/contexts/ValidationSessionContext'
+import { apiFetch } from '@/lib/api-response'
 import type { ValidationSession, BBox } from '@/types/domain'
 import { getItemTypeFromValidationType } from '@/types/domain'
 import { CheckCircle, XCircle } from 'lucide-react'
@@ -30,6 +30,7 @@ function ValidationSessionContent() {
     selectedItemId,
     setSelectedItemId,
     createItem,
+    updateItem,
     deleteItem,
     annotations,
     selectedAnnotationId,
@@ -37,19 +38,41 @@ function ValidationSessionContent() {
     createAnnotation,
     updateAnnotation,
     deleteAnnotation,
+    hasUnsavedChanges,
+    saveAllChanges,
+    resetToInitial,
     completeValidation,
     abandonValidation,
   } = useValidationSession()
 
-  const [mode, setMode] = useState<'view' | 'draw' | 'edit'>('edit')
-  const [activeImageId, setActiveImageId] = useState<number>(session.images[0]?.id || 0)
+  // Всегда режим редактирования для этой задачи
+  const mode = 'edit' as const
   const [showItemDialog, setShowItemDialog] = useState(false)
 
   const itemType = getItemTypeFromValidationType(session.workLog.validation_type)
 
+  // Обработка Escape для снятия выделения
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedItemId(null)
+        setSelectedAnnotationId(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [setSelectedItemId, setSelectedAnnotationId])
+
   const handleItemSelect = (id: number) => {
-    setSelectedItemId(id)
-    // Подсветить все annotations этого item
+    // Если кликаем на уже выбранный item - снимаем выделение
+    if (selectedItemId === id) {
+      setSelectedItemId(null)
+      setSelectedAnnotationId(null)
+    } else {
+      setSelectedItemId(id)
+      setSelectedAnnotationId(null)
+    }
   }
 
   const handleItemCreate = () => {
@@ -68,27 +91,61 @@ function ValidationSessionContent() {
     }
     await createAnnotation({
       image_id: imageId,
-      tray_item_id: selectedItemId,
+      work_item_id: selectedItemId,
       bbox,
     })
   }
 
+  const handleAnnotationSelect = (annotationId: number | string | null, itemId?: number) => {
+    setSelectedAnnotationId(annotationId)
+    // Если выбрана аннотация и передан itemId, автоматически выбираем item
+    if (annotationId && itemId) {
+      setSelectedItemId(itemId)
+    }
+  }
+
   const handleComplete = async () => {
     try {
+      // Сначала сохраняем все изменения
+      if (hasUnsavedChanges) {
+        await saveAllChanges()
+      }
+      // Затем помечаем как завершенную
       await completeValidation()
       router.push('/work')
     } catch (err) {
       console.error('Failed to complete validation:', err)
+      alert('Ошибка при завершении валидации')
     }
   }
 
-  const handleAbandon = async () => {
-    if (confirm('Вы уверены, что хотите отменить валидацию?')) {
+  const handleSkip = async () => {
+    if (hasUnsavedChanges) {
+      if (!confirm('У вас есть несохраненные изменения. Вы уверены, что хотите пропустить эту задачу? Все изменения будут потеряны.')) {
+        return
+      }
+    } else {
+      if (!confirm('Вы уверены, что хотите пропустить эту задачу?')) {
+        return
+      }
+    }
+    
+    try {
+      await abandonValidation()
+      router.push('/work')
+    } catch (err) {
+      console.error('Failed to skip validation:', err)
+      alert('Ошибка при пропуске задачи')
+    }
+  }
+
+  const handleReset = async () => {
+    if (confirm('Вы уверены, что хотите откатить все изменения к исходному состоянию?')) {
       try {
-        await abandonValidation()
-        router.push('/work')
+        await resetToInitial()
       } catch (err) {
-        console.error('Failed to abandon validation:', err)
+        console.error('Failed to reset:', err)
+        alert('Ошибка при откате изменений')
       }
     }
   }
@@ -100,6 +157,8 @@ function ValidationSessionContent() {
           <ValidationSessionHeader
             recognitionId={session.recognition.id}
             validationType={session.workLog.validation_type}
+            hasUnsavedChanges={hasUnsavedChanges}
+            onReset={handleReset}
           />
         }
         sidebar={
@@ -111,6 +170,7 @@ function ValidationSessionContent() {
             onItemSelect={handleItemSelect}
             onItemCreate={handleItemCreate}
             onItemDelete={deleteItem}
+            onItemUpdate={updateItem}
           />
         }
         images={
@@ -120,45 +180,32 @@ function ValidationSessionContent() {
             items={items}
             recipeLineOptions={session.recipeLineOptions}
             selectedItemId={selectedItemId}
+            validationType={session.workLog.validation_type}
             mode={mode}
             onAnnotationCreate={handleAnnotationCreate}
             onAnnotationUpdate={updateAnnotation}
-            onAnnotationSelect={setSelectedAnnotationId}
+            onAnnotationSelect={handleAnnotationSelect}
+            onAnnotationDelete={deleteAnnotation}
+            onAnnotationToggleOcclusion={(id) => {
+              const ann = annotations.find(a => a.id === id)
+              if (ann) {
+                updateAnnotation(id, { 
+                  is_occluded: !ann.is_occluded 
+                })
+              }
+            }}
           />
         }
         actions={
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Button
-                variant={mode === 'view' ? 'default' : 'outline'}
-                onClick={() => setMode('view')}
-              >
-                Просмотр
-              </Button>
-              <Button
-                variant={mode === 'draw' ? 'default' : 'outline'}
-                onClick={() => setMode('draw')}
-              >
-                Рисовать
-              </Button>
-              <Button
-                variant={mode === 'edit' ? 'default' : 'outline'}
-                onClick={() => setMode('edit')}
-              >
-                Редактировать
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={handleAbandon}>
-                <XCircle className="w-4 h-4 mr-2" />
-                Отменить
-              </Button>
-              <Button onClick={handleComplete}>
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Завершить
-              </Button>
-            </div>
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="outline" onClick={handleSkip}>
+              <XCircle className="w-4 h-4 mr-2" />
+              Пропустить
+            </Button>
+            <Button onClick={handleComplete}>
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Завершить
+            </Button>
           </div>
         }
       />

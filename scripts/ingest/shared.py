@@ -145,3 +145,4 @@ def validate_env():
     log("All required environment variables are set", "SUCCESS")
 
 
+

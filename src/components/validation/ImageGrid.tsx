@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import type { Image, AnnotationView, TrayItem, ItemType, RecipeLineOption } from '@/types/domain'
+import type { Image, AnnotationView, TrayItem, ItemType, RecipeLineOption, ValidationType } from '@/types/domain'
 import { BBoxCanvas } from './BBoxCanvas'
 import type { BBox } from '@/types/domain'
-import { ITEM_TYPE_COLORS } from '@/types/domain'
+import { ITEM_TYPE_COLORS, getItemTypeFromValidationType } from '@/types/domain'
 
 interface ImageGridProps {
   images: Image[]
@@ -12,10 +12,13 @@ interface ImageGridProps {
   items: TrayItem[]
   recipeLineOptions: RecipeLineOption[]
   selectedItemId: number | null
+  validationType: ValidationType
   mode: 'view' | 'draw' | 'edit'
   onAnnotationCreate: (imageId: number, bbox: BBox) => void
-  onAnnotationUpdate: (id: number, bbox: BBox) => void
-  onAnnotationSelect: (id: number | null) => void
+  onAnnotationUpdate: (id: number | string, data: { bbox: BBox }) => void
+  onAnnotationSelect: (id: number | string | null, itemId?: number) => void
+  onAnnotationDelete: (id: number | string) => void
+  onAnnotationToggleOcclusion: (id: number | string) => void
 }
 
 export function ImageGrid({
@@ -24,10 +27,13 @@ export function ImageGrid({
   items,
   recipeLineOptions,
   selectedItemId,
+  validationType,
   mode,
   onAnnotationCreate,
   onAnnotationUpdate,
   onAnnotationSelect,
+  onAnnotationDelete,
+  onAnnotationToggleOcclusion,
 }: ImageGridProps) {
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<number | null>(null)
 
@@ -41,48 +47,65 @@ export function ImageGrid({
   const getItemLabel = (item: TrayItem | undefined): string => {
     if (!item) return ''
     
-    // First priority: if item has recipe_line_option_id, get name from recipe
-    if (item.recipe_line_option_id) {
-      const option = recipeLineOptions.find((opt) => opt.id === item.recipe_line_option_id)
-      if (option?.name) {
-        return option.name
+    // For FOOD items with recipe_line_id, find the recipe line and show selected option
+    if (item.recipe_line_id && item.type === 'FOOD') {
+      const selectedOption = recipeLineOptions.find(
+        (opt) => opt.recipe_line_id === item.recipe_line_id && opt.is_selected
+      )
+      if (selectedOption?.name) {
+        return selectedOption.name
       }
-    }
-    
-    // Second priority: name from metadata
-    if (item.metadata?.name) {
-      return String(item.metadata.name)
-    }
-    
-    // Third priority: external_id (for manually added items)
-    if (item.menu_item_external_id) {
-      return item.menu_item_external_id
+      const anyOption = recipeLineOptions.find((opt) => opt.recipe_line_id === item.recipe_line_id)
+      if (anyOption?.name) {
+        return anyOption.name
+      }
     }
     
     return ''
   }
 
+  // Фильтрация annotations по типу валидации
+  const getRelevantAnnotations = (annotations: AnnotationView[]) => {
+    // Для OCCLUSION_VALIDATION показываем все типы
+    if (validationType === 'OCCLUSION_VALIDATION') {
+      return annotations
+    }
+    
+    // Для остальных типов валидации показываем только соответствующий тип
+    const allowedType = getItemTypeFromValidationType(validationType)
+    if (!allowedType) return annotations
+    
+    return annotations.filter(ann => {
+      const item = items.find(i => i.id === ann.work_item_id)
+      return item?.type === allowedType
+    })
+  }
+
   // Convert annotations to BBoxCanvas format
   const getAnnotationsForImage = (imageId: number) => {
-    return annotations
+    // Сначала фильтруем по типу валидации, потом по imageId
+    const relevantAnnotations = getRelevantAnnotations(annotations)
+    
+    return relevantAnnotations
       .filter((ann) => ann.image_id === imageId)
       .map((ann) => {
-        const item = items.find((i) => i.id === ann.tray_item_id)
+        const item = items.find((i) => i.id === ann.work_item_id)
         return {
           id: ann.id,
           bbox: ann.bbox,
-          itemType: item?.item_type || ('OTHER' as ItemType),
-          itemId: ann.tray_item_id,
+          itemType: item?.type || ('OTHER' as ItemType),
+          itemId: ann.work_item_id,
           itemLabel: getItemLabel(item),
+          isOccluded: ann.is_occluded,
         }
       })
   }
 
-  const [selectedAnnotationId, setSelectedAnnotationId] = useState<number | null>(null)
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<number | string | null>(null)
 
-  const handleAnnotationSelect = (id: number | null) => {
+  const handleAnnotationSelect = (id: number | string | null, itemId?: number) => {
     setSelectedAnnotationId(id)
-    onAnnotationSelect(id)
+    onAnnotationSelect(id, itemId)
   }
 
   return (
@@ -90,43 +113,70 @@ export function ImageGrid({
       {images
         .sort((a, b) => a.camera_number - b.camera_number)
         .map((image) => {
-          const imageAnnotations = getAnnotationsForImage(image.id)
-          const selectedItemAnnotations = selectedItemId 
-            ? imageAnnotations.filter(ann => ann.itemId === selectedItemId)
-            : []
+          const allImageAnnotations = getAnnotationsForImage(image.id)
+          
+          // Если выбран объект - показываем только его аннотации
+          // Если не выбран - показываем все (для режима просмотра)
+          const imageAnnotations = selectedItemId 
+            ? allImageAnnotations.filter(ann => ann.itemId === selectedItemId)
+            : allImageAnnotations
           
           return (
             <div key={image.id} className="flex flex-col h-full">
-              <div className="flex-none mb-2">
-                <div className="flex items-center justify-between">
+              {/* Фиксированная высота для заголовка и списка аннотаций */}
+              <div className="flex-none h-20 mb-2 flex flex-col">
+                <div className="flex items-center justify-between mb-1">
                   <h3 className="text-sm font-medium text-gray-700">
                     Камера {image.camera_number}
                   </h3>
-                  {selectedItemId && selectedItemAnnotations.length > 0 && (
+                  {selectedItemId && imageAnnotations.length > 0 && (
                     <span className="text-xs text-gray-500">
-                      {selectedItemAnnotations.length} аннотаций
+                      {imageAnnotations.length} аннотаций
                     </span>
                   )}
                 </div>
-                {/* Show annotations for selected item */}
-                {selectedItemId && selectedItemAnnotations.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {selectedItemAnnotations.map((ann) => (
-                      <div
-                        key={ann.id}
-                        className="text-xs px-2 py-1 rounded"
-                        style={{ 
-                          backgroundColor: ITEM_TYPE_COLORS[ann.itemType] + '20',
-                          color: ITEM_TYPE_COLORS[ann.itemType],
-                          border: `1px solid ${ITEM_TYPE_COLORS[ann.itemType]}`
-                        }}
-                      >
-                        {ann.itemLabel || `#${ann.id}`}
-                      </div>
-                    ))}
+                {/* Show annotations for selected item - с фиксированной высотой и скроллом */}
+                {selectedItemId && imageAnnotations.length > 0 && (
+                  <div className="flex-1 overflow-y-auto">
+                    <div className="flex flex-wrap gap-1">
+                      {imageAnnotations.map((ann, idx) => {
+                        const isSelected = ann.id === selectedAnnotationId
+                        return (
+                          <div
+                            key={`ann-${image.id}-${ann.id}-${idx}`}
+                            className={`text-xs px-2 py-1 rounded cursor-pointer flex items-center gap-1 transition-all ${
+                              isSelected ? 'ring-2 ring-offset-1' : 'hover:brightness-90'
+                            }`}
+                            style={{ 
+                              backgroundColor: ITEM_TYPE_COLORS[ann.itemType] + (isSelected ? '40' : '20'),
+                              color: ITEM_TYPE_COLORS[ann.itemType],
+                              border: `${isSelected ? '2px' : '1px'} solid ${ITEM_TYPE_COLORS[ann.itemType]}`
+                            }}
+                            onClick={() => handleAnnotationSelect(ann.id, ann.itemId)}
+                          >
+                            <span>{ann.itemLabel || `Аннотация #${idx + 1}`}</span>
+                            {isSelected && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (confirm('Удалить аннотацию?')) {
+                                    onAnnotationDelete(ann.id)
+                                  }
+                                }}
+                                className="ml-1 hover:scale-110 transition-transform"
+                                title="Удалить"
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
+              {/* Canvas занимает оставшееся пространство */}
               <div className="flex-1 min-h-0">
                 <BBoxCanvas
                   imageUrl={getImageUrl(image.storage_path)}
@@ -136,9 +186,15 @@ export function ImageGrid({
                   selectedAnnotationId={selectedAnnotationId}
                   highlightedItemId={selectedItemId}
                   mode={mode}
+                  canEdit={validationType !== 'BOTTLE_ORIENTATION_VALIDATION'}
                   onAnnotationCreate={(bbox) => onAnnotationCreate(image.id, bbox)}
                   onAnnotationUpdate={onAnnotationUpdate}
-                  onAnnotationSelect={handleAnnotationSelect}
+                  onAnnotationSelect={(id) => {
+                    const ann = imageAnnotations.find(a => a.id === id)
+                    handleAnnotationSelect(id, ann?.itemId)
+                  }}
+                  onAnnotationDelete={onAnnotationDelete}
+                  onAnnotationToggleOcclusion={onAnnotationToggleOcclusion}
                 />
               </div>
             </div>

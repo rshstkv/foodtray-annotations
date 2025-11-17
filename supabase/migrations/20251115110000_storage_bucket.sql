@@ -22,3 +22,4 @@ CREATE POLICY "Authenticated users can update images."
   USING (bucket_id = 'rrs-photos' AND auth.role() = 'authenticated');
 
 
+

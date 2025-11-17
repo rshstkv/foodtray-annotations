@@ -6,11 +6,12 @@ import type { BBox, ItemType } from '@/types/domain'
 import { ITEM_TYPE_COLORS } from '@/types/domain'
 
 interface BBoxData {
-  id: number
+  id: number | string
   bbox: BBox
   itemType: ItemType
   itemId: number
   itemLabel?: string
+  isOccluded?: boolean
 }
 
 interface BBoxCanvasProps {
@@ -18,12 +19,15 @@ interface BBoxCanvasProps {
   imageWidth: number
   imageHeight: number
   annotations: BBoxData[]
-  selectedAnnotationId: number | null
+  selectedAnnotationId: number | string | null
   highlightedItemId: number | null
   mode: 'view' | 'draw' | 'edit'
+  canEdit?: boolean // false для BOTTLE_ORIENTATION_VALIDATION (read-only mode)
   onAnnotationCreate?: (bbox: BBox) => void
-  onAnnotationUpdate?: (id: number, bbox: BBox) => void
-  onAnnotationSelect?: (id: number | null) => void
+  onAnnotationUpdate?: (id: number | string, data: { bbox: BBox }) => void
+  onAnnotationSelect?: (id: number | string | null) => void
+  onAnnotationToggleOcclusion?: (id: number | string) => void
+  onAnnotationDelete?: (id: number | string) => void
 }
 
 interface Point {
@@ -43,9 +47,12 @@ export function BBoxCanvas({
   selectedAnnotationId,
   highlightedItemId,
   mode,
+  canEdit = true,
   onAnnotationCreate,
   onAnnotationUpdate,
   onAnnotationSelect,
+  onAnnotationToggleOcclusion,
+  onAnnotationDelete,
 }: BBoxCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -67,6 +74,18 @@ export function BBoxCanvas({
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState<Point | null>(null)
   const [editingAnnotation, setEditingAnnotation] = useState<BBoxData | null>(null)
+  
+  // Resize state
+  const [isResizing, setIsResizing] = useState(false)
+  const [resizeHandle, setResizeHandle] = useState<'tl' | 'tr' | 'bl' | 'br' | null>(null)
+  const [resizeStart, setResizeStart] = useState<{ pos: Point; bbox: BBox } | null>(null)
+  
+  // Временный bbox для плавного редактирования (сохраняется только на mouseUp)
+  const [tempBBox, setTempBBox] = useState<{ id: number | string; bbox: BBox } | null>(null)
+  
+  // Hover state для изменения курсора
+  const [hoveredAnnotationId, setHoveredAnnotationId] = useState<number | string | null>(null)
+  const [hoveredHandle, setHoveredHandle] = useState<'tl' | 'tr' | 'bl' | 'br' | null>(null)
 
   // Calculate displayed image size (after object-contain scaling)
   const calculateDisplayedSize = useCallback(() => {
@@ -103,6 +122,76 @@ export function BBoxCanvas({
       y: imageDimensions.height / displayed.height,
     }
   }, [imageDimensions, calculateDisplayedSize])
+
+  // Coordinate conversion helpers
+  const imageToCanvas = useCallback((params: { x: number; y: number; scale: { x: number; y: number }; containerSize: { width: number; height: number; offsetX: number; offsetY: number } }) => {
+    const { x, y, scale, containerSize } = params
+    return {
+      x: x / scale.x + containerSize.offsetX,
+      y: y / scale.y + containerSize.offsetY,
+    }
+  }, [])
+
+  const canvasToImage = useCallback((x: number, y: number) => {
+    const scale = getScale()
+    const displayed = displayedImageSize
+    return {
+      x: (x - displayed.offsetX) * scale.x,
+      y: (y - displayed.offsetY) * scale.y,
+    }
+  }, [getScale, displayedImageSize])
+
+  const bboxToCanvas = useCallback((x: number, y: number) => {
+    const scale = getScale()
+    const displayed = displayedImageSize
+    return {
+      x: x / scale.x + displayed.offsetX,
+      y: y / scale.y + displayed.offsetY,
+    }
+  }, [getScale, displayedImageSize])
+
+  const canvasToBBox = useCallback((x: number, y: number) => {
+    return canvasToImage(x, y)
+  }, [canvasToImage])
+
+  // Get mouse position relative to canvas
+  const getMousePos = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return { x: 0, y: 0 }
+    const rect = canvasRef.current.getBoundingClientRect()
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    }
+  }, [])
+
+  // Check if mouse is over a resize handle
+  const getResizeHandle = useCallback((pos: Point, ann: BBoxData): 'tl' | 'tr' | 'bl' | 'br' | null => {
+    const scale = getScale()
+    // Используем tempBBox если он есть
+    const bbox = tempBBox?.id === ann.id ? tempBBox.bbox : ann.bbox
+    const canvasPos = bboxToCanvas(bbox.x, bbox.y)
+    const canvasWidth = bbox.w / scale.x
+    const canvasHeight = bbox.h / scale.y
+    const handleSize = 10
+    const hitbox = handleSize + 5 // Немного увеличиваем область для удобства
+
+    const corners = [
+      { type: 'tl' as const, x: canvasPos.x, y: canvasPos.y },
+      { type: 'tr' as const, x: canvasPos.x + canvasWidth, y: canvasPos.y },
+      { type: 'bl' as const, x: canvasPos.x, y: canvasPos.y + canvasHeight },
+      { type: 'br' as const, x: canvasPos.x + canvasWidth, y: canvasPos.y + canvasHeight },
+    ]
+
+    for (const corner of corners) {
+      const dx = Math.abs(pos.x - corner.x)
+      const dy = Math.abs(pos.y - corner.y)
+      if (dx <= hitbox && dy <= hitbox) {
+        return corner.type
+      }
+    }
+
+    return null
+  }, [getScale, bboxToCanvas, tempBBox])
 
   // Update container size on resize
   useEffect(() => {
@@ -143,42 +232,7 @@ export function BBoxCanvas({
     console.log('[BBoxCanvas] Image loaded, using original dimensions:', imageDimensions)
   }, [imageDimensions])
 
-  // Convert canvas coordinates to bbox coordinates
-  const canvasToBBox = useCallback(
-    (canvasX: number, canvasY: number): Point => {
-      const scale = getScale()
-      return {
-        x: (canvasX - displayedImageSize.offsetX) * scale.x,
-        y: (canvasY - displayedImageSize.offsetY) * scale.y,
-      }
-    },
-    [getScale, displayedImageSize]
-  )
-
-  // Convert bbox coordinates to canvas coordinates
-  const bboxToCanvas = useCallback(
-    (bboxX: number, bboxY: number): Point => {
-      const scale = getScale()
-      return {
-        x: bboxX / scale.x + displayedImageSize.offsetX,
-        y: bboxY / scale.y + displayedImageSize.offsetY,
-      }
-    },
-    [getScale, displayedImageSize]
-  )
-
-  // Get mouse position relative to canvas (adjusted for image offset)
-  const getMousePos = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>): Point => {
-      if (!canvasRef.current) return { x: 0, y: 0 }
-      const rect = canvasRef.current.getBoundingClientRect()
-      return {
-        x: e.clientX - rect.left - displayedImageSize.offsetX,
-        y: e.clientY - rect.top - displayedImageSize.offsetY,
-      }
-    },
-    [displayedImageSize]
-  )
+  // УДАЛЕНЫ ДУБЛИКАТЫ: canvasToBBox, bboxToCanvas и getMousePos уже определены выше (строки 139, 130 и 144)
 
   // Draw all annotations
   const drawAnnotations = useCallback(() => {
@@ -198,7 +252,9 @@ export function BBoxCanvas({
         return
       }
 
-      const { x, y, w, h } = ann.bbox
+      // Используем tempBBox если он есть для этой аннотации
+      const bbox = tempBBox?.id === ann.id ? tempBBox.bbox : ann.bbox
+      const { x, y, w, h } = bbox
       const canvasPos = bboxToCanvas(x, y)
       const canvasSize = {
         w: w / getScale().x,
@@ -206,28 +262,108 @@ export function BBoxCanvas({
       }
       
       if (ann.itemId === highlightedItemId) {
-        console.log('[BBoxCanvas] Drawing bbox:', { 
+        const scale = getScale()
+        const displayedSize = displayedImageSize
+        console.log('[BBoxCanvas] Drawing bbox for item', ann.itemId, { 
           original: { x, y, w, h },
-          canvas: { x: canvasPos.x, y: canvasPos.y, w: canvasSize.w, h: canvasSize.h }
+          canvas: { x: canvasPos.x, y: canvasPos.y, w: canvasSize.w, h: canvasSize.h },
+          imageDimensions,
+          displayedSize,
+          scale,
+          containerSize
         })
       }
 
       const color = ITEM_TYPE_COLORS[ann.itemType] || '#6B7280'
       const isSelected = ann.id === selectedAnnotationId
       const isHighlighted = ann.itemId === highlightedItemId
+      const isHovered = ann.id === hoveredAnnotationId
+      const isOccluded = ann.isOccluded || false
 
-      ctx.strokeStyle = color
-      ctx.lineWidth = isSelected ? 3 : isHighlighted ? 2 : 1
-      ctx.setLineDash(isHighlighted && !isSelected ? [5, 5] : [])
+      // Стиль границы - всегда solid яркие линии
+      ctx.strokeStyle = isOccluded ? '#EF4444' : color
+      // Толще для выбранной, средняя для наведенной
+      ctx.lineWidth = isSelected ? 4 : isHovered ? 3.5 : 3
+      
+      // Пунктирная линия только для окклюзий
+      if (isOccluded) {
+        ctx.setLineDash([8, 4])
+      } else {
+        ctx.setLineDash([])  // Всегда solid для обычных
+      }
 
       ctx.strokeRect(canvasPos.x, canvasPos.y, canvasSize.w, canvasSize.h)
 
-      // Fill with semi-transparent color
-      ctx.fillStyle = color + '20'
-      ctx.fillRect(canvasPos.x, canvasPos.y, canvasSize.w, canvasSize.h)
+      // Заливка с semi-transparent color
+      if (isOccluded) {
+        // Красная штриховка для окклюзий
+        ctx.fillStyle = '#EF444430'
+        ctx.fillRect(canvasPos.x, canvasPos.y, canvasSize.w, canvasSize.h)
+        
+        // Диагональная штриховка
+        ctx.strokeStyle = '#EF444450'
+        ctx.lineWidth = 1
+        ctx.setLineDash([])
+        const spacing = 8
+        for (let i = 0; i < canvasSize.w + canvasSize.h; i += spacing) {
+          ctx.beginPath()
+          ctx.moveTo(canvasPos.x + i, canvasPos.y)
+          ctx.lineTo(canvasPos.x, canvasPos.y + i)
+          ctx.stroke()
+        }
+      } else {
+        ctx.fillStyle = color + '20'
+        ctx.fillRect(canvasPos.x, canvasPos.y, canvasSize.w, canvasSize.h)
+      }
 
       ctx.setLineDash([])
     })
+
+    // Рисуем ручки для выбранной аннотации - увеличенные и яркие
+    const selectedAnn = annotations.find(a => a.id === selectedAnnotationId)
+    if (selectedAnn && mode === 'edit') {
+      const currentScale = getScale()
+      const currentContainerSize = displayedImageSize
+      
+      // Используем tempBBox если он есть для выбранной аннотации
+      const bbox = tempBBox?.id === selectedAnn.id ? tempBBox.bbox : selectedAnn.bbox
+      
+      const canvasPos = imageToCanvas({
+        x: bbox.x,
+        y: bbox.y,
+        scale: currentScale,
+        containerSize: currentContainerSize
+      })
+      // Для размеров просто делим на scale
+      const canvasWidth = bbox.w / currentScale.x
+      const canvasHeight = bbox.h / currentScale.y
+
+      const handleSize = 10
+      
+      const corners = [
+        { type: 'tl', x: canvasPos.x, y: canvasPos.y }, // top-left
+        { type: 'tr', x: canvasPos.x + canvasWidth, y: canvasPos.y }, // top-right
+        { type: 'bl', x: canvasPos.x, y: canvasPos.y + canvasHeight }, // bottom-left
+        { type: 'br', x: canvasPos.x + canvasWidth, y: canvasPos.y + canvasHeight }, // bottom-right
+      ]
+      
+      corners.forEach((corner) => {
+        const x = corner.x - handleSize / 2
+        const y = corner.y - handleSize / 2
+        
+        // Подсвечиваем наведенную ручку
+        const isHovered = hoveredHandle === corner.type
+        
+        ctx.strokeStyle = '#FFFFFF'
+        ctx.lineWidth = 2
+        ctx.fillStyle = isHovered ? '#2563EB' : '#3B82F6'
+        
+        ctx.fillRect(x, y, handleSize, handleSize)
+        ctx.strokeRect(x, y, handleSize, handleSize)
+      })
+      
+      ctx.setLineDash([])
+    }
 
     // Draw current drawing bbox
     if (isDrawing && startPoint && currentPoint) {
@@ -248,12 +384,18 @@ export function BBoxCanvas({
     annotations,
     selectedAnnotationId,
     highlightedItemId,
+    hoveredAnnotationId,
+    hoveredHandle,
     isDrawing,
     startPoint,
     currentPoint,
     imageLoaded,
+    tempBBox,
     bboxToCanvas,
     getScale,
+    imageToCanvas,
+    displayedImageSize,
+    mode,
   ])
 
   // Redraw on changes
@@ -264,6 +406,11 @@ export function BBoxCanvas({
   // Mouse down
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
+      // Отключаем все редактирование в read-only режиме
+      if (!canEdit) {
+        return
+      }
+      
       const pos = getMousePos(e)
 
       if (mode === 'draw') {
@@ -271,10 +418,26 @@ export function BBoxCanvas({
         setStartPoint(pos)
         setCurrentPoint(pos)
       } else if (mode === 'edit') {
-        // Find annotation at this position
+        // Сначала проверяем, кликнули ли на ручку ресайза выбранной аннотации
+        const selectedAnn = annotations.find(a => a.id === selectedAnnotationId)
+        if (selectedAnn) {
+          const handle = getResizeHandle(pos, selectedAnn)
+          if (handle) {
+            // Начинаем ресайз
+            setIsResizing(true)
+            setResizeHandle(handle)
+            setResizeStart({ pos, bbox: { ...selectedAnn.bbox } })
+            setEditingAnnotation(selectedAnn)
+            return
+          }
+        }
+
+        // Затем проверяем, кликнули ли на какую-то аннотацию
         const scale = getScale()
         const clicked = annotations.find((ann) => {
-          const { x, y, w, h } = ann.bbox
+          // Используем tempBBox если он есть
+          const bbox = tempBBox?.id === ann.id ? tempBBox.bbox : ann.bbox
+          const { x, y, w, h } = bbox
           const canvasPos = bboxToCanvas(x, y)
           const canvasSize = { w: w / scale.x, h: h / scale.y }
           return (
@@ -286,16 +449,21 @@ export function BBoxCanvas({
         })
 
         if (clicked) {
+          // Клик по существующей аннотации - выбираем её и начинаем перетаскивание
           onAnnotationSelect?.(clicked.id)
           setIsDragging(true)
           setDragStart(pos)
           setEditingAnnotation(clicked)
         } else {
+          // Клик по пустому месту - рисуем новую аннотацию
           onAnnotationSelect?.(null)
+          setIsDrawing(true)
+          setStartPoint(pos)
+          setCurrentPoint(pos)
         }
       }
     },
-    [mode, annotations, getMousePos, getScale, bboxToCanvas, onAnnotationSelect]
+    [canEdit, mode, annotations, selectedAnnotationId, tempBBox, getMousePos, getScale, bboxToCanvas, getResizeHandle, onAnnotationSelect]
   )
 
   // Mouse move
@@ -305,7 +473,48 @@ export function BBoxCanvas({
 
       if (isDrawing) {
         setCurrentPoint(pos)
+      } else if (isResizing && resizeStart && resizeHandle && editingAnnotation) {
+        // Обработка ресайза - обновляем только локально
+        const scale = getScale()
+        const dx = (pos.x - resizeStart.pos.x) * scale.x
+        const dy = (pos.y - resizeStart.pos.y) * scale.y
+
+        let newBbox: BBox = { ...resizeStart.bbox }
+
+        switch (resizeHandle) {
+          case 'tl': // Top-left
+            newBbox.x = resizeStart.bbox.x + dx
+            newBbox.y = resizeStart.bbox.y + dy
+            newBbox.w = resizeStart.bbox.w - dx
+            newBbox.h = resizeStart.bbox.h - dy
+            break
+          case 'tr': // Top-right
+            newBbox.y = resizeStart.bbox.y + dy
+            newBbox.w = resizeStart.bbox.w + dx
+            newBbox.h = resizeStart.bbox.h - dy
+            break
+          case 'bl': // Bottom-left
+            newBbox.x = resizeStart.bbox.x + dx
+            newBbox.w = resizeStart.bbox.w - dx
+            newBbox.h = resizeStart.bbox.h + dy
+            break
+          case 'br': // Bottom-right
+            newBbox.w = resizeStart.bbox.w + dx
+            newBbox.h = resizeStart.bbox.h + dy
+            break
+        }
+
+        // Проверяем минимальные размеры и обновляем локально
+        if (newBbox.w > 10 && newBbox.h > 10) {
+          setTempBBox({ id: editingAnnotation.id, bbox: newBbox })
+        }
       } else if (isDragging && dragStart && editingAnnotation) {
+        // Обработка перетаскивания - обновляем только локально
+        // Используем tempBBox если есть, иначе текущую аннотацию
+        const baseBbox = tempBBox?.id === editingAnnotation.id 
+          ? tempBBox.bbox 
+          : editingAnnotation.bbox
+
         const dx = pos.x - dragStart.x
         const dy = pos.y - dragStart.y
 
@@ -314,24 +523,82 @@ export function BBoxCanvas({
         const bboxDy = dy * scale.y
 
         const newBbox: BBox = {
-          x: editingAnnotation.bbox.x + bboxDx,
-          y: editingAnnotation.bbox.y + bboxDy,
-          w: editingAnnotation.bbox.w,
-          h: editingAnnotation.bbox.h,
+          x: baseBbox.x + bboxDx,
+          y: baseBbox.y + bboxDy,
+          w: baseBbox.w,
+          h: baseBbox.h,
         }
 
-        onAnnotationUpdate?.(editingAnnotation.id, newBbox)
+        setTempBBox({ id: editingAnnotation.id, bbox: newBbox })
         setDragStart(pos)
+      } else if (mode === 'edit' && !isDrawing && !isDragging && !isResizing) {
+        // Проверяем наведение на ручки ресайза выбранной аннотации
+        const selectedAnn = annotations.find(a => a.id === selectedAnnotationId)
+        if (selectedAnn) {
+          const handle = getResizeHandle(pos, selectedAnn)
+          if (handle) {
+            setHoveredHandle(handle)
+            // Устанавливаем курсор в зависимости от ручки
+            if (canvasRef.current) {
+              const cursorMap = {
+                'tl': 'nwse-resize',
+                'tr': 'nesw-resize',
+                'bl': 'nesw-resize',
+                'br': 'nwse-resize',
+              }
+              canvasRef.current.style.cursor = cursorMap[handle]
+            }
+            return
+          }
+        }
+        setHoveredHandle(null)
+
+        // Проверяем наведение на bbox для изменения курсора
+        const scale = getScale()
+        const hoveredAnn = annotations.find((ann) => {
+          // Используем tempBBox если он есть
+          const bbox = tempBBox?.id === ann.id ? tempBBox.bbox : ann.bbox
+          const { x, y, w, h } = bbox
+          const canvasPos = bboxToCanvas(x, y)
+          const canvasSize = { w: w / scale.x, h: h / scale.y }
+          return (
+            pos.x >= canvasPos.x &&
+            pos.x <= canvasPos.x + canvasSize.w &&
+            pos.y >= canvasPos.y &&
+            pos.y <= canvasPos.y + canvasSize.h
+          )
+        })
+
+        if (hoveredAnn) {
+          setHoveredAnnotationId(hoveredAnn.id)
+          if (canvasRef.current) {
+            canvasRef.current.style.cursor = 'move'
+          }
+        } else {
+          setHoveredAnnotationId(null)
+          if (canvasRef.current) {
+            canvasRef.current.style.cursor = 'crosshair'
+          }
+        }
       }
     },
     [
       isDrawing,
       isDragging,
+      isResizing,
       dragStart,
+      resizeStart,
+      resizeHandle,
       editingAnnotation,
+      selectedAnnotationId,
+      annotations,
+      tempBBox,
       getMousePos,
       getScale,
+      getResizeHandle,
       onAnnotationUpdate,
+      mode,
+      bboxToCanvas,
     ]
   )
 
@@ -361,18 +628,34 @@ export function BBoxCanvas({
       setCurrentPoint(null)
     }
 
+    // Сохраняем изменения в базу только после завершения перетаскивания/ресайза
+    if ((isDragging || isResizing) && tempBBox) {
+      onAnnotationUpdate?.(tempBBox.id, { bbox: tempBBox.bbox })
+      setTempBBox(null)
+    }
+
     if (isDragging) {
       setIsDragging(false)
       setDragStart(null)
       setEditingAnnotation(null)
     }
+
+    if (isResizing) {
+      setIsResizing(false)
+      setResizeHandle(null)
+      setResizeStart(null)
+      setEditingAnnotation(null)
+    }
   }, [
     isDrawing,
     isDragging,
+    isResizing,
     startPoint,
     currentPoint,
+    tempBBox,
     canvasToBBox,
     onAnnotationCreate,
+    onAnnotationUpdate,
   ])
 
   // Keyboard shortcuts
@@ -380,15 +663,28 @@ export function BBoxCanvas({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsDrawing(false)
+        setIsDragging(false)
+        setIsResizing(false)
         setStartPoint(null)
         setCurrentPoint(null)
+        setDragStart(null)
+        setResizeStart(null)
+        setResizeHandle(null)
+        setEditingAnnotation(null)
+        setTempBBox(null) // Отменяем временные изменения
         onAnnotationSelect?.(null)
+      }
+      
+      // Delete или Backspace - удаление выбранной аннотации
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedAnnotationId && onAnnotationDelete) {
+        e.preventDefault()
+        onAnnotationDelete(selectedAnnotationId)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onAnnotationSelect])
+  }, [onAnnotationSelect, onAnnotationDelete, selectedAnnotationId])
 
   return (
     <div
@@ -418,14 +714,36 @@ export function BBoxCanvas({
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            // Найти аннотацию под курсором
+            const pos = getMousePos(e as any)
+            const scale = getScale()
+            const clicked = annotations.find((ann) => {
+              // Используем tempBBox если он есть
+              const bbox = tempBBox?.id === ann.id ? tempBBox.bbox : ann.bbox
+              const { x, y, w, h } = bbox
+              const canvasPos = bboxToCanvas(x, y)
+              const canvasSize = { w: w / scale.x, h: h / scale.y }
+              return (
+                pos.x >= canvasPos.x &&
+                pos.x <= canvasPos.x + canvasSize.w &&
+                pos.y >= canvasPos.y &&
+                pos.y <= canvasPos.y + canvasSize.h
+              )
+            })
+            if (clicked && onAnnotationToggleOcclusion) {
+              onAnnotationToggleOcclusion(clicked.id)
+            }
+          }}
         />
       )}
 
-      {/* Mode indicator */}
-      <div className="absolute top-4 left-4 bg-white px-3 py-1 rounded-md shadow-lg text-sm font-medium">
-        {mode === 'draw' && 'Режим рисования'}
-        {mode === 'edit' && 'Режим редактирования'}
-        {mode === 'view' && 'Просмотр'}
+      {/* Подсказка по управлению */}
+      <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-2 rounded-md text-xs space-y-1">
+        <div>Клик - выбрать аннотацию</div>
+        <div>Правый клик - toggle окклюзии</div>
+        <div>Delete/Backspace - удалить</div>
       </div>
     </div>
   )
