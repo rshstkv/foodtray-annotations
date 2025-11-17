@@ -162,30 +162,34 @@ export function ImageGrid({
                               {ann.isOccluded && <span title="Перекрыто">🔲</span>}
                               {ann.itemLabel || `Аннотация #${idx + 1}`}
                             </span>
-                            {isSelected && (
+                            {isSelected && (capabilities.canToggleOcclusion || capabilities.canDeleteAnnotations) && (
                               <div className="flex items-center gap-1 ml-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    onAnnotationToggleOcclusion(ann.id)
-                                  }}
-                                  className="hover:scale-110 transition-transform"
-                                  title={ann.isOccluded ? 'Снять перекрытие' : 'Отметить как перекрытое'}
-                                >
-                                  {ann.isOccluded ? '📋' : '🔲'}
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    if (confirm('Удалить аннотацию?')) {
-                                      onAnnotationDelete(ann.id)
-                                    }
-                                  }}
-                                  className="hover:scale-110 transition-transform"
-                                  title="Удалить"
-                                >
-                                  🗑️
-                                </button>
+                                {capabilities.canToggleOcclusion && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      onAnnotationToggleOcclusion(ann.id)
+                                    }}
+                                    className="hover:scale-110 transition-transform"
+                                    title={ann.isOccluded ? 'Снять перекрытие' : 'Отметить как перекрытое'}
+                                  >
+                                    {ann.isOccluded ? '📋' : '🔲'}
+                                  </button>
+                                )}
+                                {capabilities.canDeleteAnnotations && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      if (confirm('Удалить аннотацию?')) {
+                                        onAnnotationDelete(ann.id)
+                                      }
+                                    }}
+                                    className="hover:scale-110 transition-transform"
+                                    title="Удалить"
+                                  >
+                                    🗑️
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>

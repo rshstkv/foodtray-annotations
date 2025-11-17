@@ -345,7 +345,7 @@ export function getItemTypeFromValidationType(
     case 'BUZZER_VALIDATION':
       return 'BUZZER'
     case 'BOTTLE_ORIENTATION_VALIDATION':
-      return 'BOTTLE'
+      return 'FOOD' // Бутылка это просто FOOD с bottle_orientation флагом
     case 'OCCLUSION_VALIDATION':
       return null // Occlusion is not a specific item type
     default:
