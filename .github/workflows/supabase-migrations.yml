@@ -8,12 +8,6 @@ on:
       - "supabase/**"
       - ".github/workflows/supabase-migrations.yml"
   workflow_dispatch:
-    inputs:
-      reset_database:
-        description: 'Reset database (DANGER: drops all data and recreates from migrations)'
-        required: false
-        type: boolean
-        default: false
 
 jobs:
   db-push:
@@ -41,32 +35,9 @@ jobs:
       - name: Link project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
-      - name: Reset database (if requested)
-        if: ${{ github.event.inputs.reset_database == 'true' }}
+      - name: Repair old migrations (always)
         run: |
-          echo "🔴 RESETTING DATABASE - All data will be lost!"
-          yes | supabase db reset --linked --debug
-
-      - name: Check for migration conflicts
-        if: ${{ github.event.inputs.reset_database != 'true' }}
-        id: check_conflicts
-        run: |
-          # Получаем список миграций в удаленной БД
-          REMOTE_MIGRATIONS=$(supabase migration list --linked 2>&1 || echo "")
-          
-          if echo "$REMOTE_MIGRATIONS" | grep -q "Remote migration versions not found"; then
-            echo "conflicts=true" >> $GITHUB_OUTPUT
-            echo "⚠️  Found migration conflicts"
-          else
-            echo "conflicts=false" >> $GITHUB_OUTPUT
-            echo "✅ No migration conflicts"
-          fi
-
-      - name: Repair migration history (if conflicts found)
-        if: ${{ github.event.inputs.reset_database != 'true' && steps.check_conflicts.outputs.conflicts == 'true' }}
-        run: |
-          echo "🔧 Repairing migration history..."
-          echo "Marking old migrations as reverted..."
+          echo "🔧 Marking old migrations as reverted..."
           
           # Маркируем старые миграции как reverted
           supabase migration repair --status reverted 20251112000000 || true
@@ -74,10 +45,9 @@ jobs:
           supabase migration repair --status reverted 20251113094728 || true
           supabase migration repair --status reverted 20251113120000 || true
           
-          echo "✅ Migration history repaired"
+          echo "✅ Migration history cleaned"
 
       - name: Push migrations to remote
-        if: ${{ github.event.inputs.reset_database != 'true' }}
         run: |
           echo "📤 Pushing migrations to remote..."
           supabase db push --debug
