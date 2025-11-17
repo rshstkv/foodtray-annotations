@@ -7,7 +7,6 @@ on:
       - "supabase/migrations/**"
       - "supabase/**"
       - ".github/workflows/supabase-migrations.yml"
-  workflow_dispatch:
 
 jobs:
   db-push:
@@ -34,6 +33,4 @@ jobs:
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Push migrations to remote
-        run: |
-          echo "📤 Pushing migrations to remote..."
-          supabase db push
+        run: supabase db push --debug
