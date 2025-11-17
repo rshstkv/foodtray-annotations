@@ -29,8 +29,5 @@ jobs:
         with:
           version: 1.123.4
 
-      - name: Link project
-        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
-
       - name: Push migrations to remote
-        run: supabase db push --debug
+        run: supabase db push --project-ref "$SUPABASE_PROJECT_ID" --debug
