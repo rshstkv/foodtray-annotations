@@ -15,11 +15,8 @@ export async function POST(
   try {
     const { workLogId } = await params
     const workLogIdNum = parseInt(workLogId, 10)
-    
-    console.log('[validation/reset] Starting reset for workLogId:', workLogIdNum)
 
     if (isNaN(workLogIdNum)) {
-      console.error('[validation/reset] Invalid work log ID:', workLogId)
       return apiError('Invalid work log ID', 400, ApiErrorCode.VALIDATION_ERROR)
     }
 
@@ -27,11 +24,8 @@ export async function POST(
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-      console.error('[validation/reset] No authenticated user')
       return apiError('Authentication required', 401, ApiErrorCode.UNAUTHORIZED)
     }
-    
-    console.log('[validation/reset] User authenticated:', user.id)
 
     // 1. Проверить work log
     const { data: workLog, error: workLogError } = await supabase
@@ -41,11 +35,8 @@ export async function POST(
       .single()
 
     if (workLogError || !workLog) {
-      console.error('[validation/reset] Work log not found:', workLogError)
       return apiError('Work log not found', 404, ApiErrorCode.NOT_FOUND)
     }
-    
-    console.log('[validation/reset] Work log found:', workLog.id, 'status:', workLog.status)
 
     // Проверка доступа
     if (workLog.assigned_to !== user.id) {
@@ -56,21 +47,17 @@ export async function POST(
         .single()
 
       if (profile?.role !== 'admin') {
-        console.error('[validation/reset] Access denied for user:', user.id)
         return apiError('Access denied', 403, ApiErrorCode.FORBIDDEN)
       }
     }
 
     if (workLog.status !== 'in_progress') {
-      console.error('[validation/reset] Invalid status:', workLog.status)
       return apiError('Can only reset in-progress work logs', 400, ApiErrorCode.VALIDATION_ERROR)
     }
 
     const recognitionId = workLog.recognition_id
-    console.log('[validation/reset] Recognition ID:', recognitionId)
 
     // 2. Удалить все текущие work_items и work_annotations
-    console.log('[validation/reset] Deleting existing work_items...')
     const { error: deleteItemsError } = await supabase
       .from('work_items')
       .delete()
@@ -80,9 +67,7 @@ export async function POST(
       console.error('[validation/reset] Error deleting work_items:', deleteItemsError)
       return apiError('Failed to delete work items', 500, ApiErrorCode.INTERNAL_ERROR)
     }
-    console.log('[validation/reset] work_items deleted successfully')
 
-    console.log('[validation/reset] Deleting existing work_annotations...')
     const { error: deleteAnnotationsError } = await supabase
       .from('work_annotations')
       .delete()
@@ -92,7 +77,6 @@ export async function POST(
       console.error('[validation/reset] Error deleting work_annotations:', deleteAnnotationsError)
       return apiError('Failed to delete work annotations', 500, ApiErrorCode.INTERNAL_ERROR)
     }
-    console.log('[validation/reset] work_annotations deleted successfully')
 
     // 3. Скопировать заново initial_tray_items в work_items
     const { data: initialItems, error: initialItemsError } = await supabase

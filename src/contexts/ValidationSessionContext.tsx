@@ -519,8 +519,6 @@ export function ValidationSessionProvider({
         method: 'POST',
       })
       
-      console.log('[RESET] Full response:', JSON.stringify(response, null, 2))
-      
       if (response && response.success && response.data) {
         // Обновляем session с новыми данными
         const data = response.data as any
