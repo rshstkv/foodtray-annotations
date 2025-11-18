@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  eslint: {
+    // ESLint работает при билде, но только errors блокируют деплой (warnings разрешены)
+    ignoreDuringBuilds: false,
+  },
   images: {
     remotePatterns: [
       {

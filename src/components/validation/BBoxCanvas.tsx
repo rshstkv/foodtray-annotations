@@ -486,7 +486,7 @@ export function BBoxCanvas({
         const dx = (pos.x - resizeStart.pos.x) * scale.x
         const dy = (pos.y - resizeStart.pos.y) * scale.y
 
-        let newBbox: BBox = { ...resizeStart.bbox }
+        const newBbox: BBox = { ...resizeStart.bbox }
 
         switch (resizeHandle) {
           case 'tl': // Top-left
