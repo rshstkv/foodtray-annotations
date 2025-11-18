@@ -84,9 +84,14 @@ function ValidationSessionContent() {
         return
       }
       console.log('[DEBUG] Creating item:', itemType, new Date().toISOString())
-      createItem({
+      const newItemId = createItem({
         type: itemType,
       })
+      // Автоматически выбираем новый элемент
+      if (newItemId !== null) {
+        setSelectedItemId(newItemId)
+        setSelectedAnnotationId(null)
+      }
     } else {
       // Для FOOD и BUZZER показываем диалог с опциями
       setShowItemDialog(true)
@@ -116,7 +121,12 @@ function ValidationSessionContent() {
       delete data.menu_item_external_id
     }
     
-    await createItem(data)
+    const newItemId = createItem(data)
+    // Автоматически выбираем новый элемент
+    if (newItemId !== null) {
+      setSelectedItemId(newItemId)
+      setSelectedAnnotationId(null)
+    }
     setShowItemDialog(false)
   }
 

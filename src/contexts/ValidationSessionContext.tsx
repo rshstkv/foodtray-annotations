@@ -35,7 +35,7 @@ interface ValidationSessionContextValue {
   items: TrayItem[]
   selectedItemId: number | null
   setSelectedItemId: (id: number | null) => void
-  createItem: (data: Omit<CreateItemRequest, 'work_log_id' | 'recognition_id'>) => void
+  createItem: (data: Omit<CreateItemRequest, 'work_log_id' | 'recognition_id'>) => number | null
   updateItem: (id: number, data: UpdateItemRequest) => void
   deleteItem: (id: number) => void
 
@@ -167,7 +167,7 @@ export function ValidationSessionProvider({
       
       if (readOnly) {
         console.warn('[ValidationSession] Cannot create item in read-only mode')
-        return
+        return null
       }
       
       // Защита от двойного клика: проверяем есть ли идентичный item созданный недавно (< 3 сек)
@@ -181,7 +181,7 @@ export function ValidationSessionProvider({
       
       if (recentDuplicate) {
         console.warn('[ValidationSession] Duplicate item creation prevented (double-click protection)')
-        return
+        return null
       }
       
       console.log('[DEBUG createItem] Creating temp item with tempIdCounter:', tempIdCounter)
@@ -221,6 +221,9 @@ export function ValidationSessionProvider({
           createdItems: newCreatedItems,
         }
       })
+      
+      // Возвращаем ID нового элемента
+      return tempId
     },
     [session.workLog.id, session.recognition.id, tempIdCounter, readOnly, changesTracking.createdItems]
   )
