@@ -29,33 +29,67 @@ export async function GET() {
       .from('recognitions')
       .select('*', { count: 'exact', head: true })
 
+    // Получить все completed work_logs (включая validation_steps для multi-step)
+    const { data: completedWorkLogs } = await supabase
+      .from('validation_work_log')
+      .select('recognition_id, validation_type, validation_steps')
+      .eq('status', 'completed')
+
+    // Получить все in_progress work_logs (last 30 minutes)
+    const { data: inProgressWorkLogs } = await supabase
+      .from('validation_work_log')
+      .select('recognition_id, validation_type, validation_steps')
+      .eq('status', 'in_progress')
+      .gte('started_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
+
     const stats = []
 
     for (const validationType of validationTypes) {
-      // Completed
-      const { data: completed } = await supabase
-        .from('validation_work_log')
-        .select('recognition_id')
-        .eq('validation_type', validationType)
-        .eq('status', 'completed')
+      // Подсчет completed для данного типа
+      const completedRecognitionIds = new Set<number>()
+      
+      for (const workLog of completedWorkLogs || []) {
+        // Multi-step: проверяем validation_steps
+        if (workLog.validation_steps && Array.isArray(workLog.validation_steps)) {
+          const hasCompletedStep = workLog.validation_steps.some(
+            (step: any) => step.type === validationType && step.status === 'completed'
+          )
+          if (hasCompletedStep) {
+            completedRecognitionIds.add(workLog.recognition_id)
+          }
+        } else {
+          // Legacy: используем validation_type
+          if (workLog.validation_type === validationType) {
+            completedRecognitionIds.add(workLog.recognition_id)
+          }
+        }
+      }
 
-      const completedIds = completed?.map((r) => r.recognition_id) || []
-
-      // In progress (last 30 minutes)
-      const { data: inProgress } = await supabase
-        .from('validation_work_log')
-        .select('recognition_id')
-        .eq('validation_type', validationType)
-        .eq('status', 'in_progress')
-        .gte('started_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
-
-      const inProgressIds = inProgress?.map((r) => r.recognition_id) || []
+      // Подсчет in_progress для данного типа
+      const inProgressRecognitionIds = new Set<number>()
+      
+      for (const workLog of inProgressWorkLogs || []) {
+        // Multi-step: проверяем validation_steps (любой step с этим типом)
+        if (workLog.validation_steps && Array.isArray(workLog.validation_steps)) {
+          const hasStepForType = workLog.validation_steps.some(
+            (step: any) => step.type === validationType
+          )
+          if (hasStepForType) {
+            inProgressRecognitionIds.add(workLog.recognition_id)
+          }
+        } else {
+          // Legacy: используем validation_type
+          if (workLog.validation_type === validationType) {
+            inProgressRecognitionIds.add(workLog.recognition_id)
+          }
+        }
+      }
 
       stats.push({
         validation_type: validationType as ValidationType,
         total: totalRecognitions || 0,
-        completed: completedIds.length,
-        in_progress: inProgressIds.length,
+        completed: completedRecognitionIds.size,
+        in_progress: inProgressRecognitionIds.size,
       })
     }
 
