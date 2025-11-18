@@ -26,8 +26,8 @@ class IngestConfig:
     
     # Performance tuning
     thread_count: int = 16
-    batch_size: int = 100
-    retry_max_attempts: int = 3
+    batch_size: int = 50
+    retry_max_attempts: int = 5
     retry_backoff_factor: float = 2.0
     connection_pool_size: int = 10
     
@@ -75,6 +75,10 @@ class IngestConfig:
         supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         database_url = os.getenv("DATABASE_URL")
         
+        # Для production - меньше потоков чтобы не перегружать Supabase Storage
+        thread_count = 4 if use_production else 16
+        batch_size = 50 if use_production else 100
+        
         # Validate required variables
         if not all([supabase_url, supabase_key, database_url]):
             missing = []
@@ -91,6 +95,8 @@ class IngestConfig:
             supabase_url=supabase_url,
             supabase_key=supabase_key,
             database_url=database_url,
+            thread_count=thread_count,
+            batch_size=batch_size,
         )
     
     def is_production(self) -> bool:

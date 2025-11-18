@@ -565,6 +565,12 @@ export function ValidationSessionProvider({
       setLoading(true)
       setError(null)
 
+      // Сохранить все несохраненные изменения перед завершением валидации
+      if (hasUnsavedChanges) {
+        console.log('[ValidationSession] Saving changes before completing validation')
+        await saveAllChanges()
+      }
+
       const response = await apiFetch('/api/validation/complete', {
         method: 'POST',
         body: JSON.stringify({ work_log_id: session.workLog.id }),
@@ -580,7 +586,7 @@ export function ValidationSessionProvider({
     } finally {
       setLoading(false)
     }
-  }, [session.workLog.id, readOnly])
+  }, [session.workLog.id, readOnly, hasUnsavedChanges, saveAllChanges])
 
   // Abandon validation
   const abandonValidation = useCallback(async () => {
@@ -621,6 +627,12 @@ export function ValidationSessionProvider({
       setLoading(true)
       setError(null)
 
+      // Сохранить все несохраненные изменения перед переходом к следующему шагу
+      if (hasUnsavedChanges) {
+        console.log('[ValidationSession] Saving changes before moving to next step')
+        await saveAllChanges()
+      }
+
       const response = await apiFetch('/api/validation/next-step', {
         method: 'POST',
         body: JSON.stringify({ work_log_id: session.workLog.id }),
@@ -648,7 +660,7 @@ export function ValidationSessionProvider({
     } finally {
       setLoading(false)
     }
-  }, [session.workLog.id, readOnly])
+  }, [session.workLog.id, readOnly, hasUnsavedChanges, saveAllChanges])
 
   // Вычисляем статус валидации в реальном времени (только для edit режима)
   const validationStatus = useMemo(() => {

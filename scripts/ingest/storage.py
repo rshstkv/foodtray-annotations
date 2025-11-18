@@ -202,7 +202,8 @@ class StorageManager:
             Tuple of (successful_count, failed_count)
         """
         if max_workers is None:
-            max_workers = self.config.thread_count
+            # Для production - используем 1 поток для storage API (rate limiting)
+            max_workers = 1 if self.config.is_production() else self.config.thread_count
         
         successful = 0
         failed = 0
