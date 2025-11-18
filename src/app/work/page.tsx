@@ -62,7 +62,13 @@ export default function WorkPage() {
         router.push(`/work/${workLog.id}`)
       } else {
         // Нет доступных задач
-        alert('Нет доступных задач для валидации')
+        if (totalInProgress > 0) {
+          alert(`Нет доступных задач для валидации.\n\nВсе свободные задачи сейчас в работе (${totalInProgress}). Попробуйте через несколько минут.`)
+        } else if (totalRemaining === 0) {
+          alert('Все задачи выполнены! 🎉')
+        } else {
+          alert('Нет доступных задач для валидации')
+        }
       }
     } catch (error) {
       console.error('Error starting work:', error)
@@ -88,7 +94,8 @@ export default function WorkPage() {
   // Подсчет общей статистики
   const totalAvailable = stats.reduce((sum, s) => sum + s.total, 0)
   const totalCompleted = stats.reduce((sum, s) => sum + s.completed, 0)
-  const totalRemaining = totalAvailable - totalCompleted
+  const totalInProgress = stats.reduce((sum, s) => sum + s.in_progress, 0)
+  const totalRemaining = totalAvailable - totalCompleted - totalInProgress
   const overallProgress = totalAvailable > 0 ? Math.round((totalCompleted / totalAvailable) * 100) : 0
 
   return (
@@ -127,11 +134,29 @@ export default function WorkPage() {
                     style={{ width: `${overallProgress}%` }}
                   />
                 </div>
-                {totalRemaining > 0 && (
-                  <p className="text-xs text-gray-500">
-                    Осталось: {totalRemaining}
-                  </p>
-                )}
+                <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
+                  {totalInProgress > 0 && (
+                    <span className="flex items-center gap-1.5 px-2 py-1 bg-orange-50 rounded-full text-orange-600">
+                      <Clock className="w-3 h-3" />
+                      В работе: {totalInProgress}
+                    </span>
+                  )}
+                  {totalRemaining > 0 && (
+                    <span>
+                      Доступно: {totalRemaining}
+                    </span>
+                  )}
+                  {totalRemaining === 0 && totalInProgress === 0 && (
+                    <span className="text-green-600">
+                      ✓ Все задачи выполнены
+                    </span>
+                  )}
+                  {totalRemaining === 0 && totalInProgress > 0 && (
+                    <span className="text-gray-500">
+                      Все задачи в работе или выполнены
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Detailed Stats */}

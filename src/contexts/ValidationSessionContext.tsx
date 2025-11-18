@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback, ReactNode, useMemo } from 'react'
+import { createContext, useContext, useState, useCallback, ReactNode, useMemo, useEffect } from 'react'
 import type {
   ValidationSession,
   TrayItem,
@@ -113,6 +113,51 @@ export function ValidationSessionProvider({
       changesTracking.deletedAnnotations.size > 0
     )
   }, [changesTracking])
+
+  // Автоматический abandon при закрытии страницы/вкладки (только для edit режима)
+  useEffect(() => {
+    if (readOnly) return
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Предупреждаем пользователя о несохраненных изменениях
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+
+    const handleUnload = () => {
+      // Отправляем синхронный запрос на abandon при закрытии страницы
+      // Используем navigator.sendBeacon для надежности
+      const blob = new Blob(
+        [JSON.stringify({ work_log_id: session.workLog.id })],
+        { type: 'application/json' }
+      )
+      navigator.sendBeacon('/api/validation/abandon', blob)
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('unload', handleUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('unload', handleUnload)
+      
+      // При размонтировании компонента (переход на другую страницу внутри приложения)
+      // также abandon задачу, если не в read-only режиме
+      if (!readOnly) {
+        // Используем fetch с keepalive для надежности
+        fetch('/api/validation/abandon', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ work_log_id: session.workLog.id }),
+          keepalive: true,
+        }).catch(() => {
+          // Игнорируем ошибки при cleanup
+        })
+      }
+    }
+  }, [readOnly, session.workLog.id, hasUnsavedChanges])
 
   // Create item (локально, без API)
   const createItem = useCallback(
