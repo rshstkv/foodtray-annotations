@@ -117,6 +117,17 @@ def load_command(args):
             batch_id=batch_id
         )
         
+        # Load Qwen annotations if requested
+        if args.with_qwen:
+            logger.info("Loading Qwen annotations...")
+            qwen_args = argparse.Namespace(
+                production=args.production,
+                file=None  # Use default search paths
+            )
+            qwen_result = load_qwen_command(qwen_args)
+            if qwen_result != 0:
+                logger.warning("Qwen annotations load failed, but main load succeeded")
+        
         return 0
         
     except KeyboardInterrupt:
@@ -475,6 +486,11 @@ def main():
         '--force',
         action='store_true',
         help='Force reload of existing recognitions'
+    )
+    load_parser.add_argument(
+        '--with-qwen',
+        action='store_true',
+        help='Also load Qwen annotations after recognition data'
     )
     
     # Load Qwen annotations

@@ -229,6 +229,11 @@ class TransactionContext:
             conn=self._db_conn
         )
         
+        # Transform initial items and annotations
+        items_count, annotations_count = self.database.transform_initial_items_and_annotations(
+            conn=self._db_conn
+        )
+        
         # Commit transforms
         if self._db_conn:
             self._db_conn.commit()
@@ -237,7 +242,9 @@ class TransactionContext:
             "Transforms complete",
             recognitions=rec_count,
             images=img_count,
-            recipes=recipe_count
+            recipes=recipe_count,
+            initial_items=items_count,
+            initial_annotations=annotations_count
         )
     
     def rollback(self):

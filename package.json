@@ -11,7 +11,7 @@
     "db:reset": "supabase db reset && npm run db:seed-users",
     "db:seed-users": "python3 scripts/seed_users.py",
     "db:seed-users:prod": "python3 scripts/seed_users.py --production",
-    "ingest:load": "python3 scripts/ingest/cli.py load",
+    "ingest:load": "python3 scripts/ingest/cli.py load --with-qwen",
     "ingest:load-qwen": "python3 scripts/ingest/cli.py load-qwen",
     "ingest:reset": "python3 scripts/ingest/cli.py reset",
     "ingest:status": "python3 scripts/ingest/cli.py status",

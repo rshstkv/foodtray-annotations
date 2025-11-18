@@ -85,130 +85,115 @@ export default function WorkPage() {
     )
   }
 
+  // Подсчет общей статистики
+  const totalAvailable = stats.reduce((sum, s) => sum + s.total, 0)
+  const totalCompleted = stats.reduce((sum, s) => sum + s.completed, 0)
+  const totalRemaining = totalAvailable - totalCompleted
+  const overallProgress = totalAvailable > 0 ? Math.round((totalCompleted / totalAvailable) * 100) : 0
+
   return (
     <RootLayout
       userName={user.full_name || undefined}
       userEmail={user.email}
       isAdmin={isAdmin}
     >
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Рабочая зона валидации
-          </h1>
-          <p className="text-lg text-gray-600">
-            Нажмите кнопку ниже, чтобы начать валидацию
-          </p>
-        </div>
+      <div className="h-[calc(100vh-73px)] bg-gray-50 flex flex-col items-center justify-center px-6">
+        <div className="max-w-xl w-full">
+          {/* Hero Section */}
+          <div className="text-center mb-8">
+            <h1 className="text-5xl font-semibold text-gray-900 mb-2 tracking-tight">
+              Валидация
+            </h1>
+            <p className="text-lg text-gray-500">
+              Проверка и редактирование аннотаций
+            </p>
+          </div>
 
-        {/* Stats */}
-        {!loadingStats && stats.length > 0 && (
-          <div className="mb-8 max-w-2xl mx-auto">
-            <Card className="overflow-hidden">
-              <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                <h2 className="text-sm font-semibold text-gray-900">
-                  Статистика по типам валидации
-                </h2>
+          {/* Stats - Large Overview */}
+          {!loadingStats && stats.length > 0 && (
+            <div className="bg-white rounded-3xl shadow-sm p-8 mb-6">
+              {/* Total Progress */}
+              <div className="text-center mb-6">
+                <div className="text-6xl font-semibold text-gray-900 mb-1">
+                  {totalCompleted}
+                </div>
+                <div className="text-base text-gray-500 mb-4">
+                  из {totalAvailable} выполнено
+                </div>
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${overallProgress}%` }}
+                  />
+                </div>
+                {totalRemaining > 0 && (
+                  <p className="text-xs text-gray-500">
+                    Осталось: {totalRemaining}
+                  </p>
+                )}
               </div>
-              <div className="divide-y divide-gray-200">
-                {stats.map((stat) => {
-                  const remaining = stat.total - stat.completed
-                  const progress =
-                    stat.total > 0 ? (stat.completed / stat.total) * 100 : 0
 
+              {/* Detailed Stats */}
+              <div className="space-y-2">
+                {stats.map((stat) => {
+                  const progress = stat.total > 0 ? (stat.completed / stat.total) * 100 : 0
                   return (
-                    <div key={stat.validation_type} className="px-6 py-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-gray-900">
-                            {VALIDATION_TYPE_LABELS[stat.validation_type]}
+                    <div key={stat.validation_type} className="flex items-center justify-between py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-700">
+                          {VALIDATION_TYPE_LABELS[stat.validation_type]}
+                        </span>
+                        {stat.in_progress > 0 && (
+                          <span className="flex items-center gap-1 px-1.5 py-0.5 bg-orange-50 rounded-full text-[10px] text-orange-600">
+                            <Clock className="w-2.5 h-2.5" />
+                            {stat.in_progress}
                           </span>
-                          {stat.in_progress > 0 && (
-                            <span className="flex items-center gap-1 text-xs text-orange-600">
-                              <Clock className="w-3 h-3" />
-                              {stat.in_progress}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-baseline gap-1 text-sm">
-                          <span className="font-semibold text-gray-900">
-                            {stat.completed}
-                          </span>
-                          <span className="text-gray-500">/</span>
-                          <span className="text-gray-500">{stat.total}</span>
-                        </div>
+                        )}
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-1.5">
-                        <div
-                          className="bg-blue-600 h-1.5 rounded-full transition-all"
-                          style={{ width: `${progress}%` }}
-                        />
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">
+                          {stat.completed}/{stat.total}
+                        </span>
+                        <div className="w-12 bg-gray-100 rounded-full h-1">
+                          <div
+                            className="bg-blue-500 h-1 rounded-full transition-all"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
                   )
                 })}
               </div>
-            </Card>
+            </div>
+          )}
+
+          {/* Main CTA Button */}
+          <div className="flex justify-center">
+            <button
+              onClick={handleStartWork}
+              disabled={loading}
+              className="group relative px-10 py-4 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white text-base font-medium rounded-full transition-all duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <span className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                  Загружается...
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <Play className="w-4 h-4 mr-2 fill-current" />
+                  Начать работу
+                </span>
+              )}
+            </button>
           </div>
-        )}
 
-        {/* Start Button */}
-        <div className="flex justify-center">
-          <Button
-            size="lg"
-            onClick={handleStartWork}
-            disabled={loading}
-            className="px-8 py-6 text-lg"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
-                Загрузка...
-              </>
-            ) : (
-              <>
-                <Play className="w-5 h-5 mr-3" />
-                Начать работу
-              </>
-            )}
-          </Button>
-        </div>
-
-        {/* Instructions */}
-        <div className="mt-12 max-w-2xl mx-auto">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">
-              Как работает валидация
-            </h3>
-            <ol className="space-y-2 text-sm text-gray-600">
-              <li className="flex gap-3">
-                <span className="flex-none font-medium text-gray-900">1.</span>
-                <span>
-                  Система автоматически выберет следующий recognition для
-                  валидации по приоритетам
-                </span>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex-none font-medium text-gray-900">2.</span>
-                <span>
-                  Проверьте и отредактируйте items (блюда, тарелки, пейджеры)
-                </span>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex-none font-medium text-gray-900">3.</span>
-                <span>
-                  Проверьте annotations (bbox) на обеих фотографиях
-                </span>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex-none font-medium text-gray-900">4.</span>
-                <span>
-                  Нажмите "Завершить" чтобы сохранить и перейти к следующему
-                </span>
-              </li>
-            </ol>
-          </Card>
+          {/* Subtle hint */}
+          <p className="text-center text-xs text-gray-400 mt-4">
+            Система автоматически выберет следующую задачу
+          </p>
         </div>
       </div>
     </RootLayout>

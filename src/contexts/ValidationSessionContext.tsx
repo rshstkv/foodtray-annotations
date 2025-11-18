@@ -519,9 +519,12 @@ export function ValidationSessionProvider({
         method: 'POST',
       })
       
-      if (response.success && response.data) {
+      console.log('[RESET] Full response:', JSON.stringify(response, null, 2))
+      
+      if (response && response.success && response.data) {
         // Обновляем session с новыми данными
         const data = response.data as any
+        
         setSession((prev) => ({
           ...prev,
           items: data.items,
@@ -541,10 +544,12 @@ export function ValidationSessionProvider({
         // Сбрасываем выделение
         setSelectedItemId(null)
         setSelectedAnnotationId(null)
+      } else {
+        console.error('[ValidationSession] Reset failed:', response)
       }
     } catch (err) {
       setError('Failed to reset to initial state')
-      console.error(err)
+      console.error('[ValidationSession] Reset error:', err)
       throw err
     } finally {
       setLoading(false)

@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { RotateCcw, AlertCircle, CheckCircle, Check } from 'lucide-react'
 import type { ValidationType, ValidationStep } from '@/types/domain'
@@ -48,6 +50,21 @@ export function ValidationSessionHeader({
     <div className="px-6 py-4 border-b border-gray-200">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
+          {/* Логотип - возврат на главную */}
+          <Link 
+            href="/work" 
+            className="hover:opacity-70 transition-opacity"
+            title="Вернуться на главную"
+          >
+            <Image 
+              src="/logo.svg" 
+              alt="RRS Logo" 
+              width={28} 
+              height={28}
+              className="rounded-lg"
+            />
+          </Link>
+
           <div>
             <h1 className="text-xl font-semibold text-gray-900">
               Recognition #{recognitionId}
