@@ -202,11 +202,9 @@ function ValidationSessionContent() {
 
   const handleComplete = async () => {
     try {
-      // Сохранить изменения
-      if (hasUnsavedChanges) {
-        await saveAllChanges()
-      }
-
+      // НЕ вызываем saveAllChanges здесь - nextStep() и completeValidation() уже делают это!
+      // Это было причиной дублирования объектов (двойного сохранения)
+      
       if (hasSteps && !isLastStep) {
         // Есть еще steps - переключиться на следующий (БЕЗ router.push!)
         await nextStep()

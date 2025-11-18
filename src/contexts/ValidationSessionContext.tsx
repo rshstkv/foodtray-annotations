@@ -143,19 +143,8 @@ export function ValidationSessionProvider({
       window.removeEventListener('beforeunload', handleBeforeUnload)
       window.removeEventListener('unload', handleUnload)
       
-      // При размонтировании компонента (переход на другую страницу внутри приложения)
-      // также abandon задачу, если не в read-only режиме
-      if (!readOnly) {
-        // Используем fetch с keepalive для надежности
-        fetch('/api/validation/abandon', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ work_log_id: session.workLog.id }),
-          keepalive: true,
-        }).catch(() => {
-          // Игнорируем ошибки при cleanup
-        })
-      }
+      // НЕ вызываем abandon в cleanup - это вызовется при каждом re-render!
+      // Abandon должен вызываться только явно пользователем или при закрытии браузера
     }
   }, [readOnly, session.workLog.id, hasUnsavedChanges])
 
