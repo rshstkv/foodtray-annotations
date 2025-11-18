@@ -1,8 +1,8 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { RotateCcw, AlertCircle, CheckCircle } from 'lucide-react'
-import type { ValidationType } from '@/types/domain'
+import { RotateCcw, AlertCircle, CheckCircle, Check } from 'lucide-react'
+import type { ValidationType, ValidationStep } from '@/types/domain'
 import { VALIDATION_TYPE_LABELS } from '@/types/domain'
 import type { SessionValidationResult } from '@/lib/validation-rules'
 
@@ -14,6 +14,8 @@ interface ValidationSessionHeaderProps {
   onReset?: () => void
   onSelectFirstError?: () => void
   readOnly?: boolean
+  validationSteps?: ValidationStep[] | null
+  currentStepIndex?: number
 }
 
 export function ValidationSessionHeader({
@@ -24,28 +26,71 @@ export function ValidationSessionHeader({
   onReset,
   onSelectFirstError,
   readOnly = false,
+  validationSteps = null,
+  currentStepIndex = 0,
 }: ValidationSessionHeaderProps) {
   // Подсчёт количества items с ошибками
   const itemsWithErrors = validationStatus ? validationStatus.itemErrors.size : 0
   const hasErrors = itemsWithErrors > 0 || (validationStatus?.globalErrors.length ?? 0) > 0
 
+  const hasSteps = validationSteps && validationSteps.length > 0
+
   return (
     <div className="px-6 py-4 border-b border-gray-200">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">
-            Recognition #{recognitionId}
-          </h1>
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-sm text-gray-600">
-              {VALIDATION_TYPE_LABELS[validationType]}
-            </p>
-            {readOnly && (
-              <span className="px-2 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-medium text-gray-700">
-                Режим просмотра
-              </span>
-            )}
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">
+              Recognition #{recognitionId}
+            </h1>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-sm text-gray-600">
+                {VALIDATION_TYPE_LABELS[validationType]}
+              </p>
+              {readOnly && (
+                <span className="px-2 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-medium text-gray-700">
+                  Режим просмотра
+                </span>
+              )}
+            </div>
           </div>
+
+          {/* Inline stepper */}
+          {hasSteps && (
+            <div className="flex items-center gap-1.5 ml-4 pl-4 border-l border-gray-300">
+              {validationSteps.map((step, index) => {
+                const isCurrent = index === currentStepIndex
+                const isCompleted = step.status === 'completed'
+                const isPending = step.status === 'pending'
+
+                return (
+                  <div key={index} className="flex items-center gap-1">
+                    <div
+                      className={`
+                        w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0
+                        ${isCompleted ? 'bg-green-500 text-white' : ''}
+                        ${isCurrent ? 'bg-blue-500 text-white' : ''}
+                        ${isPending ? 'bg-gray-300 text-gray-600' : ''}
+                      `}
+                      title={VALIDATION_TYPE_LABELS[step.type]}
+                    >
+                      {isCompleted ? (
+                        <Check className="w-3.5 h-3.5" />
+                      ) : (
+                        <span>{index + 1}</span>
+                      )}
+                    </div>
+                    {index < validationSteps.length - 1 && (
+                      <div className={`w-4 h-0.5 ${isCompleted ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    )}
+                  </div>
+                )
+              })}
+              <span className="text-xs text-gray-500 ml-1">
+                {currentStepIndex + 1}/{validationSteps.length}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">

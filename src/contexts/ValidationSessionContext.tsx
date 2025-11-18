@@ -58,6 +58,7 @@ interface ValidationSessionContextValue {
   // Session actions
   completeValidation: () => Promise<void>
   abandonValidation: () => Promise<void>
+  nextStep: () => Promise<void>
 }
 
 const ValidationSessionContext = createContext<ValidationSessionContextValue | null>(null)
@@ -606,6 +607,45 @@ export function ValidationSessionProvider({
     }
   }, [session.workLog.id, readOnly])
 
+  // Next step (multi-step validation)
+  const nextStep = useCallback(async () => {
+    if (readOnly) {
+      console.warn('[ValidationSession] Cannot move to next step in read-only mode')
+      return
+    }
+    
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await apiFetch('/api/validation/next-step', {
+        method: 'POST',
+        body: JSON.stringify({ work_log_id: session.workLog.id }),
+      })
+
+      if (response.success && response.data) {
+        // Обновить work log с новым step index
+        setSession((prev) => ({
+          ...prev,
+          workLog: {
+            ...prev.workLog,
+            current_step_index: response.data.new_step_index,
+            validation_type: response.data.current_step.type,
+            validation_steps: prev.workLog.validation_steps?.map((s, i) =>
+              i === prev.workLog.current_step_index ? { ...s, status: 'completed' } : s
+            ),
+          },
+        }))
+      }
+    } catch (err) {
+      setError('Failed to move to next step')
+      console.error(err)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [session.workLog.id, readOnly])
+
   // Вычисляем статус валидации в реальном времени
   const validationStatus = useMemo(() => {
     return validateSession(
@@ -640,6 +680,7 @@ export function ValidationSessionProvider({
     validationStatus,
     completeValidation,
     abandonValidation,
+    nextStep,
   }
 
   return (

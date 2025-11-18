@@ -46,6 +46,7 @@ function ValidationSessionContent() {
     validationStatus,
     completeValidation,
     abandonValidation,
+    nextStep,
   } = useValidationSession()
 
   // Всегда режим редактирования для этой задачи
@@ -178,25 +179,34 @@ function ValidationSessionContent() {
 
   const handleComplete = async () => {
     try {
-      // Сначала сохраняем все изменения
+      // Сохранить изменения
       if (hasUnsavedChanges) {
         await saveAllChanges()
       }
-      // Затем помечаем как завершенную
-      await completeValidation()
-      
-      // Автоматически попробовать взять следующую задачу
-      const response = await apiFetch<StartValidationResponse>(
-        '/api/validation/start',
-        { method: 'POST' }
-      )
-      
-      if (response.success && response.data) {
-        // Есть следующая задача
-        router.push(`/work/${response.data.workLog.id}`)
+
+      const workLog = session.workLog
+      const hasSteps = workLog.validation_steps && workLog.validation_steps.length > 0
+      const currentStep = workLog.current_step_index ?? 0
+      const isLastStep = hasSteps ? currentStep >= workLog.validation_steps.length - 1 : true
+
+      if (hasSteps && !isLastStep) {
+        // Есть еще steps - переключиться на следующий (БЕЗ router.push!)
+        await nextStep()
+        // Страница обновится локально через context
       } else {
-        // Нет задач - вернуться к списку
-        router.push('/work')
+        // Это последний step или single-step - завершить и взять новый recognition
+        await completeValidation()
+        
+        const response = await apiFetch<StartValidationResponse>(
+          '/api/validation/start',
+          { method: 'POST' }
+        )
+        
+        if (response.success && response.data) {
+          router.push(`/work/${response.data.workLog.id}`)
+        } else {
+          router.push('/work')
+        }
       }
     } catch (err) {
       console.error('Failed to complete validation:', err)
@@ -244,6 +254,11 @@ function ValidationSessionContent() {
     }
   }
 
+  const workLog = session.workLog
+  const hasSteps = workLog.validation_steps && workLog.validation_steps.length > 0
+  const currentStepIndex = workLog.current_step_index ?? 0
+  const isLastStep = hasSteps ? currentStepIndex >= workLog.validation_steps.length - 1 : true
+
   return (
     <>
       <WorkLayout
@@ -256,6 +271,8 @@ function ValidationSessionContent() {
             onReset={readOnly ? undefined : handleReset}
             onSelectFirstError={handleSelectFirstError}
             readOnly={readOnly}
+            validationSteps={workLog.validation_steps}
+            currentStepIndex={currentStepIndex}
           />
         }
         sidebar={
@@ -297,10 +314,10 @@ function ValidationSessionContent() {
               <Button 
                 onClick={handleComplete}
                 disabled={!validationStatus.canComplete}
-                title={!validationStatus.canComplete ? 'Исправьте ошибки валидации перед завершением' : 'Завершить задачу'}
+                title={!validationStatus.canComplete ? 'Исправьте ошибки валидации перед завершением' : (isLastStep ? 'Завершить всё' : 'Следующая валидация')}
               >
                 <CheckCircle className="w-4 h-4 mr-2" />
-                Завершить
+                {isLastStep ? 'Завершить всё' : 'Следующая валидация'}
               </Button>
             </div>
           ) : (

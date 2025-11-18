@@ -26,6 +26,8 @@ export type ValidationType =
 
 export type WorkLogStatus = 'in_progress' | 'completed' | 'abandoned'
 
+export type ValidationStepStatus = 'pending' | 'in_progress' | 'completed'
+
 // ============================================================================
 // User & Auth
 // ============================================================================
@@ -175,15 +177,26 @@ export interface ValidationPriorityConfig {
   updated_at: string
 }
 
+// Multi-step validation step
+export interface ValidationStep {
+  type: ValidationType
+  status: ValidationStepStatus
+  order: number
+}
+
 export interface ValidationWorkLog {
   id: number
   recognition_id: number
-  validation_type: ValidationType
+  validation_type: ValidationType // Для backward compatibility (текущий/первый тип)
   assigned_to: string
   started_at: string
   completed_at: string | null
   status: WorkLogStatus
   created_at: string
+  updated_at?: string
+  // Multi-step fields
+  validation_steps?: ValidationStep[] | null
+  current_step_index?: number
 }
 
 // ============================================================================
@@ -272,6 +285,17 @@ export interface CompleteValidationRequest {
 export interface AbandonValidationRequest {
   work_log_id: number
   reason?: string
+}
+
+export interface NextStepRequest {
+  work_log_id: number
+}
+
+export interface NextStepResponse {
+  success: boolean
+  new_step_index: number
+  current_step: ValidationStep
+  all_completed: boolean
 }
 
 // ============================================================================

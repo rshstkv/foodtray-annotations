@@ -91,6 +91,9 @@ export async function PATCH(request: Request) {
         .eq('id', priority.id)
     }
 
+    // View обновляется автоматически (обычный view, не materialized)
+    console.log('[validation-priorities] Priorities updated, view auto-refreshed')
+
     return apiSuccess({ success: true })
   } catch (error) {
     console.error('[validation-priorities] Error:', error)

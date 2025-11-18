@@ -5,7 +5,8 @@ import type { CompleteValidationRequest } from '@/types/domain'
 /**
  * POST /api/validation/complete
  * 
- * Завершить сессию валидации
+ * Завершить сессию валидации (весь work_log со всеми steps)
+ * Для multi-step: завершает текущий step и весь work_log если это последний step
  */
 export async function POST(request: Request) {
   try {
@@ -51,7 +52,18 @@ export async function POST(request: Request) {
       return apiError('Work log is not in progress', 400, ApiErrorCode.VALIDATION_ERROR)
     }
 
-    // 2. Обновить work log
+    // 2. Если multi-step - проверить что все steps завершены
+    if (workLog.validation_steps) {
+      const { data: allCompleted } = await supabase
+        .rpc('all_steps_completed', { p_work_log_id: work_log_id })
+        .single()
+
+      if (!allCompleted) {
+        return apiError('Not all validation steps are completed', 400, ApiErrorCode.VALIDATION_ERROR)
+      }
+    }
+
+    // 3. Обновить work log
     const { error: updateError } = await supabase
       .from('validation_work_log')
       .update({
@@ -64,6 +76,8 @@ export async function POST(request: Request) {
       console.error('[validation/complete] Update error:', updateError)
       return apiError('Failed to complete validation', 500, ApiErrorCode.INTERNAL_ERROR)
     }
+
+    console.log(`[validation/complete] Work log ${work_log_id} completed`)
 
     return apiSuccess({ success: true })
   } catch (error) {
