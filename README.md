@@ -223,9 +223,9 @@ npm run db:seed-users:prod     # Продакшн
 
 | Email | Password | Role |
 |-------|----------|------|
-| admin@rrs.ru | admin2024 | admin |
-| editor@rrs.ru | editor2024 | editor |
-| viewer@rrs.ru | viewer2024 | viewer |
+| admin@test.com | admin2024 | admin |
+| editor@test.com | editor2024 | editor |
+| viewer@test.com | viewer2024 | viewer |
 
 ## Полезные команды
 

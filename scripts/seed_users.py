@@ -37,9 +37,9 @@ if not all([SUPABASE_URL, SERVICE_ROLE_KEY, DATABASE_URL]):
 
 # Standard users for all environments
 USERS = [
-    {"email": "admin@rrs.ru", "password": "admin2024", "role": "admin", "full_name": "Admin User"},
-    {"email": "editor@rrs.ru", "password": "editor2024", "role": "editor", "full_name": "Editor User"},
-    {"email": "viewer@rrs.ru", "password": "viewer2024", "role": "viewer", "full_name": "Viewer User"},
+    {"email": "admin@test.com", "password": "admin2024", "role": "admin", "full_name": "Admin User"},
+    {"email": "editor@test.com", "password": "editor2024", "role": "editor", "full_name": "Editor User"},
+    {"email": "viewer@test.com", "password": "viewer2024", "role": "viewer", "full_name": "Viewer User"},
 ]
 
 def create_user(email: str, password: str, full_name: str) -> str:
