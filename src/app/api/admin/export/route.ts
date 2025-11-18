@@ -218,7 +218,7 @@ export async function GET(request: NextRequest) {
             : [item.recipe_lines.recipe_line_options]
           
           // Найти selected option или взять первый
-          const selectedOption = options.find(opt => opt.is_selected) || options[0]
+          const selectedOption = options.find((opt: any) => opt.is_selected) || options[0]
           externalId = selectedOption?.external_id || null
           name = selectedOption?.name || null
         }
