@@ -367,11 +367,6 @@ function ValidationSessionContent() {
     capabilities.showAllItemTypes,
   ])
 
-  const workLog = session.workLog
-  const hasSteps = workLog.validation_steps && workLog.validation_steps.length > 0
-  const currentStepIndex = workLog.current_step_index ?? 0
-  const isLastStep = hasSteps ? currentStepIndex >= workLog.validation_steps.length - 1 : true
-
   return (
     <>
       <WorkLayout
