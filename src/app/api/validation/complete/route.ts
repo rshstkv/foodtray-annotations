@@ -52,8 +52,22 @@ export async function POST(request: Request) {
       return apiError('Work log is not in progress', 400, ApiErrorCode.VALIDATION_ERROR)
     }
 
-    // 2. Если multi-step - проверить что все steps завершены
+    // 2. Если multi-step - пометить текущий шаг как completed и проверить что все завершены
     if (workLog.validation_steps) {
+      const currentStepIndex = workLog.current_step_index ?? 0
+      const steps = workLog.validation_steps as any[]
+      
+      // Пометить текущий шаг как completed, если он еще не completed
+      if (steps[currentStepIndex] && steps[currentStepIndex].status !== 'completed') {
+        steps[currentStepIndex].status = 'completed'
+        
+        await supabase
+          .from('validation_work_log')
+          .update({ validation_steps: steps })
+          .eq('id', work_log_id)
+      }
+      
+      // Проверить что все шаги завершены
       const { data: allCompleted } = await supabase
         .rpc('all_steps_completed', { p_work_log_id: work_log_id })
         .single()
