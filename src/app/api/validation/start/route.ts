@@ -36,7 +36,7 @@ export async function POST() {
       return apiSuccess(null, 'No recognitions available for validation')
     }
 
-    const { work_log_id, recognition_id, validation_steps, current_step_index } = taskData
+    const { work_log_id, recognition_id, validation_steps, current_step_index } = taskData as { work_log_id: number; recognition_id: number; validation_steps: any; current_step_index: number }
     console.log(`[validation/start] Acquired recognition: work_log=${work_log_id}, recognition=${recognition_id}, steps=${validation_steps?.length || 0}`)
 
     // ШАГ 2: Параллельно загрузить все основные данные

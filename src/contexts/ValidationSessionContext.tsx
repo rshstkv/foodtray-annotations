@@ -628,12 +628,13 @@ export function ValidationSessionProvider({
 
       if (response.success && response.data) {
         // Обновить work log с новым step index
+        const data = response.data as { new_step_index: number; current_step: any }
         setSession((prev) => ({
           ...prev,
           workLog: {
             ...prev.workLog,
-            current_step_index: response.data.new_step_index,
-            validation_type: response.data.current_step.type,
+            current_step_index: data.new_step_index,
+            validation_type: data.current_step.type,
             validation_steps: prev.workLog.validation_steps?.map((s, i) =>
               i === prev.workLog.current_step_index ? { ...s, status: 'completed' } : s
             ),

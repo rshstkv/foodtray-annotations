@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       success: true,
       new_step_index,
       current_step,
-      all_completed: allCompleted || false
+      all_completed: (allCompleted as boolean) || false
     }
 
     console.log(`[next-step] Moved to step ${new_step_index}, type=${current_step?.type}, all_completed=${allCompleted}`)

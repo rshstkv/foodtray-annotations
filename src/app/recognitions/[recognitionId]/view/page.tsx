@@ -18,7 +18,6 @@ import type {
   Recipe, 
   RecipeLine, 
   RecipeLineOption,
-  RecognitionActiveMenuItem,
   ValidationWorkLog,
   WorkItem,
   WorkAnnotation,
@@ -37,7 +36,7 @@ interface RecognitionViewData {
   recipe: Recipe | null
   recipeLines: RecipeLine[]
   recipeLineOptions: RecipeLineOption[]
-  activeMenu: RecognitionActiveMenuItem[]
+  activeMenu: any[]
   sessions: SessionData[]
 }
 
@@ -165,7 +164,7 @@ function RecognitionViewContent({
           <div className="flex items-center justify-between gap-3">
             <Button
               variant="outline"
-              onClick={() => setSelectedStepIndex(prev => Math.max(0, prev - 1))}
+              onClick={() => setSelectedStepIndex(Math.max(0, selectedStepIndex - 1))}
               disabled={!canGoPrevStep}
             >
               <ChevronLeft className="w-4 h-4 mr-2" />
@@ -179,7 +178,7 @@ function RecognitionViewContent({
             </div>
             <Button
               variant="outline"
-              onClick={() => setSelectedStepIndex(prev => Math.min(currentWorkLog.validation_steps.length - 1, prev + 1))}
+              onClick={() => setSelectedStepIndex(Math.min(currentWorkLog.validation_steps.length - 1, selectedStepIndex + 1))}
               disabled={!canGoNextStep}
             >
               Следующий шаг
