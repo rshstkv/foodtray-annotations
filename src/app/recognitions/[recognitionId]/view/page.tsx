@@ -52,6 +52,7 @@ function RecognitionViewContent({
   const router = useRouter()
   const { user, isAdmin } = useUser()
   const { items, annotations } = useValidationSession()
+  const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
 
   // Берем первый (последний по времени) work_log
   const currentSession = data.sessions[0]
@@ -66,7 +67,12 @@ function RecognitionViewContent({
   const canGoPrevStep = selectedStepIndex > 0
   const canGoNextStep = hasSteps && selectedStepIndex < currentWorkLog.validation_steps.length - 1
 
-  // Горячие клавиши для навигации между шагами
+  // Сбросить выбранный item при переключении шага
+  useEffect(() => {
+    setSelectedItemId(null)
+  }, [selectedStepIndex])
+
+  // Горячие клавиши для навигации между шагами и выбора items
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Игнорируем, если фокус на input/textarea
@@ -83,11 +89,27 @@ function RecognitionViewContent({
         e.preventDefault()
         setSelectedStepIndex(selectedStepIndex + 1)
       }
+      
+      // Цифры 1-9 для выбора items
+      const num = parseInt(e.key)
+      if (num >= 1 && num <= 9) {
+        const itemIndex = num - 1
+        if (itemIndex < items.length) {
+          e.preventDefault()
+          setSelectedItemId(items[itemIndex].id)
+        }
+      }
+      
+      // Escape для снятия выделения
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setSelectedItemId(null)
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedStepIndex, canGoPrevStep, canGoNextStep, setSelectedStepIndex])
+  }, [selectedStepIndex, canGoPrevStep, canGoNextStep, setSelectedStepIndex, items])
 
   return (
     <RootLayout
@@ -134,9 +156,9 @@ function RecognitionViewContent({
           <ItemsList
             items={items}
             validationType={currentValidationType}
-            selectedItemId={null}
+            selectedItemId={selectedItemId}
             recipeLineOptions={data.recipeLineOptions}
-            onItemSelect={() => {}}
+            onItemSelect={setSelectedItemId}
             onItemCreate={() => {}}
             onItemDelete={() => {}}
             onItemUpdate={() => {}}
@@ -149,7 +171,7 @@ function RecognitionViewContent({
             annotations={annotations}
             items={items}
             recipeLineOptions={data.recipeLineOptions}
-            selectedItemId={null}
+            selectedItemId={selectedItemId}
             selectedAnnotationId={null}
             validationType={currentValidationType}
             mode="view"
@@ -256,15 +278,19 @@ export default function RecognitionViewPage({
     validation_type: currentValidationType
   }
 
+  // Собираем items из всех сессий (может быть несколько work_logs для разных типов валидации)
+  const allItems = data.sessions.flatMap(session => session.workItems)
+  const allAnnotations = data.sessions.flatMap(session => session.workAnnotations)
+  
   // Фильтруем items по текущему типу валидации
   const currentItemType = getItemTypeFromValidationType(currentValidationType)
-  const filteredItems = currentSession.workItems.filter(
+  const filteredItems = allItems.filter(
     item => !item.is_deleted && item.type === currentItemType
   )
   
   // Фильтруем annotations по items текущего типа
   const filteredItemIds = new Set(filteredItems.map(item => item.id))
-  const filteredAnnotations = currentSession.workAnnotations.filter(
+  const filteredAnnotations = allAnnotations.filter(
     ann => !ann.is_deleted && filteredItemIds.has(ann.work_item_id)
   )
 
