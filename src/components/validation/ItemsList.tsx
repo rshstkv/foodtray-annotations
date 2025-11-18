@@ -192,46 +192,61 @@ export function ItemsList({
                       </div>
                     )}
                     
-                    {/* UI для ориентации бутылки - показываем если выбран этот item и не read-only */}
-                    {!readOnly && isSelected && capabilities.canSetBottleOrientation && item.type === 'FOOD' && onItemUpdate && (
-                      <div className="mt-2 flex gap-1 border-t border-gray-200 pt-2">
-                        <span className="text-xs text-gray-600 self-center mr-1">Ориентация:</span>
-                        <Button
-                          size="sm"
-                          variant={item.bottle_orientation === 'horizontal' ? 'default' : 'outline'}
-                          className="h-7 text-xs px-2"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onItemUpdate(item.id, { bottle_orientation: 'horizontal' })
-                          }}
-                          title="Горизонтально"
-                        >
-                          —
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={item.bottle_orientation === 'vertical' ? 'default' : 'outline'}
-                          className="h-7 text-xs px-2"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onItemUpdate(item.id, { bottle_orientation: 'vertical' })
-                          }}
-                          title="Вертикально"
-                        >
-                          |
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={!item.bottle_orientation ? 'default' : 'outline'}
-                          className="h-7 text-xs px-2"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onItemUpdate(item.id, { bottle_orientation: null })
-                          }}
-                          title="Не указано"
-                        >
-                          ✕
-                        </Button>
+                    {/* UI для ориентации бутылки */}
+                    {capabilities.canSetBottleOrientation && item.type === 'FOOD' && (
+                      <div>
+                        {/* Режим редактирования: кнопки для изменения */}
+                        {!readOnly && isSelected && onItemUpdate && (
+                          <div className="mt-2 flex gap-1 border-t border-gray-200 pt-2">
+                            <span className="text-xs text-gray-600 self-center mr-1">Ориентация:</span>
+                            <Button
+                              size="sm"
+                              variant={item.bottle_orientation === 'horizontal' ? 'default' : 'outline'}
+                              className="h-7 text-xs px-2"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onItemUpdate(item.id, { bottle_orientation: 'horizontal' })
+                              }}
+                              title="Горизонтально"
+                            >
+                              —
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={item.bottle_orientation === 'vertical' ? 'default' : 'outline'}
+                              className="h-7 text-xs px-2"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onItemUpdate(item.id, { bottle_orientation: 'vertical' })
+                              }}
+                              title="Вертикально"
+                            >
+                              |
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={!item.bottle_orientation ? 'default' : 'outline'}
+                              className="h-7 text-xs px-2"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onItemUpdate(item.id, { bottle_orientation: null })
+                              }}
+                              title="Не указано"
+                            >
+                              ✕
+                            </Button>
+                          </div>
+                        )}
+                        
+                        {/* Режим просмотра: показываем текстом */}
+                        {readOnly && item.bottle_orientation && (
+                          <div className="mt-2 border-t border-gray-200 pt-2">
+                            <span className="text-xs text-gray-600">Ориентация: </span>
+                            <span className="text-xs font-medium text-gray-900">
+                              {item.bottle_orientation === 'horizontal' ? 'Горизонтально' : 'Вертикально'}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

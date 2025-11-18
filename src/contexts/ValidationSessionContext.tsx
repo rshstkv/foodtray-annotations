@@ -121,6 +121,20 @@ export function ValidationSessionProvider({
         return
       }
       
+      // Защита от двойного клика: проверяем есть ли идентичный item созданный недавно (< 3 сек)
+      const now = Date.now()
+      const recentDuplicate = Array.from(changesTracking.createdItems.values()).find(item => {
+        const itemAge = now - new Date(item.created_at).getTime()
+        const isSameType = item.type === data.type
+        const isSameMetadata = JSON.stringify(item.metadata) === JSON.stringify(data.metadata || null)
+        return isSameType && isSameMetadata && itemAge < 3000 // 3 секунды
+      })
+      
+      if (recentDuplicate) {
+        console.warn('[ValidationSession] Duplicate item creation prevented (double-click protection)')
+        return
+      }
+      
       // Создаем временный ID
       const tempId = tempIdCounter
       setTempIdCounter(tempId - 1)
@@ -157,7 +171,7 @@ export function ValidationSessionProvider({
         }
       })
     },
-    [session.workLog.id, session.recognition.id, tempIdCounter, readOnly]
+    [session.workLog.id, session.recognition.id, tempIdCounter, readOnly, changesTracking.createdItems]
   )
 
   // Update item (локально, без API)
@@ -402,7 +416,9 @@ export function ValidationSessionProvider({
       setLoading(true)
       setError(null)
       
-      // 1. Создаем новые items
+      // 1. Создаем новые items и маппим временные ID на реальные
+      const itemIdMapping = new Map<number, number>() // tempId -> realId
+      
       for (const [tempId, item] of changesTracking.createdItems) {
         const response = await apiFetch('/api/items/create', {
           method: 'POST',
@@ -419,6 +435,8 @@ export function ValidationSessionProvider({
         
         if (response.success && response.data) {
           const realId = (response.data as any).item.id
+          itemIdMapping.set(tempId, realId)
+          
           // Обновляем ID в session
           setSession((prev) => ({
             ...prev,
@@ -447,14 +465,17 @@ export function ValidationSessionProvider({
         })
       }
       
-      // 4. Создаем новые аннотации
+      // 4. Создаем новые аннотации (обновляем work_item_id если это был новый item)
       for (const [tempId, ann] of changesTracking.createdAnnotations) {
+        // Если annotation ссылается на временный item ID, заменяем на реальный
+        const actualWorkItemId = itemIdMapping.get(ann.work_item_id) || ann.work_item_id
+        
         const response = await apiFetch('/api/annotations/create', {
           method: 'POST',
           body: JSON.stringify({
             work_log_id: session.workLog.id,
             image_id: ann.image_id,
-            work_item_id: ann.work_item_id,
+            work_item_id: actualWorkItemId,
             bbox: ann.bbox,
             is_occluded: ann.is_occluded,
           }),
