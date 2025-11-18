@@ -67,6 +67,29 @@ function RecognitionViewContent({
   const canGoPrevStep = selectedStepIndex > 0
   const canGoNextStep = hasSteps && selectedStepIndex < currentWorkLog.validation_steps.length - 1
 
+  // Горячие клавиши для навигации между шагами
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Игнорируем, если фокус на input/textarea
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return
+      }
+
+      // Стрелки влево/вправо - двигаться между шагами
+      if (e.key === 'ArrowLeft' && canGoPrevStep) {
+        e.preventDefault()
+        setSelectedStepIndex(selectedStepIndex - 1)
+      } else if (e.key === 'ArrowRight' && canGoNextStep) {
+        e.preventDefault()
+        setSelectedStepIndex(selectedStepIndex + 1)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedStepIndex, canGoPrevStep, canGoNextStep, setSelectedStepIndex])
+
   return (
     <RootLayout
       userName={user?.full_name || undefined}
@@ -147,6 +170,9 @@ function RecognitionViewContent({
             >
               <ChevronLeft className="w-4 h-4 mr-2" />
               Предыдущий шаг
+              <kbd className="ml-2 px-1.5 py-0.5 text-xs font-semibold bg-gray-200 rounded border border-gray-300">
+                ←
+              </kbd>
             </Button>
             <div className="text-sm text-gray-600">
               {hasSteps && `Шаг ${selectedStepIndex + 1} из ${currentWorkLog.validation_steps.length}`}
@@ -157,6 +183,9 @@ function RecognitionViewContent({
               disabled={!canGoNextStep}
             >
               Следующий шаг
+              <kbd className="ml-2 px-1.5 py-0.5 text-xs font-semibold bg-gray-200 rounded border border-gray-300">
+                →
+              </kbd>
               <ChevronRight className="w-4 h-4 ml-2" />
             </Button>
           </div>

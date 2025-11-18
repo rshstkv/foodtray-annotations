@@ -36,6 +36,42 @@ function RecognitionViewContentInner({
   const router = useRouter()
   const activeSession = recognitionData.sessions[activeSessionIndex]
 
+  // Горячие клавиши для навигации между валидациями
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Игнорируем, если фокус на input/textarea
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return
+      }
+
+      const sessionsCount = recognitionData.sessions.length
+
+      // Цифры 1-9 - переключиться на валидацию по индексу
+      if (e.key >= '1' && e.key <= '9') {
+        const index = parseInt(e.key) - 1
+        if (index < sessionsCount) {
+          setActiveSessionIndex(index)
+        }
+        return
+      }
+
+      // Стрелки влево/вправо - двигаться между валидациями
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        const newIndex = activeSessionIndex > 0 ? activeSessionIndex - 1 : sessionsCount - 1
+        setActiveSessionIndex(newIndex)
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        const newIndex = activeSessionIndex < sessionsCount - 1 ? activeSessionIndex + 1 : 0
+        setActiveSessionIndex(newIndex)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeSessionIndex, recognitionData.sessions.length, setActiveSessionIndex])
+
   if (!activeSession) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
@@ -66,20 +102,33 @@ function RecognitionViewContentInner({
 
           {/* Табы для переключения между валидациями */}
           <div className="flex items-center gap-2 overflow-x-auto">
-            {recognitionData.sessions.map((session, index) => (
-              <button
-                key={session.workLog.id}
-                onClick={() => setActiveSessionIndex(index)}
-                className={cn(
-                  'px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
-                  activeSessionIndex === index
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                )}
-              >
-                {VALIDATION_TYPE_LABELS[session.workLog.validation_type]}
-              </button>
-            ))}
+            {recognitionData.sessions.map((session, index) => {
+              const hotkey = index < 9 ? (index + 1).toString() : null
+              return (
+                <button
+                  key={session.workLog.id}
+                  onClick={() => setActiveSessionIndex(index)}
+                  className={cn(
+                    'px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap relative',
+                    activeSessionIndex === index
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  )}
+                >
+                  {VALIDATION_TYPE_LABELS[session.workLog.validation_type]}
+                  {hotkey && (
+                    <kbd className={cn(
+                      'ml-2 px-1.5 py-0.5 text-xs font-semibold rounded border',
+                      activeSessionIndex === index
+                        ? 'bg-white/20 border-white/30'
+                        : 'bg-gray-200 border-gray-300'
+                    )}>
+                      {hotkey}
+                    </kbd>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
       }

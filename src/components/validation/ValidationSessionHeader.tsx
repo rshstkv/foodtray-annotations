@@ -6,6 +6,15 @@ import type { ValidationType, ValidationStep } from '@/types/domain'
 import { VALIDATION_TYPE_LABELS } from '@/types/domain'
 import type { SessionValidationResult } from '@/lib/validation-rules'
 
+// Краткие инструкции для каждого типа валидации
+const VALIDATION_INSTRUCTIONS: Record<ValidationType, string> = {
+  FOOD_VALIDATION: 'Проверьте что все блюда отмечены и рамки правильные',
+  PLATE_VALIDATION: 'Отметьте плоские тарелки (пустые или с едой, кроме супов)',
+  BUZZER_VALIDATION: 'Если есть пейджер — укажите, если нет — нажмите Enter',
+  BOTTLE_ORIENTATION_VALIDATION: 'Выделите банку/бутылку и укажите ориентацию',
+  OCCLUSION_VALIDATION: 'Если блюдо перекрыто — отметьте перекрытое, если нет — Enter',
+}
+
 interface ValidationSessionHeaderProps {
   recognitionId: number
   validationType: ValidationType
@@ -43,15 +52,20 @@ export function ValidationSessionHeader({
             <h1 className="text-xl font-semibold text-gray-900">
               Recognition #{recognitionId}
             </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-sm text-gray-600">
-                {VALIDATION_TYPE_LABELS[validationType]}
+            <div className="mt-1">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-gray-900">
+                  {VALIDATION_TYPE_LABELS[validationType]}
+                </p>
+                {readOnly && (
+                  <span className="px-2 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-medium text-gray-700">
+                    Режим просмотра
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {VALIDATION_INSTRUCTIONS[validationType]}
               </p>
-              {readOnly && (
-                <span className="px-2 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-medium text-gray-700">
-                  Режим просмотра
-                </span>
-              )}
             </div>
           </div>
 

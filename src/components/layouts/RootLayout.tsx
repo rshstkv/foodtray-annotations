@@ -3,6 +3,7 @@
 import { ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -36,9 +37,13 @@ export function RootLayout({ children, userName, userEmail, isAdmin }: RootLayou
           <div className="flex items-center justify-between">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">R</span>
-              </div>
+              <Image 
+                src="/logo.svg" 
+                alt="RRS Logo" 
+                width={32} 
+                height={32}
+                className="rounded-lg"
+              />
               <span className="text-xl font-semibold text-gray-900">
                 RRS Annotation
               </span>

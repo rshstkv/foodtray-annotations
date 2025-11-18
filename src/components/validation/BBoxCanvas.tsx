@@ -745,13 +745,6 @@ export function BBoxCanvas({
           }}
         />
       )}
-
-      {/* Подсказка по управлению */}
-      <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-2 rounded-md text-xs space-y-1">
-        <div>Клик - выбрать аннотацию</div>
-        <div>Правый клик - toggle окклюзии</div>
-        <div>Delete/Backspace - удалить</div>
-      </div>
     </div>
   )
 }

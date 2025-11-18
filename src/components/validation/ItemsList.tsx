@@ -44,9 +44,9 @@ export function ItemsList({
   // Получаем capabilities для текущего типа валидации
   const capabilities = getValidationCapabilities(validationType)
   
-  // Filter items by validation type
+  // Filter items by validation type (но не фильтруем если showAllItemTypes)
   const itemType = getItemTypeFromValidationType(validationType)
-  const filteredItems = itemType
+  const filteredItems = (itemType && !capabilities.showAllItemTypes)
     ? items.filter((item) => item.type === itemType)
     : items
 
@@ -113,7 +113,7 @@ export function ItemsList({
             <p className="text-gray-500 text-sm">Нет объектов</p>
           </div>
         ) : (
-          filteredItems.map((item) => {
+          filteredItems.map((item, index) => {
             const isSelected = item.id === selectedItemId
             const color = ITEM_TYPE_COLORS[item.type]
             // Все work_items имеют уникальные ID
@@ -121,12 +121,15 @@ export function ItemsList({
 
             const itemErrors = validationStatus.itemErrors.get(item.id)
             const hasErrors = itemErrors && itemErrors.length > 0
+            
+            // Подпись горячей клавиши (1-9)
+            const hotkey = index < 9 ? (index + 1).toString() : null
 
             return (
               <Card
                 key={uniqueKey}
                 className={cn(
-                  'p-3 cursor-pointer transition-all hover:shadow-md',
+                  'p-3 cursor-pointer transition-all hover:shadow-md relative',
                   isSelected && 'ring-2 ring-blue-500 bg-blue-50',
                   hasErrors && 'border-2 border-red-400 bg-red-50 shadow-sm'
                 )}
@@ -135,6 +138,11 @@ export function ItemsList({
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
+                      {hotkey && (
+                        <span className="text-[10px] font-mono text-gray-400 flex-none">
+                          {hotkey}
+                        </span>
+                      )}
                       <div
                         className="w-3 h-3 rounded-full flex-none"
                         style={{ backgroundColor: color }}
@@ -152,9 +160,6 @@ export function ItemsList({
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-gray-500">
                       <span>{ITEM_TYPE_LABELS[item.type]}</span>
-                      {item.initial_item_id !== null && (
-                        <span className="text-gray-400 text-[10px]">ID: {item.initial_item_id}</span>
-                      )}
                     </div>
                     
                     {/* Показываем ошибки валидации */}

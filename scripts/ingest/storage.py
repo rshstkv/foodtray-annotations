@@ -65,8 +65,8 @@ class StorageManager:
             config.supabase_key
         )
         
-        # Get storage client
-        self.storage_client = self.client.storage()
+        # Get storage client (property, not method in new Supabase version)
+        self.storage_client = self.client.storage
         
         self._uploaded_files: List[str] = []
         self._temp_files: List[str] = []

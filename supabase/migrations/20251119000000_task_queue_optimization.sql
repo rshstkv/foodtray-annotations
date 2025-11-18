@@ -131,3 +131,5 @@ CREATE INDEX IF NOT EXISTS idx_work_log_recognition_type_status
 REFRESH MATERIALIZED VIEW available_validation_tasks;
 
 
+
+

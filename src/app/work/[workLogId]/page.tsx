@@ -58,19 +58,6 @@ function ValidationSessionContent() {
   // Получаем capabilities для текущего типа валидации
   const capabilities = getValidationCapabilities(session.workLog.validation_type)
 
-  // Обработка Escape для снятия выделения
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setSelectedItemId(null)
-        setSelectedAnnotationId(null)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [setSelectedItemId, setSelectedAnnotationId])
-
   const handleItemSelect = (id: number) => {
     // Если кликаем на уже выбранный item - снимаем выделение
     if (selectedItemId === id) {
@@ -254,6 +241,89 @@ function ValidationSessionContent() {
     }
   }
 
+  // Обработка горячих клавиш
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Игнорируем, если фокус на input/textarea
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return
+      }
+
+      // Escape - снять выделение
+      if (e.key === 'Escape') {
+        setSelectedItemId(null)
+        setSelectedAnnotationId(null)
+        return
+      }
+
+      // Enter - завершить валидацию / следующая валидация
+      if (e.key === 'Enter' && !readOnly) {
+        e.preventDefault()
+        if (validationStatus.canComplete) {
+          handleComplete()
+        }
+        return
+      }
+
+      // Получаем текущий список айтемов (для окклюзий показываем все типы)
+      const currentItemType = getItemTypeFromValidationType(session.workLog.validation_type)
+      const filteredItems = (currentItemType && !capabilities.showAllItemTypes)
+        ? items.filter((item) => item.type === currentItemType)
+        : items
+
+      if (filteredItems.length === 0) return
+
+      // Цифры 1-9 - выбрать айтем по индексу
+      if (e.key >= '1' && e.key <= '9') {
+        const index = parseInt(e.key) - 1
+        if (index < filteredItems.length) {
+          handleItemSelect(filteredItems[index].id)
+        }
+        return
+      }
+
+      // Стрелки влево/вправо - двигаться между айтемами
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault()
+        
+        if (selectedItemId === null) {
+          // Если ничего не выбрано, выбрать первый
+          handleItemSelect(filteredItems[0].id)
+        } else {
+          // Найти текущий индекс
+          const currentIndex = filteredItems.findIndex(item => item.id === selectedItemId)
+          if (currentIndex !== -1) {
+            let newIndex
+            if (e.key === 'ArrowLeft') {
+              // Предыдущий айтем (с циклом)
+              newIndex = currentIndex > 0 ? currentIndex - 1 : filteredItems.length - 1
+            } else {
+              // Следующий айтем (с циклом)
+              newIndex = currentIndex < filteredItems.length - 1 ? currentIndex + 1 : 0
+            }
+            handleItemSelect(filteredItems[newIndex].id)
+          }
+        }
+        return
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    setSelectedItemId, 
+    setSelectedAnnotationId, 
+    items, 
+    selectedItemId,
+    session.workLog.validation_type,
+    readOnly,
+    validationStatus.canComplete,
+    handleComplete,
+    handleItemSelect,
+    capabilities.showAllItemTypes,
+  ])
+
   const workLog = session.workLog
   const hasSteps = workLog.validation_steps && workLog.validation_steps.length > 0
   const currentStepIndex = workLog.current_step_index ?? 0
@@ -315,9 +385,13 @@ function ValidationSessionContent() {
                 onClick={handleComplete}
                 disabled={!validationStatus.canComplete}
                 title={!validationStatus.canComplete ? 'Исправьте ошибки валидации перед завершением' : (isLastStep ? 'Завершить всё' : 'Следующая валидация')}
+                className="relative"
               >
                 <CheckCircle className="w-4 h-4 mr-2" />
                 {isLastStep ? 'Завершить всё' : 'Следующая валидация'}
+                <kbd className="ml-2 px-1.5 py-0.5 text-xs font-semibold bg-white/20 rounded border border-white/30">
+                  Enter
+                </kbd>
               </Button>
             </div>
           ) : (
