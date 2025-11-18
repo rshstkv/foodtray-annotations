@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       return apiError('Failed to move to next step', 500, ApiErrorCode.INTERNAL_ERROR)
     }
 
-    const { success, new_step_index, current_step } = result
+    const { success, new_step_index, current_step } = result as { success: boolean; new_step_index: number; current_step: any }
 
     if (!success) {
       return apiError('No more steps available', 400, ApiErrorCode.VALIDATION_ERROR)
