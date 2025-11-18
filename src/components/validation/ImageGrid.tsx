@@ -7,6 +7,9 @@ import type { BBox } from '@/types/domain'
 import { ITEM_TYPE_COLORS, getItemTypeFromValidationType } from '@/types/domain'
 import { getValidationCapabilities } from '@/lib/validation-capabilities'
 
+// Supabase URL - must be set as NEXT_PUBLIC_SUPABASE_URL env variable
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+
 interface ImageGridProps {
   images: Image[]
   annotations: AnnotationView[]
@@ -44,8 +47,12 @@ export function ImageGrid({
   // Get storage URL
   const getImageUrl = (storagePath: string) => {
     // storagePath is like "recognitions/100024/camera1.jpg"
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
-    return `${supabaseUrl}/storage/v1/object/public/rrs-photos/${storagePath}`
+    const url = `${SUPABASE_URL}/storage/v1/object/public/rrs-photos/${storagePath}`
+    // Debug: log first URL to check if env variable is set
+    if (storagePath.includes('camera1')) {
+      console.log('[ImageGrid] Image URL:', url, '| Supabase URL:', SUPABASE_URL)
+    }
+    return url
   }
 
   // Get item label for display from recipe_line_options (from check)
