@@ -374,67 +374,44 @@ export function workAnnotationToView(annotation: WorkAnnotation): AnnotationView
 // ============================================================================
 
 export interface ValidationExportItem {
-  id: number
-  type: ItemType
+  item_id: number
+  item_type: ItemType
+  external_id: string | null
+  name: string | null
   quantity: number
-  recipe_line_id: number | null
   bottle_orientation: BottleOrientation | null
   metadata: Record<string, any> | null
 }
 
 export interface ValidationExportAnnotation {
-  id: number
   item_id: number
   bbox: BBox
   is_occluded: boolean
   occlusion_metadata: Record<string, unknown> | null
+  was_modified: boolean
+  original_bbox: BBox | null
 }
 
 export interface ValidationExportImage {
-  id: number
   camera_number: 1 | 2
-  image_name: string
+  image_name: 'Main' | 'Qualifying'
   storage_path: string
   width: number | null
   height: number | null
   annotations: ValidationExportAnnotation[]
 }
 
-export interface ExportRecipeLine {
-  id: number
-  line_number: number
-  quantity: number
-  options: RecipeLineOption[]
-}
-
-export interface ExportRecipe {
-  id: number
-  total_amount: number | null
-  lines: ExportRecipeLine[]
-}
-
-export interface ValidationInfo {
-  completed_at: string
-  assigned_to: string
-  work_log_id: number
+export interface ValidationExportRecipe {
+  items: ValidationExportItem[]
 }
 
 export interface ValidationExportRecognition {
   recognition_id: number
-  batch_id: string | null
-  items: ValidationExportItem[]
+  recipe: ValidationExportRecipe
   images: ValidationExportImage[]
-  recipe: ExportRecipe | null
-  active_menu: ActiveMenuItem[]
-  validation_info: Record<string, ValidationInfo>
 }
 
 export interface ValidationExportData {
-  export_metadata: {
-    exported_at: string
-    recognition_count: number
-    validation_types_included: ValidationType[]
-  }
   recognitions: ValidationExportRecognition[]
 }
 

@@ -178,7 +178,7 @@ export default function AdminStatisticsPage() {
       const downloadUrl = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = downloadUrl
-      a.download = `validation_export_${Date.now()}.json`
+      a.download = `annotations_export_${Date.now()}.json`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(downloadUrl)
