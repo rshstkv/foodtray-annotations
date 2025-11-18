@@ -334,7 +334,7 @@ function getItemTypeFromValidationType(validationType: ValidationType) {
     PLATE_VALIDATION: 'PLATE',
     BUZZER_VALIDATION: 'BUZZER',
     OCCLUSION_VALIDATION: 'FOOD',
-    BOTTLE_ORIENTATION_VALIDATION: 'BOTTLE'
+    BOTTLE_ORIENTATION_VALIDATION: 'FOOD' // Бутылки это FOOD items с bottle_orientation
   }
   return map[validationType]
 }
