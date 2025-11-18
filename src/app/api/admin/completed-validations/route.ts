@@ -36,11 +36,12 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId')
     const validationType = searchParams.get('validationType') as ValidationType | null
 
-    // Запрос completed work logs (включая validation_steps для multi-step архитектуры)
+    // Запрос completed и abandoned work logs (включая validation_steps для multi-step архитектуры)
+    // Abandoned work_logs могут содержать completed шаги
     let workLogsQuery = supabase
       .from('validation_work_log')
       .select('id, recognition_id, validation_type, validation_steps, completed_at, assigned_to, status')
-      .eq('status', 'completed')
+      .in('status', ['completed', 'abandoned'])
       .order('recognition_id')
       .order('completed_at', { ascending: false })
 

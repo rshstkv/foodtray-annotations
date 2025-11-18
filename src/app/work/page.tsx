@@ -104,57 +104,52 @@ export default function WorkPage() {
 
         {/* Stats */}
         {!loadingStats && stats.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Статистика по типам валидации
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {stats.map((stat) => {
-                const remaining = stat.total - stat.completed
-                const progress =
-                  stat.total > 0 ? (stat.completed / stat.total) * 100 : 0
+          <div className="mb-8 max-w-2xl mx-auto">
+            <Card className="overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                <h2 className="text-sm font-semibold text-gray-900">
+                  Статистика по типам валидации
+                </h2>
+              </div>
+              <div className="divide-y divide-gray-200">
+                {stats.map((stat) => {
+                  const remaining = stat.total - stat.completed
+                  const progress =
+                    stat.total > 0 ? (stat.completed / stat.total) * 100 : 0
 
-                return (
-                  <Card key={stat.validation_type} className="p-4">
-                    <div className="mb-2">
-                      <h3 className="text-sm font-medium text-gray-700">
-                        {VALIDATION_TYPE_LABELS[stat.validation_type]}
-                      </h3>
-                    </div>
-                    <div className="mb-3">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-bold text-gray-900">
-                          {remaining}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          из {stat.total}
-                        </span>
+                  return (
+                    <div key={stat.validation_type} className="px-6 py-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-gray-900">
+                            {VALIDATION_TYPE_LABELS[stat.validation_type]}
+                          </span>
+                          {stat.in_progress > 0 && (
+                            <span className="flex items-center gap-1 text-xs text-orange-600">
+                              <Clock className="w-3 h-3" />
+                              {stat.in_progress}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-baseline gap-1 text-sm">
+                          <span className="font-semibold text-gray-900">
+                            {stat.completed}
+                          </span>
+                          <span className="text-gray-500">/</span>
+                          <span className="text-gray-500">{stat.total}</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        осталось для валидации
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full bg-gray-200 rounded-full h-1.5">
                         <div
-                          className="bg-blue-600 h-2 rounded-full transition-all"
+                          className="bg-blue-600 h-1.5 rounded-full transition-all"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
-                      <div className="flex justify-between text-xs text-gray-600">
-                        <span>{stat.completed} завершено</span>
-                        {stat.in_progress > 0 && (
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {stat.in_progress} в работе
-                          </span>
-                        )}
-                      </div>
                     </div>
-                  </Card>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            </Card>
           </div>
         )}
 

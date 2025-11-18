@@ -62,16 +62,22 @@ export async function POST(request: Request) {
       .delete()
       .eq('work_log_id', work_log_id)
 
-    // 3. Удалить work log (возвращаем задачу в пул)
-    const { error: deleteError } = await supabase
+    // 3. Пометить work_log как abandoned (сохраняя completed шаги)
+    // Это позволит recognition стать доступным снова, но сохранит статистику по завершенным шагам
+    const { error: updateError } = await supabase
       .from('validation_work_log')
-      .delete()
+      .update({
+        status: 'abandoned',
+        completed_at: new Date().toISOString(),
+      })
       .eq('id', work_log_id)
 
-    if (deleteError) {
-      console.error('[validation/abandon] Delete error:', deleteError)
+    if (updateError) {
+      console.error('[validation/abandon] Update error:', updateError)
       return apiError('Failed to abandon validation', 500, ApiErrorCode.INTERNAL_ERROR)
     }
+
+    console.log(`[validation/abandon] Work log ${work_log_id} abandoned with ${workLog.validation_steps?.filter((s: any) => s.status === 'completed').length || 0} completed steps preserved`)
 
     return apiSuccess({ success: true })
   } catch (error) {

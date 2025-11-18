@@ -29,11 +29,12 @@ export async function GET() {
       .from('recognitions')
       .select('*', { count: 'exact', head: true })
 
-    // Получить все completed work_logs (включая validation_steps для multi-step)
+    // Получить все completed и abandoned work_logs (включая validation_steps для multi-step)
+    // Abandoned work_logs могут содержать completed шаги, которые нужно учитывать
     const { data: completedWorkLogs } = await supabase
       .from('validation_work_log')
       .select('recognition_id, validation_type, validation_steps')
-      .eq('status', 'completed')
+      .in('status', ['completed', 'abandoned'])
 
     // Получить все in_progress work_logs (last 30 minutes)
     const { data: inProgressWorkLogs } = await supabase
