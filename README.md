@@ -212,30 +212,43 @@ npm run dev
 
 Все функции вызываются автоматически в скриптах загрузки.
 
-## Тестовые пользователи
+## Пользователи
 
-После `npm run db:reset` доступны:
+Создаются автоматически после `npm run db:reset` или вручную:
 
-| Email | Password | Role | Description |
-|-------|----------|------|-------------|
-| admin@test.com | password123 | admin | Полный доступ |
-| editor@test.com | password123 | editor | Редактирование аннотаций |
-| viewer@test.com | password123 | viewer | Только просмотр |
+```bash
+npm run db:seed-users          # Локально
+npm run db:seed-users:prod     # Продакшн
+```
+
+| Email | Password | Role |
+|-------|----------|------|
+| admin@rrs.ru | admin2024 | admin |
+| editor@rrs.ru | editor2024 | editor |
+| viewer@rrs.ru | viewer2024 | viewer |
 
 ## Полезные команды
 
 ```bash
 # База данных
-npm run db:reset              # Пересоздать БД (все данные будут удалены)
+npm run db:reset              # Пересоздать БД + создать пользователей
 npm run db:migrate            # Применить новые миграции
+npm run db:seed-users         # Создать пользователей локально
+npm run db:seed-users:prod    # Создать пользователей в продакшн
 
-# Загрузка данных (рекомендуемый workflow)
-npm run ingest:all            # 100 recognitions + Qwen аннотации
-npm run ingest:full           # ВСЕ recognitions + Qwen (займет время!)
+# Загрузка данных
+npm run ingest:all            # 100 recognitions + Qwen (рекомендуется)
+npm run ingest:load           # Загрузить recognitions
+npm run ingest:load-qwen      # Загрузить Qwen аннотации
+npm run ingest:status         # Статус данных
+npm run ingest:reset          # Удалить batch данных
 
-# Раздельная загрузка
-npm run ingest:recognitions   # Загрузить 100 recognitions
-npm run ingest:qwen           # Загрузить соответствующие Qwen аннотации
+# Прямые команды (больше опций)
+python3 scripts/ingest/cli.py load --limit 100
+python3 scripts/ingest/cli.py load --production --limit 10
+python3 scripts/ingest/cli.py load-qwen --file qwen_annotations.json
+python3 scripts/ingest/cli.py reset --batch-id batch_xxx --confirm
+python3 scripts/ingest/cli.py --production status
 
 # Разработка
 npm run dev                   # Запустить Next.js в dev режиме

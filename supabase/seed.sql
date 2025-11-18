@@ -1,17 +1,8 @@
 -- Seed file for local development
--- Note: Test users should be created via Supabase Auth API after db reset
--- Run this command after 'supabase db reset':
 --
--- curl -X POST 'http://127.0.0.1:54321/auth/v1/admin/users' \
---   -H 'apikey: YOUR_SERVICE_ROLE_KEY' \
---   -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' \
---   -H 'Content-Type: application/json' \
---   -d '{
---     "email": "admin@test.com",
---     "password": "admin123",
---     "email_confirm": true,
---     "user_metadata": {"full_name": "Admin User"}
---   }'
+-- Users are created automatically via 'npm run db:seed-users'
+-- which runs after 'npm run db:reset'
 --
--- Then update profile role:
--- UPDATE public.profiles SET role = 'admin' WHERE email = 'admin@test.com';
+-- For production: npm run db:seed-users:prod
+--
+-- Add any SQL seed data here (not users - managed via Auth API)

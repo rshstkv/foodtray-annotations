@@ -8,11 +8,14 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "supabase migration up",
-    "db:reset": "supabase db reset",
-    "ingest:recognitions": "python3 scripts/ingest/ingest_recognitions.py",
-    "ingest:qwen": "python3 scripts/ingest/ingest_qwen.py",
-    "ingest:all": "npm run ingest:recognitions && npm run ingest:qwen",
-    "ingest:full": "python3 scripts/ingest/ingest_recognitions.py --limit 0 && python3 scripts/ingest/ingest_qwen.py"
+    "db:reset": "supabase db reset && npm run db:seed-users",
+    "db:seed-users": "python3 scripts/seed_users.py",
+    "db:seed-users:prod": "python3 scripts/seed_users.py --production",
+    "ingest:load": "python3 scripts/ingest/cli.py load",
+    "ingest:load-qwen": "python3 scripts/ingest/cli.py load-qwen",
+    "ingest:reset": "python3 scripts/ingest/cli.py reset",
+    "ingest:status": "python3 scripts/ingest/cli.py status",
+    "ingest:all": "npm run ingest:load -- --limit 100 && npm run ingest:load-qwen"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.3",
