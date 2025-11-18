@@ -7,12 +7,13 @@ import { Switch } from '@/components/ui/switch'
 import { apiFetch } from '@/lib/api-response'
 import type { ValidationPriorityConfig } from '@/types/domain'
 import { VALIDATION_TYPE_LABELS } from '@/types/domain'
-import { Save, ArrowUp, ArrowDown } from 'lucide-react'
+import { Save, ArrowUp, ArrowDown, GripVertical } from 'lucide-react'
 
 export default function AdminPrioritiesPage() {
   const [priorities, setPriorities] = useState<ValidationPriorityConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
 
   useEffect(() => {
     loadPriorities()
@@ -83,6 +84,36 @@ export default function AdminPrioritiesPage() {
     setPriorities(newPriorities)
   }
 
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index)
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    
+    if (draggedIndex === null || draggedIndex === index) return
+
+    const newPriorities = [...priorities]
+    const draggedItem = newPriorities[draggedIndex]
+    
+    // Remove from old position
+    newPriorities.splice(draggedIndex, 1)
+    // Insert at new position
+    newPriorities.splice(index, 0, draggedItem)
+    
+    // Update order_in_session
+    newPriorities.forEach((p, i) => {
+      p.order_in_session = i + 1
+    })
+    
+    setPriorities(newPriorities)
+    setDraggedIndex(index)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -115,27 +146,44 @@ export default function AdminPrioritiesPage() {
             {priorities.map((priority, index) => (
               <div
                 key={priority.id}
-                className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg"
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnd={handleDragEnd}
+                className={`flex items-center gap-4 p-4 rounded-lg transition-all cursor-move ${
+                  draggedIndex === index
+                    ? 'bg-blue-100 border-2 border-blue-400 shadow-lg scale-105'
+                    : 'bg-gray-50 border-2 border-transparent'
+                }`}
               >
-                <div className="flex flex-col gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 w-6 p-0"
-                    onClick={() => movePriority(priority.id, 'up')}
-                    disabled={index === 0}
-                  >
-                    <ArrowUp className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 w-6 p-0"
-                    onClick={() => movePriority(priority.id, 'down')}
-                    disabled={index === priorities.length - 1}
-                  >
-                    <ArrowDown className="w-3 h-3" />
-                  </Button>
+                <div className="flex items-center gap-2 cursor-grab active:cursor-grabbing">
+                  <GripVertical className="w-5 h-5 text-gray-400" />
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        movePriority(priority.id, 'up')
+                      }}
+                      disabled={index === 0}
+                    >
+                      <ArrowUp className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        movePriority(priority.id, 'down')
+                      }}
+                      disabled={index === priorities.length - 1}
+                    >
+                      <ArrowDown className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="flex-1">
@@ -147,7 +195,7 @@ export default function AdminPrioritiesPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                   <span className="text-sm text-gray-600">Активно</span>
                   <Switch
                     checked={priority.is_active}
@@ -164,6 +212,9 @@ export default function AdminPrioritiesPage() {
             Как работает порядок шагов
           </h3>
           <ul className="text-sm text-blue-800 space-y-1">
+            <li>
+              • Перетащите элементы мышью (drag-n-drop) или используйте кнопки ↑↓ для изменения порядка
+            </li>
             <li>
               • Порядок шагов определяет последовательность валидаций в рамках одного recognition
             </li>
