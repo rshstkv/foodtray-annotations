@@ -352,7 +352,7 @@ export default function AdminStatisticsPage() {
                     <TableCell className="text-right">
                       {recognition.completed_validations.length > 0 && (
                         <Link
-                          href={`/recognition/${recognition.recognition_id}`}
+                          href={`/recognitions/${recognition.recognition_id}/view`}
                           className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
                         >
                           <Eye className="w-4 h-4" />
