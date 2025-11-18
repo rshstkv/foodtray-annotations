@@ -30,10 +30,10 @@ export function AnnotationsList({
   // Group annotations by item
   const annotationsByItem = imageAnnotations.reduce(
     (acc, ann) => {
-      if (!acc[ann.tray_item_id]) {
-        acc[ann.tray_item_id] = []
+      if (!acc[ann.work_item_id]) {
+        acc[ann.work_item_id] = []
       }
-      acc[ann.tray_item_id].push(ann)
+      acc[ann.work_item_id].push(ann)
       return acc
     },
     {} as Record<number, AnnotationView[]>
@@ -41,16 +41,19 @@ export function AnnotationsList({
 
   // Get item label
   const getItemLabel = (item: TrayItem): string => {
-    if (item.menu_item_external_id) {
-      return item.menu_item_external_id
+    const anyItem = item as any
+    if (anyItem.menu_item_external_id) {
+      return anyItem.menu_item_external_id
     }
-    if (item.metadata?.name) {
-      return String(item.metadata.name)
+    if (anyItem.metadata?.name) {
+      return String(anyItem.metadata.name)
     }
-    if (item.metadata?.color) {
-      return `${ITEM_TYPE_LABELS[item.item_type]} (${item.metadata.color})`
+    if (anyItem.metadata?.color) {
+      const itemType = (anyItem.item_type || anyItem.type) as keyof typeof ITEM_TYPE_LABELS
+      return `${ITEM_TYPE_LABELS[itemType]} (${anyItem.metadata.color})`
     }
-    return ITEM_TYPE_LABELS[item.item_type]
+    const itemType = (anyItem.item_type || anyItem.type) as keyof typeof ITEM_TYPE_LABELS
+    return ITEM_TYPE_LABELS[itemType]
   }
 
   // Format bbox for display
@@ -78,7 +81,9 @@ export function AnnotationsList({
             const item = items.find((i) => i.id === itemId)
             if (!item) return null
 
-            const color = ITEM_TYPE_COLORS[item.item_type]
+            const anyItem = item as any
+            const itemType = (anyItem.item_type || anyItem.type) as keyof typeof ITEM_TYPE_COLORS
+            const color = ITEM_TYPE_COLORS[itemType]
 
             return (
               <div key={itemId} className="space-y-2">
@@ -92,7 +97,7 @@ export function AnnotationsList({
                     {getItemLabel(item)}
                   </span>
                   <span className="text-xs text-gray-500">
-                    ({ITEM_TYPE_LABELS[item.item_type]})
+                    ({ITEM_TYPE_LABELS[itemType]})
                   </span>
                 </div>
 

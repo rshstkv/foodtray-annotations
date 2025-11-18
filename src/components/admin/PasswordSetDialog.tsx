@@ -76,7 +76,7 @@ export function PasswordSetDialog({
         handleClose()
         // Можно показать уведомление об успехе
       } else {
-        setError(response.error || 'Ошибка установки пароля')
+        setError('error' in response ? response.error : 'Ошибка установки пароля')
       }
     } catch (err: any) {
       setError(err.message || 'Ошибка установки пароля')

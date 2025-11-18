@@ -39,19 +39,21 @@ export function AnnotationPanel({
 
   // Получить название объекта
   const getItemLabel = (): string => {
-    if (selectedItem.recipe_line_option_id) {
-      const option = recipeLineOptions.find((opt) => opt.id === selectedItem.recipe_line_option_id)
+    const item = selectedItem as any
+    if (item.recipe_line_option_id) {
+      const option = recipeLineOptions.find((opt) => opt.id === item.recipe_line_option_id)
       if (option?.name) return option.name
     }
-    if (selectedItem.metadata?.name) return String(selectedItem.metadata.name)
-    if (selectedItem.menu_item_external_id) return selectedItem.menu_item_external_id
-    return ITEM_TYPE_LABELS[selectedItem.item_type]
+    if (item.metadata?.name) return String(item.metadata.name)
+    if (item.menu_item_external_id) return item.menu_item_external_id
+    const itemType = (item.item_type || item.type) as keyof typeof ITEM_TYPE_LABELS
+    return ITEM_TYPE_LABELS[itemType]
   }
 
   // Группировать аннотации по камерам
   const annotationsByCamera = new Map<number, AnnotationView[]>()
   annotations
-    .filter((ann) => ann.tray_item_id === selectedItem.id && !ann.is_deleted)
+    .filter((ann) => ann.work_item_id === selectedItem.id && !ann.is_deleted)
     .forEach((ann) => {
       const existing = annotationsByCamera.get(ann.image_id) || []
       annotationsByCamera.set(ann.image_id, [...existing, ann])
@@ -60,7 +62,8 @@ export function AnnotationPanel({
   // Проверка: есть ли аннотации на всех камерах
   const missingCameras = images.filter((img) => !annotationsByCamera.has(img.id))
 
-  const itemColor = ITEM_TYPE_COLORS[selectedItem.item_type] || '#6B7280'
+  const item = selectedItem as any
+  const itemColor = ITEM_TYPE_COLORS[(item.item_type || item.type) as keyof typeof ITEM_TYPE_COLORS] || '#6B7280'
 
   return (
     <Card className="p-4">
@@ -73,7 +76,7 @@ export function AnnotationPanel({
           />
           <h3 className="font-semibold text-gray-900 truncate">{getItemLabel()}</h3>
         </div>
-        <p className="text-xs text-gray-500">{ITEM_TYPE_LABELS[selectedItem.item_type]}</p>
+        <p className="text-xs text-gray-500">{ITEM_TYPE_LABELS[(item.item_type || item.type) as keyof typeof ITEM_TYPE_LABELS]}</p>
       </div>
 
       {/* Warnings */}
@@ -203,7 +206,7 @@ export function AnnotationPanel({
           <div className="p-2 bg-gray-50 rounded">
             <p className="text-gray-500">Всего аннотаций</p>
             <p className="font-semibold text-gray-900">
-              {annotations.filter((a) => a.tray_item_id === selectedItem.id && !a.is_deleted).length}
+              {annotations.filter((a) => a.work_item_id === selectedItem.id && !a.is_deleted).length}
             </p>
           </div>
           <div className="p-2 bg-gray-50 rounded">
@@ -212,7 +215,7 @@ export function AnnotationPanel({
               {
                 annotations.filter(
                   (a) =>
-                    a.tray_item_id === selectedItem.id && !a.is_deleted && a.is_occluded
+                    a.work_item_id === selectedItem.id && !a.is_deleted && a.is_occluded
                 ).length
               }
             </p>

@@ -47,7 +47,7 @@ export function PasswordGenerateDialog({
       if (response.success && response.data) {
         setGeneratedPassword(response.data.password)
       } else {
-        setError(response.error || 'Ошибка генерации пароля')
+        setError('error' in response ? response.error : 'Ошибка генерации пароля')
       }
     } catch (err: any) {
       setError(err.message || 'Ошибка генерации пароля')

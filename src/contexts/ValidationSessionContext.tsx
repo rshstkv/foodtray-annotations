@@ -133,6 +133,7 @@ export function ValidationSessionProvider({
         recipe_line_id: data.recipe_line_id || null,
         quantity: data.quantity || 1,
         bottle_orientation: null, // добавляем поле bottle_orientation
+        metadata: null,
         is_deleted: false,
         is_modified: true,
         created_at: new Date().toISOString(),
@@ -255,8 +256,8 @@ export function ValidationSessionProvider({
         return
       }
       
-      // Создаем временный string ID
-      const tempId = `temp_${Date.now()}_${Math.random()}`
+      // Создаем временный number ID (отрицательный для отличия от реальных)
+      const tempId = -(Date.now() + Math.floor(Math.random() * 10000))
       
       const newAnnotation: AnnotationView = {
         id: tempId,
@@ -414,7 +415,7 @@ export function ValidationSessionProvider({
         })
         
         if (response.success && response.data) {
-          const realId = response.data.item.id
+          const realId = (response.data as any).item.id
           // Обновляем ID в session
           setSession((prev) => ({
             ...prev,
@@ -457,7 +458,7 @@ export function ValidationSessionProvider({
         })
         
         if (response.success && response.data) {
-          const realId = response.data.annotation.id
+          const realId = (response.data as any).annotation.id
           // Обновляем ID в session
           setSession((prev) => ({
             ...prev,
@@ -519,10 +520,11 @@ export function ValidationSessionProvider({
       
       if (response.success && response.data) {
         // Обновляем session с новыми данными
+        const data = response.data as any
         setSession((prev) => ({
           ...prev,
-          items: response.data.items,
-          annotations: response.data.annotations,
+          items: data.items,
+          annotations: data.annotations,
         }))
         
         // Очищаем tracking

@@ -85,7 +85,7 @@ export default function UserDetailPage() {
         setFullName(response.data.user.full_name || '')
         setRole(response.data.user.role as 'admin' | 'annotator')
       } else {
-        setError(response.error || 'Ошибка загрузки данных пользователя')
+        setError('error' in response ? response.error : 'Ошибка загрузки данных пользователя')
       }
     } catch (err: any) {
       setError(err.message || 'Ошибка загрузки данных пользователя')
@@ -121,7 +121,7 @@ export default function UserDetailPage() {
         loadUserData()
         setTimeout(() => setSuccess(''), 3000)
       } else {
-        setError(response.error || 'Ошибка сохранения')
+        setError('error' in response ? response.error : 'Ошибка сохранения')
       }
     } catch (err: any) {
       setError(err.message || 'Ошибка сохранения')
@@ -141,7 +141,7 @@ export default function UserDetailPage() {
       if (response.success) {
         router.push('/admin/users')
       } else {
-        setError(response.error || 'Ошибка удаления пользователя')
+        setError('error' in response ? response.error : 'Ошибка удаления пользователя')
         setDeleteConfirmOpen(false)
       }
     } catch (err: any) {

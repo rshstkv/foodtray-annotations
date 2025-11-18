@@ -107,20 +107,7 @@ export interface ActiveMenuItem {
 // Tray Items (Physical Objects)
 // ============================================================================
 
-export interface InitialTrayItem {
-  id: number
-  recognition_id: number
-  item_type: ItemType
-  source: TrayItemSource
-  recipe_line_option_id: number | null
-  menu_item_external_id: string | null
-  metadata: Record<string, unknown> | null
-  bottle_orientation: BottleOrientation | null
-  created_at: string
-}
-
 // Рабочая копия объекта для validation сессии
-// Копируется из initial_tray_items при создании work_log
 export interface WorkItem {
   id: number
   work_log_id: number
@@ -152,18 +139,7 @@ export interface BBox {
   h: number
 }
 
-export interface InitialAnnotation {
-  id: number
-  image_id: number
-  initial_tray_item_id: number
-  bbox: BBox
-  source: string
-  is_occluded: boolean
-  created_at: string
-}
-
 // Рабочая копия аннотации для validation сессии
-// Копируется из initial_annotations при создании work_log
 export interface WorkAnnotation {
   id: number
   work_log_id: number
@@ -361,83 +337,6 @@ export function workItemToTrayItem(item: WorkItem): TrayItem {
   }
 }
 
-// DEPRECATED: старая функция merge, больше не используется
-export function mergeItems(
-  initial: InitialTrayItem[],
-  current: any[]
-): TrayItem[] {
-  const currentMap = new Map<number | null, CurrentTrayItem>()
-  
-  // Map current items by initial_tray_item_id
-  current.forEach((item) => {
-    if (item.initial_tray_item_id !== null) {
-      currentMap.set(item.initial_tray_item_id, item)
-    }
-  })
-
-  const merged: TrayItem[] = []
-
-  // Add initial items (potentially overridden by current)
-  initial.forEach((item) => {
-    const currentItem = currentMap.get(item.id)
-    if (currentItem) {
-      // Use current version
-      merged.push({
-        id: currentItem.id,
-        recognition_id: currentItem.recognition_id,
-        item_type: currentItem.item_type,
-        source: currentItem.source,
-        recipe_line_option_id: currentItem.recipe_line_option_id,
-        menu_item_external_id: currentItem.menu_item_external_id,
-        metadata: currentItem.metadata,
-        is_modified: true,
-        is_deleted: currentItem.is_deleted,
-        created_by: currentItem.created_by,
-        created_at: currentItem.created_at,
-        updated_at: currentItem.updated_at,
-      })
-    } else {
-      // Use initial version
-      merged.push({
-        id: item.id,
-        recognition_id: item.recognition_id,
-        item_type: item.item_type,
-        source: item.source,
-        recipe_line_option_id: item.recipe_line_option_id,
-        menu_item_external_id: item.menu_item_external_id,
-        metadata: item.metadata,
-        is_modified: false,
-        is_deleted: false,
-        created_by: null,
-        created_at: item.created_at,
-        updated_at: item.created_at,
-      })
-    }
-  })
-
-  // Add newly created current items (initial_tray_item_id is null)
-  current.forEach((item) => {
-    if (item.initial_tray_item_id === null) {
-      merged.push({
-        id: item.id,
-        recognition_id: item.recognition_id,
-        item_type: item.item_type,
-        source: item.source,
-        recipe_line_option_id: item.recipe_line_option_id,
-        menu_item_external_id: item.menu_item_external_id,
-        metadata: item.metadata,
-        is_modified: true,
-        is_deleted: item.is_deleted,
-        created_by: item.created_by,
-        created_at: item.created_at,
-        updated_at: item.updated_at,
-      })
-    }
-  })
-
-  return merged.filter((item) => !item.is_deleted)
-}
-
 // Преобразует WorkAnnotation в AnnotationView для UI
 export function workAnnotationToView(annotation: WorkAnnotation): AnnotationView {
   return {
@@ -445,85 +344,6 @@ export function workAnnotationToView(annotation: WorkAnnotation): AnnotationView
     is_modified: true,
     is_temp: false,
   }
-}
-
-// DEPRECATED: старая функция merge, больше не используется
-export function mergeAnnotations(
-  initial: InitialAnnotation[],
-  current: any[],
-  images?: Image[]
-): AnnotationView[] {
-  const currentMap = new Map<number, Annotation>()
-  
-  // Map current annotations by initial_tray_item_id
-  current.forEach((ann) => {
-    if (ann.initial_tray_item_id !== null) {
-      const key = `${ann.image_id}-${ann.initial_tray_item_id}`
-      currentMap.set(ann.initial_tray_item_id, ann)
-    }
-  })
-
-  const merged: AnnotationView[] = []
-
-  // Add initial annotations (potentially overridden by current)
-  initial.forEach((ann) => {
-    const currentAnn = currentMap.get(ann.initial_tray_item_id)
-    if (currentAnn) {
-      // Use current version
-      merged.push({
-        id: currentAnn.id,
-        image_id: currentAnn.image_id,
-        tray_item_id: currentAnn.current_tray_item_id || currentAnn.initial_tray_item_id || 0,
-        bbox: currentAnn.bbox,
-        is_modified: true,
-        is_deleted: currentAnn.is_deleted,
-        is_occluded: currentAnn.is_occluded,
-        occlusion_metadata: currentAnn.occlusion_metadata,
-        is_temp: false,
-        created_by: currentAnn.created_by,
-        created_at: currentAnn.created_at,
-        updated_at: currentAnn.updated_at,
-      })
-    } else {
-      // Use initial version
-      merged.push({
-        id: ann.id,
-        image_id: ann.image_id,
-        tray_item_id: ann.initial_tray_item_id,
-        bbox: ann.bbox,
-        is_modified: false,
-        is_deleted: false,
-        is_occluded: ann.is_occluded,
-        occlusion_metadata: null,
-        is_temp: false,
-        created_by: null,
-        created_at: ann.created_at,
-        updated_at: ann.created_at,
-      })
-    }
-  })
-
-  // Add newly created current annotations (initial_tray_item_id is null)
-  current.forEach((ann) => {
-    if (ann.initial_tray_item_id === null && ann.current_tray_item_id !== null) {
-      merged.push({
-        id: ann.id,
-        image_id: ann.image_id,
-        tray_item_id: ann.current_tray_item_id,
-        bbox: ann.bbox,
-        is_modified: true,
-        is_deleted: ann.is_deleted,
-        is_occluded: ann.is_occluded,
-        occlusion_metadata: ann.occlusion_metadata,
-        is_temp: false,
-        created_by: ann.created_by,
-        created_at: ann.created_at,
-        updated_at: ann.updated_at,
-      })
-    }
-  })
-
-  return merged.filter((ann) => !ann.is_deleted)
 }
 
 // ============================================================================

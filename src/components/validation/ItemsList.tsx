@@ -39,7 +39,7 @@ export function ItemsList({
 
   // Получаем validationStatus из контекста (может быть undefined в read-only режиме)
   const context = useValidationSession()
-  const validationStatus = context?.validationStatus || { itemErrors: new Map(), globalErrors: [], canComplete: false }
+  const validationStatus = context?.validationStatus || { itemErrors: new Map(), globalErrors: [] as string[], canComplete: false }
 
   // Получаем capabilities для текущего типа валидации
   const capabilities = getValidationCapabilities(validationType)
@@ -143,10 +143,11 @@ export function ItemsList({
                         {getItemLabel(item)}
                       </span>
                       {hasErrors && (
-                        <AlertCircle 
-                          className="w-5 h-5 text-red-600 flex-none animate-pulse" 
-                          title={itemErrors.join('\n')}
-                        />
+                        <div title={itemErrors.join('\n')}>
+                          <AlertCircle 
+                            className="w-5 h-5 text-red-600 flex-none animate-pulse"
+                          />
+                        </div>
                       )}
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-gray-500">
@@ -159,7 +160,7 @@ export function ItemsList({
                     {/* Показываем ошибки валидации */}
                     {hasErrors && (
                       <div className="mt-2 space-y-1">
-                        {itemErrors.map((error, idx) => (
+                        {itemErrors.map((error: string, idx: number) => (
                           <div key={idx} className="text-xs text-red-700 bg-red-100 px-2 py-1 rounded">
                             {error}
                           </div>
