@@ -43,8 +43,9 @@ export function ImageGrid({
 
   // Get storage URL
   const getImageUrl = (storagePath: string) => {
-    // storagePath is like "recognitions/100024/camera1.jpg", need to add bucket name
-    return `http://127.0.0.1:54321/storage/v1/object/public/rrs-photos/${storagePath}`
+    // storagePath is like "recognitions/100024/camera1.jpg"
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
+    return `${supabaseUrl}/storage/v1/object/public/rrs-photos/${storagePath}`
   }
 
   // Get item label for display from recipe_line_options (from check)
