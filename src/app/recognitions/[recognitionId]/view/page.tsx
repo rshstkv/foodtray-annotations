@@ -245,8 +245,8 @@ export default function RecognitionViewPage({
     recipeLines: data.recipeLines,
     recipeLineOptions: data.recipeLineOptions,
     activeMenu: data.activeMenu,
-    initialItems: filteredItems,
-    initialAnnotations: filteredAnnotations
+    items: filteredItems,
+    annotations: filteredAnnotations
   }
 
   return (

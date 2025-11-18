@@ -646,8 +646,17 @@ export function ValidationSessionProvider({
     }
   }, [session.workLog.id, readOnly])
 
-  // Вычисляем статус валидации в реальном времени
+  // Вычисляем статус валидации в реальном времени (только для edit режима)
   const validationStatus = useMemo(() => {
+    if (readOnly) {
+      // Для read-only режима возвращаем пустой статус
+      return {
+        valid: true,
+        canComplete: false,
+        errors: [],
+        warnings: []
+      }
+    }
     return validateSession(
       session.items,
       session.annotations,
@@ -655,7 +664,7 @@ export function ValidationSessionProvider({
       session.recipeLines,
       session.workLog.validation_type
     )
-  }, [session.items, session.annotations, session.images, session.recipeLines, session.workLog.validation_type])
+  }, [readOnly, session.items, session.annotations, session.images, session.recipeLines, session.workLog.validation_type])
 
   const value: ValidationSessionContextValue = {
     session,
