@@ -649,12 +649,11 @@ export function ValidationSessionProvider({
   // Вычисляем статус валидации в реальном времени (только для edit режима)
   const validationStatus = useMemo(() => {
     if (readOnly) {
-      // Для read-only режима возвращаем пустой статус
+      // Для read-only режима возвращаем пустой статус с правильной структурой
       return {
-        valid: true,
         canComplete: false,
-        errors: [],
-        warnings: []
+        itemErrors: new Map<number, string[]>(),
+        globalErrors: []
       }
     }
     return validateSession(
