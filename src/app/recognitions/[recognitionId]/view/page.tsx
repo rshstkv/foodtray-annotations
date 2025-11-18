@@ -4,6 +4,7 @@ import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { RootLayout } from '@/components/layouts/RootLayout'
 import { WorkLayout } from '@/components/layouts/WorkLayout'
+import { ValidationSessionProvider, useValidationSession } from '@/contexts/ValidationSessionContext'
 import { ValidationSessionHeader } from '@/components/validation/ValidationSessionHeader'
 import { ItemsList } from '@/components/validation/ItemsList'
 import { ImageGrid } from '@/components/validation/ImageGrid'
@@ -40,79 +41,36 @@ interface RecognitionViewData {
   sessions: SessionData[]
 }
 
-export default function RecognitionViewPage({ 
-  params 
-}: { 
-  params: Promise<{ recognitionId: string }>
+function RecognitionViewContent({ 
+  data,
+  selectedStepIndex,
+  setSelectedStepIndex
+}: {
+  data: RecognitionViewData
+  selectedStepIndex: number
+  setSelectedStepIndex: (index: number) => void
 }) {
-  const { recognitionId } = use(params)
   const router = useRouter()
   const { user, isAdmin } = useUser()
-  const [data, setData] = useState<RecognitionViewData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [selectedSessionIndex, setSelectedSessionIndex] = useState(0)
-  const [selectedStepIndex, setSelectedStepIndex] = useState(0)
+  const { items, annotations } = useValidationSession()
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true)
-        const response = await apiFetch<RecognitionViewData>(
-          `/api/recognition/${recognitionId}/view`
-        )
-        if (response.success && response.data) {
-          setData(response.data)
-        }
-      } catch (error) {
-        console.error('Failed to load recognition data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (user) {
-      loadData()
-    }
-  }, [recognitionId, user])
-
-  if (!user || loading || !data) {
-    return (
-      <RootLayout>
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Загрузка...</p>
-          </div>
-        </div>
-      </RootLayout>
-    )
-  }
-
-  const currentSession = data.sessions[selectedSessionIndex]
+  // Берем первый (последний по времени) work_log
+  const currentSession = data.sessions[0]
   const currentWorkLog = currentSession.workLog
   
   // Для multi-step: показываем выбранный шаг
-  // Для single-step: показываем единственный тип
   const hasSteps = currentWorkLog.validation_steps && currentWorkLog.validation_steps.length > 0
   const currentValidationType: ValidationType = hasSteps 
     ? currentWorkLog.validation_steps[selectedStepIndex]?.type 
     : currentWorkLog.validation_type
-
-  // Фильтруем items и annotations по текущему типу валидации
-  const filteredItems = currentSession.workItems.filter(
-    item => item.item_type === getItemTypeFromValidationType(currentValidationType)
-  )
-  const filteredAnnotations = currentSession.workAnnotations.filter(
-    ann => ann.annotation_for_item_type === getItemTypeFromValidationType(currentValidationType)
-  )
 
   const canGoPrevStep = selectedStepIndex > 0
   const canGoNextStep = hasSteps && selectedStepIndex < currentWorkLog.validation_steps.length - 1
 
   return (
     <RootLayout
-      userName={user.full_name || undefined}
-      userEmail={user.email}
+      userName={user?.full_name || undefined}
+      userEmail={user?.email}
       isAdmin={isAdmin}
     >
       <WorkLayout
@@ -152,7 +110,7 @@ export default function RecognitionViewPage({
         }
         sidebar={
           <ItemsList
-            items={filteredItems}
+            items={items}
             validationType={currentValidationType}
             selectedItemId={null}
             recipeLineOptions={data.recipeLineOptions}
@@ -166,8 +124,8 @@ export default function RecognitionViewPage({
         images={
           <ImageGrid
             images={data.images}
-            annotations={filteredAnnotations}
-            items={filteredItems}
+            annotations={annotations}
+            items={items}
             recipeLineOptions={data.recipeLineOptions}
             selectedItemId={null}
             selectedAnnotationId={null}
@@ -205,6 +163,104 @@ export default function RecognitionViewPage({
         }
       />
     </RootLayout>
+  )
+}
+
+export default function RecognitionViewPage({ 
+  params 
+}: { 
+  params: Promise<{ recognitionId: string }>
+}) {
+  const { recognitionId } = use(params)
+  const { user, isAdmin } = useUser()
+  const [data, setData] = useState<RecognitionViewData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [selectedStepIndex, setSelectedStepIndex] = useState(0)
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        const response = await apiFetch<RecognitionViewData>(
+          `/api/recognition/${recognitionId}/view`
+        )
+        if (response.success && response.data) {
+          setData(response.data)
+        }
+      } catch (error) {
+        console.error('Failed to load recognition data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (user) {
+      loadData()
+    }
+  }, [recognitionId, user])
+
+  if (!user || loading || !data) {
+    return (
+      <RootLayout>
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Загрузка...</p>
+          </div>
+        </div>
+      </RootLayout>
+    )
+  }
+
+  // Берем первый (последний по времени) work_log
+  const currentSession = data.sessions[0]
+  const currentWorkLog = currentSession.workLog
+  
+  // Для multi-step: показываем выбранный шаг
+  const hasSteps = currentWorkLog.validation_steps && currentWorkLog.validation_steps.length > 0
+  const currentValidationType: ValidationType = hasSteps 
+    ? currentWorkLog.validation_steps[selectedStepIndex]?.type 
+    : currentWorkLog.validation_type
+
+  // Обновляем validation_type в work_log для текущего шага
+  const displayWorkLog = {
+    ...currentWorkLog,
+    validation_type: currentValidationType
+  }
+
+  // Фильтруем items и annotations по текущему типу валидации
+  const filteredItems = currentSession.workItems.filter(
+    item => item.item_type === getItemTypeFromValidationType(currentValidationType)
+  )
+  const filteredAnnotations = currentSession.workAnnotations.filter(
+    ann => ann.annotation_for_item_type === getItemTypeFromValidationType(currentValidationType)
+  )
+
+  // Преобразуем в формат ValidationSession
+  const mockSession: any = {
+    workLog: displayWorkLog,
+    recognition: data.recognition,
+    images: data.images,
+    recipe: data.recipe,
+    recipeLines: data.recipeLines,
+    recipeLineOptions: data.recipeLineOptions,
+    activeMenu: data.activeMenu,
+    initialItems: filteredItems,
+    initialAnnotations: filteredAnnotations
+  }
+
+  return (
+    <ValidationSessionProvider 
+      key={`${recognitionId}-${selectedStepIndex}`}
+      initialSession={mockSession} 
+      readOnly={true}
+    >
+      <RecognitionViewContent 
+        data={data}
+        selectedStepIndex={selectedStepIndex}
+        setSelectedStepIndex={setSelectedStepIndex}
+      />
+    </ValidationSessionProvider>
   )
 }
 
