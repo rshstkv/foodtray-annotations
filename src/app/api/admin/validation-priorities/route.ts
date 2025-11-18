@@ -31,7 +31,6 @@ export async function GET() {
     const { data: priorities, error: prioritiesError } = await supabase
       .from('validation_priority_config')
       .select('*')
-      .order('priority', { ascending: true })
       .order('order_in_session', { ascending: true })
 
     if (prioritiesError) {
@@ -83,7 +82,6 @@ export async function PATCH(request: Request) {
       await supabase
         .from('validation_priority_config')
         .update({
-          priority: priority.priority,
           order_in_session: priority.order_in_session,
           is_active: priority.is_active,
           updated_at: new Date().toISOString(),
