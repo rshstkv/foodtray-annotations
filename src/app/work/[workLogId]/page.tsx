@@ -497,7 +497,34 @@ export default function WorkSessionPage({
           `/api/validation/session/${workLogId}`
         )
         if (response.success && response.data) {
-          setSession(response.data.session)
+          const loadedSession = response.data.session
+          
+          // Если work_items пустые (и это не read-only режим), автоматически вызвать reset
+          // Это может произойти если задача была abandoned и items удалены
+          if (!readOnly && loadedSession.items.length === 0) {
+            console.log('[WorkSession] No items found, auto-resetting from initial items')
+            try {
+              const resetResponse = await apiFetch(
+                `/api/validation/${workLogId}/reset`,
+                { method: 'POST' }
+              )
+              if (resetResponse.success && resetResponse.data) {
+                // Перезагружаем сессию после reset
+                const reloadResponse = await apiFetch<{ session: ValidationSession }>(
+                  `/api/validation/session/${workLogId}`
+                )
+                if (reloadResponse.success && reloadResponse.data) {
+                  setSession(reloadResponse.data.session)
+                }
+              }
+            } catch (resetError) {
+              console.error('Failed to auto-reset:', resetError)
+              // Если reset не удался, все равно загружаем пустую сессию
+              setSession(loadedSession)
+            }
+          } else {
+            setSession(loadedSession)
+          }
         }
       } catch (error) {
         console.error('Failed to load session:', error)
@@ -509,7 +536,7 @@ export default function WorkSessionPage({
     if (user) {
       loadSession()
     }
-  }, [workLogId, user])
+  }, [workLogId, user, readOnly])
 
   if (!user || loading || !session) {
     return (
