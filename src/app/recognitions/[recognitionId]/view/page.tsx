@@ -228,12 +228,16 @@ export default function RecognitionViewPage({
     validation_type: currentValidationType
   }
 
-  // Фильтруем items и annotations по текущему типу валидации
+  // Фильтруем items по текущему типу валидации
+  const currentItemType = getItemTypeFromValidationType(currentValidationType)
   const filteredItems = currentSession.workItems.filter(
-    item => item.item_type === getItemTypeFromValidationType(currentValidationType)
+    item => !item.is_deleted && item.type === currentItemType
   )
+  
+  // Фильтруем annotations по items текущего типа
+  const filteredItemIds = new Set(filteredItems.map(item => item.id))
   const filteredAnnotations = currentSession.workAnnotations.filter(
-    ann => ann.annotation_for_item_type === getItemTypeFromValidationType(currentValidationType)
+    ann => !ann.is_deleted && filteredItemIds.has(ann.work_item_id)
   )
 
   // Преобразуем в формат ValidationSession
