@@ -288,6 +288,12 @@ export default function RecognitionViewPage({
     item => !item.is_deleted && item.type === currentItemType
   )
   
+  // Помечаем items которые были добавлены пользователем (не из initial)
+  const itemsWithChangeStatus = filteredItems.map(item => ({
+    ...item,
+    isNewItem: item.initial_item_id === null, // Новый item добавлен пользователем
+  }))
+  
   // Фильтруем annotations по items текущего типа
   const filteredItemIds = new Set(filteredItems.map(item => item.id))
   const filteredAnnotations = allAnnotations.filter(
@@ -303,7 +309,7 @@ export default function RecognitionViewPage({
     recipeLines: data.recipeLines,
     recipeLineOptions: data.recipeLineOptions,
     activeMenu: data.activeMenu,
-    items: filteredItems,
+    items: itemsWithChangeStatus,
     annotations: filteredAnnotations
   }
 

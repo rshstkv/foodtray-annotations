@@ -27,12 +27,14 @@ export async function GET(
     }
 
     // Получить все work_logs для recognition (completed и abandoned с completed шагами)
+    // Загрузить только ОДИН последний completed work_log (multi-step архитектура: 1 recognition = 1 work_log)
     const { data: workLogs, error: workLogsError } = await supabase
       .from('validation_work_log')
       .select('*')
       .eq('recognition_id', recognitionId)
       .in('status', ['completed', 'abandoned'])
       .order('completed_at', { ascending: false })
+      .limit(1)
 
     if (workLogsError) {
       console.error('[recognition/view] Error fetching work logs:', workLogsError)
@@ -43,7 +45,7 @@ export async function GET(
       return apiError('No completed validations found', 404, ApiErrorCode.NOT_FOUND)
     }
 
-    // Собрать уникальные work_log_ids
+    // Собрать work_log_id (должен быть только один)
     const workLogIds = workLogs.map(wl => wl.id)
 
     // Загрузить recognition

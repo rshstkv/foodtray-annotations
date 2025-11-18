@@ -57,6 +57,13 @@ function ValidationSessionContent() {
   
   // Получаем capabilities для текущего типа валидации
   const capabilities = getValidationCapabilities(session.workLog.validation_type)
+  
+  // Multi-step navigation
+  const workLog = session.workLog
+  const hasSteps = workLog.validation_steps && workLog.validation_steps.length > 0
+  const currentStepIndex = workLog.current_step_index ?? 0
+  const isLastStep = hasSteps ? currentStepIndex >= workLog.validation_steps.length - 1 : true
+  const skipButtonText = (hasSteps && !isLastStep) ? 'Пропустить этап' : 'Отказаться'
 
   const handleItemSelect = (id: number) => {
     // Если кликаем на уже выбранный item - снимаем выделение
@@ -90,6 +97,22 @@ function ValidationSessionContent() {
       alert('В данном режиме валидации нельзя создавать новые объекты')
       return
     }
+    
+    // Если выбрано блюдо из активного меню, сохранить его данные в metadata
+    if (data.menu_item_external_id && session.activeMenu) {
+      const menuItem = session.activeMenu.find(
+        (m) => m.external_id === data.menu_item_external_id
+      )
+      if (menuItem) {
+        data.metadata = {
+          menu_item_external_id: menuItem.external_id,
+          name: menuItem.name,
+        }
+      }
+      // Удаляем menu_item_external_id из data, т.к. сохранили в metadata
+      delete data.menu_item_external_id
+    }
+    
     await createItem(data)
     setShowItemDialog(false)
   }
@@ -171,11 +194,6 @@ function ValidationSessionContent() {
         await saveAllChanges()
       }
 
-      const workLog = session.workLog
-      const hasSteps = workLog.validation_steps && workLog.validation_steps.length > 0
-      const currentStep = workLog.current_step_index ?? 0
-      const isLastStep = hasSteps ? currentStep >= workLog.validation_steps.length - 1 : true
-
       if (hasSteps && !isLastStep) {
         // Есть еще steps - переключиться на следующий (БЕЗ router.push!)
         await nextStep()
@@ -202,22 +220,47 @@ function ValidationSessionContent() {
   }
 
   const handleSkip = async () => {
-    if (hasUnsavedChanges) {
-      if (!confirm('У вас есть несохраненные изменения. Вы уверены, что хотите пропустить эту задачу? Все изменения будут потеряны.')) {
-        return
+    // Multi-step и не последний шаг: пропустить этап (перейти к следующему)
+    if (hasSteps && !isLastStep) {
+      if (hasUnsavedChanges) {
+        if (!confirm('У вас есть несохраненные изменения. Вы уверены, что хотите пропустить этот этап? Изменения НЕ будут сохранены.')) {
+          return
+        }
+      } else {
+        if (!confirm('Вы уверены, что хотите пропустить этот этап?')) {
+          return
+        }
       }
-    } else {
-      if (!confirm('Вы уверены, что хотите пропустить эту задачу?')) {
-        return
+      
+      try {
+        // Не сохраняем изменения, просто переходим к следующему шагу
+        // Но нужно очистить tracking чтобы не сохранить изменения автоматически
+        await resetToInitial() // Откатываем изменения на этом этапе
+        await nextStep()
+      } catch (err) {
+        console.error('Failed to skip step:', err)
+        alert('Ошибка при пропуске этапа')
       }
-    }
-    
-    try {
-      await abandonValidation()
-      router.push('/work')
-    } catch (err) {
-      console.error('Failed to skip validation:', err)
-      alert('Ошибка при пропуске задачи')
+    } 
+    // Single-step или последний шаг: отказаться от всей задачи
+    else {
+      if (hasUnsavedChanges) {
+        if (!confirm('У вас есть несохраненные изменения. Вы уверены, что хотите отказаться от задачи? Все изменения будут потеряны.')) {
+          return
+        }
+      } else {
+        if (!confirm('Вы уверены, что хотите отказаться от задачи?')) {
+          return
+        }
+      }
+      
+      try {
+        await abandonValidation()
+        router.push('/work')
+      } catch (err) {
+        console.error('Failed to abandon validation:', err)
+        alert('Ошибка при отказе от задачи')
+      }
     }
   }
 
@@ -379,7 +422,7 @@ function ValidationSessionContent() {
             <div className="flex items-center justify-end gap-3">
               <Button variant="outline" onClick={handleSkip}>
                 <XCircle className="w-4 h-4 mr-2" />
-                Пропустить
+                {skipButtonText}
               </Button>
               <Button 
                 onClick={handleComplete}

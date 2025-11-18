@@ -336,12 +336,28 @@ class QwenTransactionContext:
         if skipped > 0:
             self.logger.info(f"Filtered annotations", kept=len(filtered), skipped=skipped)
         
+        # Remove duplicates based on unique constraint (recognition_id, image_path, bbox, class_name)
+        seen = set()
+        deduplicated = []
+        duplicates = 0
+        for ann in filtered:
+            # Create key from unique constraint columns (indices 0, 1, 2, 3)
+            key = (ann[0], ann[1], str(ann[2]), ann[3])  # Convert bbox to str for hashability
+            if key not in seen:
+                seen.add(key)
+                deduplicated.append(ann)
+            else:
+                duplicates += 1
+        
+        if duplicates > 0:
+            self.logger.info(f"Removed duplicates", count=duplicates, remaining=len(deduplicated))
+        
         # Bulk insert
-        if filtered:
+        if deduplicated:
             self.database.bulk_copy(
                 "raw.qwen_annotations",
                 ["recognition_id", "image_path", "bbox", "class_name", "item_type", "external_id"],
-                filtered,
+                deduplicated,
                 conn=self._db_conn
             )
         

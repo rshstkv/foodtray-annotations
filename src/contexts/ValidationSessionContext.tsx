@@ -133,8 +133,8 @@ export function ValidationSessionProvider({
         type: data.type,
         recipe_line_id: data.recipe_line_id || null,
         quantity: data.quantity || 1,
-        bottle_orientation: null, // добавляем поле bottle_orientation
-        metadata: null,
+        bottle_orientation: data.bottle_orientation || null,
+        metadata: data.metadata || null,
         is_deleted: false,
         is_modified: true,
         created_at: new Date().toISOString(),
@@ -412,6 +412,8 @@ export function ValidationSessionProvider({
             type: item.type,
             recipe_line_id: item.recipe_line_id,
             quantity: item.quantity,
+            metadata: item.metadata,
+            bottle_orientation: item.bottle_orientation,
           }),
         })
         

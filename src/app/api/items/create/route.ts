@@ -16,6 +16,8 @@ export async function POST(request: Request) {
       type,
       recipe_line_id,
       quantity = 1,
+      metadata,
+      bottle_orientation,
     } = body
 
     if (!work_log_id || !recognition_id || !type) {
@@ -42,6 +44,8 @@ export async function POST(request: Request) {
         type,
         recipe_line_id: recipe_line_id || null,
         quantity,
+        metadata: metadata || null,
+        bottle_orientation: bottle_orientation || null,
         initial_item_id: null, // Новый item (не из initial)
         is_deleted: false,
       })

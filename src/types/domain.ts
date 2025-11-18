@@ -240,6 +240,7 @@ export interface CreateItemRequest {
   type: ItemType
   recipe_line_id?: number | null
   quantity?: number
+  bottle_orientation?: BottleOrientation | null
   metadata?: Record<string, any> | null
 }
 

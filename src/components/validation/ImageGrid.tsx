@@ -87,32 +87,10 @@ export function ImageGrid({
     const allowedType = getItemTypeFromValidationType(validationType)
     if (!allowedType) return annotations
     
-    const filtered = annotations.filter(ann => {
+    return annotations.filter(ann => {
       const item = items.find(i => i.id === ann.work_item_id)
-      const matches = item?.type === allowedType
-      
-      // Debug для BUZZER_VALIDATION
-      if (validationType === 'BUZZER_VALIDATION' && !item) {
-        console.log('[ImageGrid] Annotation without item:', {
-          annId: ann.id,
-          work_item_id: ann.work_item_id,
-          availableItemIds: items.map(i => i.id),
-          allAnnotations: annotations.length
-        })
-      }
-      
-      return matches
+      return item?.type === allowedType
     })
-    
-    console.log('[ImageGrid] Filtered annotations:', {
-      validationType,
-      allowedType,
-      totalAnnotations: annotations.length,
-      filteredAnnotations: filtered.length,
-      itemsCount: items.length
-    })
-    
-    return filtered
   }
 
   // Convert annotations to BBoxCanvas format

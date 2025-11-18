@@ -55,18 +55,28 @@ export function ItemsList({
     let label = ''
     
     // Для FOOD: название блюда
-    if (item.type === 'FOOD' && item.recipe_line_id) {
-      const selectedOption = recipeLineOptions.find(
-        (opt) => opt.recipe_line_id === item.recipe_line_id && opt.is_selected
-      )
-      label = selectedOption?.name || ITEM_TYPE_LABELS[item.type]
-      
-      // Если нет selected, показываем первый доступный
-      if (!selectedOption) {
-        const anyOption = recipeLineOptions.find((opt) => opt.recipe_line_id === item.recipe_line_id)
-        if (anyOption?.name) {
-          label = anyOption.name
+    if (item.type === 'FOOD') {
+      // Сначала проверяем metadata.name (для блюд из активного меню)
+      if (item.metadata?.name) {
+        label = item.metadata.name
+      }
+      // Потом проверяем recipe_line_id (для блюд из чека)
+      else if (item.recipe_line_id) {
+        const selectedOption = recipeLineOptions.find(
+          (opt) => opt.recipe_line_id === item.recipe_line_id && opt.is_selected
+        )
+        label = selectedOption?.name || ITEM_TYPE_LABELS[item.type]
+        
+        // Если нет selected, показываем первый доступный
+        if (!selectedOption) {
+          const anyOption = recipeLineOptions.find((opt) => opt.recipe_line_id === item.recipe_line_id)
+          if (anyOption?.name) {
+            label = anyOption.name
+          }
         }
+      }
+      else {
+        label = ITEM_TYPE_LABELS[item.type]
       }
     }
     // Для BUZZER: цвет
@@ -122,6 +132,9 @@ export function ItemsList({
             const itemErrors = validationStatus.itemErrors.get(item.id)
             const hasErrors = itemErrors && itemErrors.length > 0
             
+            // Проверяем был ли item добавлен пользователем (новый)
+            const isNewItem = (item as any).isNewItem === true
+            
             // Подпись горячей клавиши (1-9)
             const hotkey = index < 9 ? (index + 1).toString() : null
 
@@ -131,7 +144,8 @@ export function ItemsList({
                 className={cn(
                   'p-3 cursor-pointer transition-all hover:shadow-md relative',
                   isSelected && 'ring-2 ring-blue-500 bg-blue-50',
-                  hasErrors && 'border-2 border-red-400 bg-red-50 shadow-sm'
+                  hasErrors && 'border-2 border-red-400 bg-red-50 shadow-sm',
+                  isNewItem && !hasErrors && 'border-2 border-green-400 bg-green-50/50'
                 )}
                 onClick={() => onItemSelect(item.id)}
               >
@@ -150,6 +164,11 @@ export function ItemsList({
                       <span className="text-sm font-medium text-gray-900 truncate">
                         {getItemLabel(item)}
                       </span>
+                      {isNewItem && !hasErrors && (
+                        <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-1.5 py-0.5 rounded flex-none">
+                          Добавлено
+                        </span>
+                      )}
                       {hasErrors && (
                         <div title={itemErrors.join('\n')}>
                           <AlertCircle 
