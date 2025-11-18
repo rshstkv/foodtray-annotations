@@ -36,20 +36,16 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId')
     const validationType = searchParams.get('validationType') as ValidationType | null
 
-    // Запрос completed work logs
+    // Запрос completed work logs (включая validation_steps для multi-step архитектуры)
     let workLogsQuery = supabase
       .from('validation_work_log')
-      .select('id, recognition_id, validation_type, completed_at, assigned_to, status')
+      .select('id, recognition_id, validation_type, validation_steps, completed_at, assigned_to, status')
       .eq('status', 'completed')
       .order('recognition_id')
       .order('completed_at', { ascending: false })
 
     if (userId && userId !== 'all') {
       workLogsQuery = workLogsQuery.eq('assigned_to', userId)
-    }
-
-    if (validationType) {
-      workLogsQuery = workLogsQuery.eq('validation_type', validationType)
     }
 
     const { data: workLogs, error: workLogsError } = await workLogsQuery
@@ -94,13 +90,39 @@ export async function GET(request: NextRequest) {
         recognitionMap.set(log.recognition_id, [])
       }
 
-      recognitionMap.get(log.recognition_id)!.push({
-        validation_type: log.validation_type as ValidationType,
-        work_log_id: log.id,
-        completed_at: log.completed_at || '',
-        assigned_to: log.assigned_to,
-        assigned_to_email: userEmailMap.get(log.assigned_to),
-      })
+      // Multi-step: если есть validation_steps, берем все completed шаги
+      if (log.validation_steps && Array.isArray(log.validation_steps)) {
+        const completedSteps = log.validation_steps.filter((step: any) => step.status === 'completed')
+        
+        for (const step of completedSteps) {
+          // Фильтр по типу валидации, если задан
+          if (validationType && step.type !== validationType) {
+            continue
+          }
+
+          recognitionMap.get(log.recognition_id)!.push({
+            validation_type: step.type as ValidationType,
+            work_log_id: log.id,
+            completed_at: log.completed_at || '',
+            assigned_to: log.assigned_to,
+            assigned_to_email: userEmailMap.get(log.assigned_to),
+          })
+        }
+      } else {
+        // Legacy: single-step work_log (старый формат)
+        // Фильтр по типу валидации, если задан
+        if (validationType && log.validation_type !== validationType) {
+          continue
+        }
+
+        recognitionMap.get(log.recognition_id)!.push({
+          validation_type: log.validation_type as ValidationType,
+          work_log_id: log.id,
+          completed_at: log.completed_at || '',
+          assigned_to: log.assigned_to,
+          assigned_to_email: userEmailMap.get(log.assigned_to),
+        })
+      }
     }
 
     // Сформировать результат

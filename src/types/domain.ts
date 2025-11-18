@@ -169,7 +169,6 @@ export type AnnotationView = WorkAnnotation & {
 export interface ValidationPriorityConfig {
   id: number
   validation_type: ValidationType
-  priority: number
   order_in_session: number
   effective_from_date: string
   is_active: boolean
