@@ -83,6 +83,7 @@ function ValidationSessionContent() {
         alert('В данном режиме валидации нельзя создавать новые объекты')
         return
       }
+      console.log('[DEBUG] Creating item:', itemType, new Date().toISOString())
       createItem({
         type: itemType,
       })
@@ -97,6 +98,8 @@ function ValidationSessionContent() {
       alert('В данном режиме валидации нельзя создавать новые объекты')
       return
     }
+    
+    console.log('[DEBUG] ItemDialog onSave called:', data, new Date().toISOString())
     
     // Если выбрано блюдо из активного меню, сохранить его данные в metadata
     if (data.menu_item_external_id && session.activeMenu) {

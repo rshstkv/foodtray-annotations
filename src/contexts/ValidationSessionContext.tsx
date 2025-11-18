@@ -87,6 +87,7 @@ export function ValidationSessionProvider({
   const [error, setError] = useState<string | null>(null)
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<number | string | null>(null)
+  const [isSaving, setIsSaving] = useState(false) // Защита от одновременных сохранений
   
   // Tracking изменений
   const [changesTracking, setChangesTracking] = useState<ChangesTracking>({
@@ -116,6 +117,9 @@ export function ValidationSessionProvider({
   // Create item (локально, без API)
   const createItem = useCallback(
     (data: Omit<CreateItemRequest, 'work_log_id' | 'recognition_id'>) => {
+      console.log('[DEBUG createItem] Called with data:', data, 'at', new Date().toISOString())
+      console.log('[DEBUG createItem] Stack trace:', new Error().stack)
+      
       if (readOnly) {
         console.warn('[ValidationSession] Cannot create item in read-only mode')
         return
@@ -134,6 +138,8 @@ export function ValidationSessionProvider({
         console.warn('[ValidationSession] Duplicate item creation prevented (double-click protection)')
         return
       }
+      
+      console.log('[DEBUG createItem] Creating temp item with tempIdCounter:', tempIdCounter)
       
       // Создаем временный ID
       const tempId = tempIdCounter
@@ -412,14 +418,26 @@ export function ValidationSessionProvider({
       return
     }
     
+    // Защита от одновременных вызовов (race condition)
+    if (isSaving) {
+      console.warn('[ValidationSession] Save already in progress, skipping duplicate call')
+      return
+    }
+    
     try {
+      setIsSaving(true)
       setLoading(true)
       setError(null)
+      
+      console.log('[DEBUG saveAllChanges] Starting save with createdItems:', changesTracking.createdItems.size)
+      console.log('[DEBUG saveAllChanges] createdItems details:', Array.from(changesTracking.createdItems.entries()))
       
       // 1. Создаем новые items и маппим временные ID на реальные
       const itemIdMapping = new Map<number, number>() // tempId -> realId
       
       for (const [tempId, item] of changesTracking.createdItems) {
+        console.log('[DEBUG saveAllChanges] Creating item via API for tempId:', tempId, 'item:', item, 'at', new Date().toISOString())
+        
         const response = await apiFetch('/api/items/create', {
           method: 'POST',
           body: JSON.stringify({
@@ -433,8 +451,11 @@ export function ValidationSessionProvider({
           }),
         })
         
+        console.log('[DEBUG saveAllChanges] API response for tempId:', tempId, 'response:', response)
+        
         if (response.success && response.data) {
           const realId = (response.data as any).item.id
+          console.log('[DEBUG saveAllChanges] Item created successfully, tempId:', tempId, '-> realId:', realId)
           itemIdMapping.set(tempId, realId)
           
           // Обновляем ID в session
@@ -447,8 +468,12 @@ export function ValidationSessionProvider({
               a.work_item_id === tempId ? { ...a, work_item_id: realId } : a
             ),
           }))
+        } else {
+          console.error('[DEBUG saveAllChanges] Failed to create item for tempId:', tempId)
         }
       }
+      
+      console.log('[DEBUG saveAllChanges] Finished creating items, itemIdMapping:', Array.from(itemIdMapping.entries()))
       
       // 2. Обновляем существующие items
       for (const [id, changes] of changesTracking.updatedItems) {
@@ -523,9 +548,10 @@ export function ValidationSessionProvider({
       console.error(err)
       throw err
     } finally {
+      setIsSaving(false)
       setLoading(false)
     }
-  }, [hasUnsavedChanges, changesTracking, session.workLog.id, session.recognition.id, readOnly])
+  }, [hasUnsavedChanges, changesTracking, session.workLog.id, session.recognition.id, readOnly, isSaving])
   
   // Reset к начальному состоянию
   const resetToInitial = useCallback(async () => {
