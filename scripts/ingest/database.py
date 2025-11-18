@@ -288,7 +288,7 @@ class DatabaseManager:
                         )
                         counts["user_data_preserved"] = work_items_count
                 
-                # Delete in safe order - only initial/auto-generated data
+                # Delete in safe order - respect FK dependencies
                 
                 # 1. Delete validation session items (safe - these are session-specific)
                 # Check if table exists first to avoid transaction abort
@@ -305,7 +305,22 @@ class DatabaseManager:
                     )
                     counts["validation_session_items"] = cur.rowcount
                 
-                # 2. Delete recipe structure (safe - can be regenerated)
+                # 2. Delete initial_annotations (depend on initial_tray_items)
+                cur.execute(
+                    "DELETE FROM initial_annotations WHERE image_id IN "
+                    "(SELECT id FROM images WHERE recognition_id = ANY(%s))",
+                    (recognition_ids,)
+                )
+                counts["initial_annotations"] = cur.rowcount
+                
+                # 3. Delete initial_tray_items (depend on recipe_line_options)
+                cur.execute(
+                    "DELETE FROM initial_tray_items WHERE recognition_id = ANY(%s)",
+                    (recognition_ids,)
+                )
+                counts["initial_tray_items"] = cur.rowcount
+                
+                # 4. Delete recipe structure (now safe - no more references)
                 cur.execute(
                     "DELETE FROM recipe_line_options WHERE recipe_line_id IN "
                     "(SELECT id FROM recipe_lines WHERE recipe_id IN "
@@ -327,27 +342,12 @@ class DatabaseManager:
                 )
                 counts["recipes"] = cur.rowcount
                 
-                # 3. Delete active menu items (safe - from raw data)
+                # 5. Delete active menu items (safe - from raw data)
                 cur.execute(
                     "DELETE FROM recognition_active_menu_items WHERE recognition_id = ANY(%s)",
                     (recognition_ids,)
                 )
                 counts["menu_items"] = cur.rowcount
-                
-                # 4. Delete ONLY initial annotations and items (NOT user annotations!)
-                # Initial annotations are linked via initial_tray_items
-                cur.execute(
-                    "DELETE FROM initial_annotations WHERE image_id IN "
-                    "(SELECT id FROM images WHERE recognition_id = ANY(%s))",
-                    (recognition_ids,)
-                )
-                counts["initial_annotations"] = cur.rowcount
-                
-                cur.execute(
-                    "DELETE FROM initial_tray_items WHERE recognition_id = ANY(%s)",
-                    (recognition_ids,)
-                )
-                counts["initial_tray_items"] = cur.rowcount
                 
                 # 5. Delete images and recognitions
                 # Note: This will CASCADE to annotations, but only if no work_items reference them
