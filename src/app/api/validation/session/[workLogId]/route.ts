@@ -97,10 +97,15 @@ export async function GET(
     if (recipeId) {
       const [linesResult, optionsResult] = await Promise.all([
         supabase.from('recipe_lines').select('*').eq('recipe_id', recipeId).order('line_number'),
-        supabase.from('recipe_line_options').select('*').eq('recipe_id', recipeId)
+        // recipe_line_options не имеет recipe_id, нужно через recipe_lines
+        supabase
+          .from('recipe_line_options')
+          .select('*, recipe_lines!inner(recipe_id)')
+          .eq('recipe_lines.recipe_id', recipeId)
       ])
       recipeLines = linesResult.data || []
-      recipeLineOptions = optionsResult.data || []
+      // Убираем вложенный recipe_lines из результата
+      recipeLineOptions = (optionsResult.data || []).map(({ recipe_lines, ...option }) => option)
       
       console.log(`[validation/session] Loaded recipe data: ${recipeLines.length} lines, ${recipeLineOptions.length} options`)
       

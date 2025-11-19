@@ -172,6 +172,19 @@ export function ItemsList({
             const multipleOptions = validationType === 'FOOD_VALIDATION' && hasMultipleOptions(item, recipeLineOptions)
             const selectedAmbiguity = multipleOptions && !unresolvedAmbiguity // Есть варианты И один выбран
             
+            // DEBUG: Логируем для items с recipe_line_id
+            if (item.recipe_line_id && validationType === 'FOOD_VALIDATION') {
+              const itemOptions = recipeLineOptions.filter(opt => opt.recipe_line_id === item.recipe_line_id)
+              console.log(`[ItemsList] DEBUG item ${item.id}:`, {
+                recipe_line_id: item.recipe_line_id,
+                options_count: itemOptions.length,
+                options: itemOptions.map(o => ({id: o.id, name: o.name, is_selected: o.is_selected})),
+                unresolvedAmbiguity,
+                multipleOptions,
+                selectedAmbiguity
+              })
+            }
+            
             // Проверяем был ли item добавлен пользователем (новый)
             const isNewItem = (item as any).isNewItem === true
             
