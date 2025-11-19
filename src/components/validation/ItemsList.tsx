@@ -263,11 +263,15 @@ export function ItemsList({
                         )}
                         
                         {/* Режим просмотра: показываем текстом */}
-                        {readOnly && item.bottle_orientation && (
+                        {readOnly && validationType === 'BOTTLE_ORIENTATION_VALIDATION' && (
                           <div className="mt-2 border-t border-gray-200 pt-2">
                             <span className="text-xs text-gray-600">Ориентация: </span>
-                            <span className="text-xs font-medium text-gray-900">
-                              {item.bottle_orientation === 'horizontal' ? 'Горизонтально' : 'Вертикально'}
+                            <span className={`text-xs font-medium ${item.bottle_orientation ? 'text-gray-900' : 'text-orange-600'}`}>
+                              {item.bottle_orientation === 'horizontal' 
+                                ? 'Горизонтально' 
+                                : item.bottle_orientation === 'vertical'
+                                ? 'Вертикально'
+                                : 'Не выбрана'}
                             </span>
                           </div>
                         )}

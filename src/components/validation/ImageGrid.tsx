@@ -59,17 +59,6 @@ export function ImageGrid({
   const getItemLabel = (item: TrayItem | undefined): string => {
     if (!item) return ''
     
-    // Для BOTTLE_ORIENTATION_VALIDATION показываем ориентацию
-    if (validationType === 'BOTTLE_ORIENTATION_VALIDATION' && item.type === 'FOOD') {
-      if (item.bottle_orientation === 'horizontal') {
-        return 'Горизонтально'
-      } else if (item.bottle_orientation === 'vertical') {
-        return 'Вертикально'
-      } else {
-        return 'Не выбрана'
-      }
-    }
-    
     // For FOOD items with recipe_line_id, find the recipe line and show selected option
     if (item.recipe_line_id && item.type === 'FOOD') {
       const selectedOption = recipeLineOptions.find(
