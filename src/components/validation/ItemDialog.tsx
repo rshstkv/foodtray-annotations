@@ -111,14 +111,14 @@ export function ItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
             Добавить {ITEM_TYPE_LABELS[itemType].toLowerCase()}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 overflow-y-auto flex-1">
           {/* Для FOOD: выбор из чека или меню */}
           {itemType === 'FOOD' && recipeLineOptions.length > 0 && (
             <div className="space-y-2">

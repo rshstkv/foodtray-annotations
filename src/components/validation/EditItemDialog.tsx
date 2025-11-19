@@ -141,12 +141,12 @@ export function EditItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Редактировать {ITEM_TYPE_LABELS[item.type]}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 overflow-y-auto flex-1">
           {/* Quantity */}
           <div className="space-y-2">
             <Label>Количество</Label>
