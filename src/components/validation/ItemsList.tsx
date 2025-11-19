@@ -201,7 +201,7 @@ export function ItemsList({
                         className="w-3 h-3 rounded-full flex-none"
                         style={{ backgroundColor: color }}
                       />
-                      <span className="text-sm font-medium text-gray-900 truncate">
+                      <span className="text-sm font-medium text-gray-900 break-words">
                         {getItemLabel(item)}
                       </span>
                       {/* Неразрешенная неопределенность - КРИТИЧНО */}

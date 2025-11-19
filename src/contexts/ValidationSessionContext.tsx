@@ -224,20 +224,55 @@ export function ValidationSessionProvider({
       return
     }
     
-    // Обновляем в локальном state
-    setSession((prev) => ({
-      ...prev,
-      items: prev.items.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              ...data,
-              is_modified: true,
-              updated_at: new Date().toISOString(),
+    // Если обновляется selected_option_id - обновляем recipeLineOptions сразу
+    if (data.selected_option_id && data.recipe_line_id) {
+      console.log('[updateItem] Updating recipe_line_options for ambiguity resolution:', {
+        recipe_line_id: data.recipe_line_id,
+        selected_option_id: data.selected_option_id
+      })
+      
+      setSession((prev) => ({
+        ...prev,
+        // Обновляем items
+        items: prev.items.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                ...data,
+                is_modified: true,
+                updated_at: new Date().toISOString(),
+              }
+            : item
+        ),
+        // Обновляем recipeLineOptions - пометить выбранный option как is_selected
+        recipeLineOptions: prev.recipeLineOptions.map(opt => {
+          if (opt.recipe_line_id === data.recipe_line_id) {
+            return {
+              ...opt,
+              is_selected: opt.id === data.selected_option_id
             }
-          : item
-      ),
-    }))
+          }
+          return opt
+        })
+      }))
+      
+      console.log('[updateItem] ✓ Updated recipeLineOptions locally')
+    } else {
+      // Обычное обновление без ambiguity resolution
+      setSession((prev) => ({
+        ...prev,
+        items: prev.items.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                ...data,
+                is_modified: true,
+                updated_at: new Date().toISOString(),
+              }
+            : item
+        ),
+      }))
+    }
     
     // Добавляем в tracking
     setChangesTracking((prev) => {
