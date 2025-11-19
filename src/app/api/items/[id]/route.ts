@@ -38,28 +38,39 @@ export async function PATCH(
 
     // Если указан selected_option_id - разрешаем неопределенность
     if (selected_option_id && itemUpdates.recipe_line_id) {
-      // 1. Получить все options для данного recipe_line
+      // 1. Получить все options для данного recipe_line (через JOIN с recipe_lines для recipe_id)
       const { data: options } = await supabase
         .from('recipe_line_options')
-        .select('id, recipe_line_id, recipe_id')
+        .select('id, recipe_line_id, recipe_lines!inner(recipe_id)')
         .eq('recipe_line_id', itemUpdates.recipe_line_id)
 
       if (options && options.length > 1) {
         // 2. Пометить выбранный option как is_selected, остальные - false
-        const recipeId = options[0].recipe_id
+        const recipeId = (options[0].recipe_lines as any).recipe_id
         
-        await supabase
+        console.log(`[items/update] Resolving ambiguity: recipe_line=${itemUpdates.recipe_line_id}, recipe_id=${recipeId}, total_options=${options.length}`)
+        
+        // Сначала сбросим все options для этого recipe_line
+        const { error: resetError } = await supabase
           .from('recipe_line_options')
           .update({ is_selected: false })
-          .eq('recipe_id', recipeId)
           .eq('recipe_line_id', itemUpdates.recipe_line_id)
+        
+        if (resetError) {
+          console.error(`[items/update] ✗ Failed to reset options:`, resetError)
+        }
 
-        await supabase
+        // Затем пометим выбранный
+        const { error: selectError } = await supabase
           .from('recipe_line_options')
           .update({ is_selected: true })
           .eq('id', selected_option_id)
         
-        console.log(`[items/update] ✓ Resolved ambiguity: recipe_line=${itemUpdates.recipe_line_id}, selected_option=${selected_option_id}`)
+        if (selectError) {
+          console.error(`[items/update] ✗ Failed to select option:`, selectError)
+        } else {
+          console.log(`[items/update] ✓ Resolved ambiguity: recipe_line=${itemUpdates.recipe_line_id}, selected_option=${selected_option_id}`)
+        }
       } else {
         console.log(`[items/update] No ambiguity to resolve (${options?.length || 0} options)`)
       }

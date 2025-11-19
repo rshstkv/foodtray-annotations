@@ -514,10 +514,32 @@ export function ValidationSessionProvider({
       
       // 2. Обновляем существующие items
       for (const [id, changes] of changesTracking.updatedItems) {
-        await apiFetch(`/api/items/${id}`, {
+        const response = await apiFetch(`/api/items/${id}`, {
           method: 'PATCH',
           body: JSON.stringify(changes),
         })
+        
+        // Если обновили selected_option_id - обновляем is_selected локально
+        if (response.success && changes.selected_option_id && changes.recipe_line_id) {
+          console.log('[saveAllChanges] Item updated with ambiguity resolution, updating recipe_line_options locally')
+          
+          setSession((prev) => ({
+            ...prev,
+            recipeLineOptions: prev.recipeLineOptions.map(opt => {
+              // Если это тот recipe_line для которого мы выбрали option
+              if (opt.recipe_line_id === changes.recipe_line_id) {
+                // Пометить выбранный option как is_selected, остальные - false
+                return {
+                  ...opt,
+                  is_selected: opt.id === changes.selected_option_id
+                }
+              }
+              return opt
+            })
+          }))
+          
+          console.log('[saveAllChanges] ✓ Updated recipe_line_options locally: selected option', changes.selected_option_id)
+        }
       }
       
       // 3. Удаляем items
