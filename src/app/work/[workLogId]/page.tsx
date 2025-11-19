@@ -582,6 +582,7 @@ export default function WorkSessionPage({
   params: Promise<{ workLogId: string }>
   searchParams: Promise<{ readonly?: string }>
 }) {
+  const router = useRouter()
   const { workLogId } = use(params)
   const resolvedSearchParams = use(searchParams)
   const readOnly = resolvedSearchParams.readonly === 'true'
