@@ -52,11 +52,11 @@ export async function GET() {
       .maybeSingle()
 
     // Откатываем если захватили (тестовый вызов)
-    if (acquireTestData && acquireTestData.work_log_id) {
+    if (acquireTestData && typeof acquireTestData === 'object' && 'work_log_id' in acquireTestData) {
       await supabase
         .from('validation_work_log')
         .delete()
-        .eq('id', acquireTestData.work_log_id)
+        .eq('id', (acquireTestData as { work_log_id: number }).work_log_id)
     }
 
     const debugInfo = {
@@ -85,10 +85,10 @@ export async function GET() {
       acquire_test: {
         success: !!acquireTestData,
         error: acquireError?.message,
-        data: acquireTestData ? {
-          work_log_id: acquireTestData.work_log_id,
-          recognition_id: acquireTestData.recognition_id,
-          steps_count: acquireTestData.validation_steps?.length,
+        data: acquireTestData && typeof acquireTestData === 'object' && 'work_log_id' in acquireTestData ? {
+          work_log_id: (acquireTestData as any).work_log_id,
+          recognition_id: (acquireTestData as any).recognition_id,
+          steps_count: (acquireTestData as any).validation_steps?.length,
         } : null,
       },
       analysis: {
