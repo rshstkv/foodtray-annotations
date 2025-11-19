@@ -595,37 +595,7 @@ export default function WorkSessionPage({
         )
         if (response.success && response.data) {
           const loadedSession = response.data.session
-          
-          // Если work_items пустые (и это не read-only режим), автоматически вызвать reset
-          // Это может произойти если триггер не сработал или данные не были скопированы
-          if (!readOnly && loadedSession.items.length === 0) {
-            console.log('[WorkSession] No items found, auto-resetting from initial items')
-            try {
-              const resetResponse = await apiFetch(
-                `/api/validation/${workLogId}/reset`,
-                { method: 'POST' }
-              )
-              if (resetResponse.success && resetResponse.data) {
-                // Обновляем items и annotations из reset response
-                setSession({
-                  ...loadedSession,
-                  items: resetResponse.data.items || [],
-                  annotations: resetResponse.data.annotations || []
-                })
-                console.log(`[WorkSession] Reset successful: ${resetResponse.data.items?.length || 0} items, ${resetResponse.data.annotations?.length || 0} annotations`)
-              } else {
-                // Если reset не удался, загружаем пустую сессию
-                console.warn('[WorkSession] Reset failed, loading empty session')
-                setSession(loadedSession)
-              }
-            } catch (resetError) {
-              console.error('[WorkSession] Failed to auto-reset:', resetError)
-              // Если reset не удался, все равно загружаем пустую сессию
-              setSession(loadedSession)
-            }
-          } else {
-            setSession(loadedSession)
-          }
+          setSession(loadedSession)
         }
       } catch (error) {
         console.error('Failed to load session:', error)

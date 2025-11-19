@@ -1,6 +1,13 @@
 import { createClient } from '@/lib/supabase-server'
 import { apiSuccess, apiError, ApiErrorCode } from '@/lib/api-response'
 
+interface AcquireRecognitionResult {
+  work_log_id: number
+  recognition_id: number
+  validation_steps: unknown
+  current_step_index: number
+}
+
 /**
  * POST /api/validation/finish-step
  * 
@@ -88,7 +95,7 @@ export async function POST(request: Request) {
       // Берем следующий recognition
       const { data: nextTask } = await supabase
         .rpc('acquire_recognition_with_steps', { p_user_id: user.id })
-        .maybeSingle()
+        .maybeSingle<AcquireRecognitionResult>()
 
       if (nextTask) {
         console.log(`[finish-step] Next task acquired: work_log=${nextTask.work_log_id}`)
