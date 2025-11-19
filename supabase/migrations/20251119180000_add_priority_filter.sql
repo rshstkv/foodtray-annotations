@@ -9,6 +9,7 @@ BEGIN
       'any',                      -- Любой recognition (по умолчанию)
       'has_ambiguity',           -- Есть неопределенность в блюдах (несколько вариантов, нужна ПРОВЕРКА выбора)
       'unresolved_ambiguity',    -- Неразрешенная неопределенность (несколько вариантов, НИ ОДИН не выбран)
+      'clean_ambiguity',         -- Чистая неопределенность (без других проблем с аннотациями)
       'has_food_items',          -- Есть блюда в чеке (для тестирования food валидации)
       'has_plates',              -- Есть тарелки (для тестирования plate валидации)
       'has_buzzers',             -- Есть пейджеры (для тестирования buzzer валидации)
@@ -90,6 +91,36 @@ BEGIN
       GROUP BY rlo.recipe_line_id
       HAVING COUNT(*) > 1 AND NOT BOOL_OR(rlo.is_selected)
     )
+    ORDER BY r.id
+    LIMIT 1
+    FOR UPDATE OF r SKIP LOCKED;
+    
+  ELSIF p_filter = 'clean_ambiguity' THEN
+    -- Фильтр: ЧИСТАЯ неопределенность (без проблем с аннотациями)
+    -- Только recognition где ТОЛЬКО неопределенность, без других ошибок
+    SELECT r.id
+    INTO v_recognition_id
+    FROM recognitions r
+    JOIN recipes rec ON rec.recognition_id = r.id
+    WHERE NOT EXISTS (
+      SELECT 1 FROM validation_work_log w
+      WHERE w.recognition_id = r.id
+        AND (
+          w.status = 'completed'
+          OR (w.status = 'in_progress' AND w.updated_at >= NOW() - INTERVAL '30 minutes')
+        )
+    )
+    -- Есть неопределенность
+    AND EXISTS (
+      SELECT 1 
+      FROM recipe_lines rl
+      JOIN recipe_line_options rlo ON rlo.recipe_line_id = rl.id
+      WHERE rl.recipe_id = rec.id
+      GROUP BY rlo.recipe_line_id
+      HAVING COUNT(*) > 1 AND NOT BOOL_OR(rlo.is_selected)
+    )
+    -- Примечание: полная проверка валидности через validation-rules.ts на фронтенде
+    -- Здесь просто берем первые recognition с неопределенностью
     ORDER BY r.id
     LIMIT 1
     FOR UPDATE OF r SKIP LOCKED;

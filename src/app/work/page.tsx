@@ -38,7 +38,7 @@ export default function WorkPage() {
   const [loadingCurrentTask, setLoadingCurrentTask] = useState(true)
   
   // 🧪 ВРЕМЕННО: фильтр для тестирования крайних случаев
-  type TestFilter = 'any' | 'has_ambiguity' | 'unresolved_ambiguity' | 'has_food_items' | 'has_plates' | 'has_buzzers' | 'no_annotations'
+  type TestFilter = 'any' | 'has_ambiguity' | 'unresolved_ambiguity' | 'clean_ambiguity' | 'has_food_items' | 'has_plates' | 'has_buzzers' | 'no_annotations'
   const [testFilter, setTestFilter] = useState<TestFilter>('any')
 
   useEffect(() => {
@@ -277,6 +277,7 @@ export default function WorkPage() {
                   <option value="any">🔄 Any (Normal Mode)</option>
                   <option value="has_ambiguity">⚠️ Has Ambiguity (Need to verify choice)</option>
                   <option value="unresolved_ambiguity">🆘 Unresolved Ambiguity (Nothing selected yet)</option>
+                  <option value="clean_ambiguity">✨ Clean Ambiguity (Only dish choice, no other errors)</option>
                   <option value="has_food_items">🍽️ Has Food Items</option>
                   <option value="has_plates">🍴 Has Plates</option>
                   <option value="has_buzzers">📟 Has Buzzers/Pagers</option>
@@ -313,6 +314,7 @@ export default function WorkPage() {
                 🧪 Debug mode: {
                   testFilter === 'has_ambiguity' ? 'Searching for dishes with multiple variants (to verify choice)...' :
                   testFilter === 'unresolved_ambiguity' ? 'Searching for unresolved ambiguity (nothing selected)...' :
+                  testFilter === 'clean_ambiguity' ? 'Searching for clean ambiguity (only dish choice, no other errors)...' :
                   testFilter === 'has_food_items' ? 'Searching for tasks with food items...' :
                   testFilter === 'has_plates' ? 'Searching for tasks with plates...' :
                   testFilter === 'has_buzzers' ? 'Searching for tasks with pagers...' :
