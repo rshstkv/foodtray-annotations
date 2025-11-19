@@ -65,17 +65,23 @@ export function ItemsList({
         const selectedOption = recipeLineOptions.find(
           (opt) => opt.recipe_line_id === item.recipe_line_id && opt.is_selected
         )
-        label = selectedOption?.name || ITEM_TYPE_LABELS[item.type]
         
-        // Если нет selected, показываем первый доступный
-        if (!selectedOption) {
+        if (selectedOption?.name) {
+          label = selectedOption.name
+        } else {
+          // Если нет selected, показываем первый доступный
           const anyOption = recipeLineOptions.find((opt) => opt.recipe_line_id === item.recipe_line_id)
           if (anyOption?.name) {
             label = anyOption.name
+          } else {
+            // DEBUG: Логируем почему не нашли название
+            console.warn(`[ItemsList] No recipe_line_option found for item ${item.id}, recipe_line_id=${item.recipe_line_id}. Available options:`, recipeLineOptions.length)
+            label = ITEM_TYPE_LABELS[item.type]
           }
         }
       }
       else {
+        console.warn(`[ItemsList] FOOD item ${item.id} has no recipe_line_id and no metadata.name`)
         label = ITEM_TYPE_LABELS[item.type]
       }
     }

@@ -5,8 +5,9 @@ import type { CompleteValidationRequest } from '@/types/domain'
 /**
  * POST /api/validation/complete
  * 
- * Завершить сессию валидации (весь work_log со всеми steps)
- * Для multi-step: завершает текущий step и весь work_log если это последний step
+ * Завершить текущий этап валидации
+ * Если это последний этап - удаляет work_log (recognition становится свободным)
+ * Возвращает информацию о том, завершен ли весь recognition
  */
 export async function POST(request: Request) {
   try {
@@ -48,52 +49,68 @@ export async function POST(request: Request) {
       }
     }
 
-    if (workLog.status !== 'in_progress') {
-      return apiError('Work log is not in progress', 400, ApiErrorCode.VALIDATION_ERROR)
-    }
-
-    // 2. Если multi-step - пометить текущий шаг как completed и проверить что все завершены
+    // 2. Пометить текущий шаг как completed
     if (workLog.validation_steps) {
       const currentStepIndex = workLog.current_step_index ?? 0
       const steps = workLog.validation_steps as any[]
       
-      // Пометить текущий шаг как completed, если он еще не completed
       if (steps[currentStepIndex] && steps[currentStepIndex].status !== 'completed') {
         steps[currentStepIndex].status = 'completed'
         
         await supabase
           .from('validation_work_log')
-          .update({ validation_steps: steps })
+          .update({ 
+            validation_steps: steps,
+            updated_at: new Date().toISOString()
+          })
           .eq('id', work_log_id)
       }
       
-      // Проверить что все шаги завершены
-      const { data: allCompleted } = await supabase
-        .rpc('all_steps_completed', { p_work_log_id: work_log_id })
-        .single()
+      // 3. Проверить что ВСЕ шаги completed/skipped
+      const allDone = steps.every(s => s.status === 'completed' || s.status === 'skipped')
 
-      if (!allCompleted) {
-        return apiError('Not all validation steps are completed', 400, ApiErrorCode.VALIDATION_ERROR)
+      if (allDone) {
+        // Все этапы завершены - помечаем work_log как completed (НЕ удаляем!)
+        await supabase
+          .from('validation_work_log')
+          .update({ 
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', work_log_id)
+
+        console.log(`[validation/complete] Work log ${work_log_id} marked as completed - all steps done`)
+
+        return apiSuccess({ 
+          success: true,
+          all_completed: true,
+          recognition_id: workLog.recognition_id
+        })
+      } else {
+        // Еще есть незавершенные этапы
+        console.log(`[validation/complete] Step ${currentStepIndex} completed, more steps remaining`)
+
+        return apiSuccess({ 
+          success: true,
+          all_completed: false
+        })
       }
     }
 
-    // 3. Обновить work log
-    const { error: updateError } = await supabase
+    // Legacy single-step validation - тоже помечаем completed
+    await supabase
       .from('validation_work_log')
-      .update({
+      .update({ 
         status: 'completed',
-        completed_at: new Date().toISOString(),
+        completed_at: new Date().toISOString()
       })
       .eq('id', work_log_id)
 
-    if (updateError) {
-      console.error('[validation/complete] Update error:', updateError)
-      return apiError('Failed to complete validation', 500, ApiErrorCode.INTERNAL_ERROR)
-    }
-
-    console.log(`[validation/complete] Work log ${work_log_id} completed`)
-
-    return apiSuccess({ success: true })
+    return apiSuccess({ 
+      success: true,
+      all_completed: true,
+      recognition_id: workLog.recognition_id
+    })
   } catch (error) {
     console.error('[validation/complete] Error:', error)
     return apiError('Internal server error', 500, ApiErrorCode.INTERNAL_ERROR)

@@ -17,9 +17,9 @@ import {
 } from '@/contexts/ValidationSessionContext'
 import { apiFetch } from '@/lib/api-response'
 import type { ValidationSession, BBox, StartValidationResponse } from '@/types/domain'
-import { getItemTypeFromValidationType } from '@/types/domain'
+import { getItemTypeFromValidationType, VALIDATION_TYPE_LABELS } from '@/types/domain'
 import { getValidationCapabilities } from '@/lib/validation-capabilities'
-import { CheckCircle, XCircle } from 'lucide-react'
+import { CheckCircle, XCircle, SkipForward } from 'lucide-react'
 
 function ValidationSessionContent() {
   const router = useRouter()
@@ -46,12 +46,13 @@ function ValidationSessionContent() {
     validationStatus,
     completeValidation,
     abandonValidation,
-    nextStep,
+    finishStep,
   } = useValidationSession()
 
   // Всегда режим редактирования для этой задачи
   const mode = 'edit' as const
   const [showItemDialog, setShowItemDialog] = useState(false)
+  const [sessionExpired, setSessionExpired] = useState(false)
 
   const itemType = getItemTypeFromValidationType(session.workLog.validation_type)
   
@@ -63,7 +64,6 @@ function ValidationSessionContent() {
   const hasSteps = workLog.validation_steps && workLog.validation_steps.length > 0
   const currentStepIndex = workLog.current_step_index ?? 0
   const isLastStep = hasSteps ? currentStepIndex >= workLog.validation_steps.length - 1 : true
-  const skipButtonText = (hasSteps && !isLastStep) ? 'Пропустить этап' : 'Отказаться'
 
   const handleItemSelect = (id: number) => {
     // Если кликаем на уже выбранный item - снимаем выделение
@@ -202,78 +202,89 @@ function ValidationSessionContent() {
 
   const handleComplete = async () => {
     try {
-      // НЕ вызываем saveAllChanges здесь - nextStep() и completeValidation() уже делают это!
-      // Это было причиной дублирования объектов (двойного сохранения)
-      
-      if (hasSteps && !isLastStep) {
-        // Есть еще steps - переключиться на следующий (БЕЗ router.push!)
-        await nextStep()
-        // Страница обновится локально через context
-      } else {
-        // Это последний step или single-step - завершить и взять новый recognition
-        await completeValidation()
-        
-        const response = await apiFetch<StartValidationResponse>(
-          '/api/validation/start',
-          { method: 'POST' }
-        )
-        
-        if (response.success && response.data) {
-          router.push(`/work/${response.data.workLog.id}`)
-        } else {
-          router.push('/work')
-        }
-      }
+      await finishStep('completed')
     } catch (err) {
-      console.error('Failed to complete validation:', err)
-      alert('Ошибка при завершении валидации')
+      console.error('Failed to complete step:', err)
+      alert('Ошибка при завершении этапа')
     }
   }
 
   const handleSkip = async () => {
-    // Multi-step и не последний шаг: пропустить этап (перейти к следующему)
-    if (hasSteps && !isLastStep) {
-      if (hasUnsavedChanges) {
-        if (!confirm('У вас есть несохраненные изменения. Вы уверены, что хотите пропустить этот этап? Изменения НЕ будут сохранены.')) {
-          return
-        }
-      } else {
-        if (!confirm('Вы уверены, что хотите пропустить этот этап?')) {
-          return
-        }
-      }
-      
-      try {
-        // Не сохраняем изменения, просто переходим к следующему шагу
-        // Но нужно очистить tracking чтобы не сохранить изменения автоматически
-        await resetToInitial() // Откатываем изменения на этом этапе
-        await nextStep()
-      } catch (err) {
-        console.error('Failed to skip step:', err)
-        alert('Ошибка при пропуске этапа')
-      }
-    } 
-    // Single-step или последний шаг: отказаться от всей задачи
-    else {
-      if (hasUnsavedChanges) {
-        if (!confirm('У вас есть несохраненные изменения. Вы уверены, что хотите отказаться от задачи? Все изменения будут потеряны.')) {
-          return
-        }
-      } else {
-        if (!confirm('Вы уверены, что хотите отказаться от задачи?')) {
-          return
-        }
-      }
-      
-      try {
-        await abandonValidation()
-        router.push('/work')
-      } catch (err) {
-        console.error('Failed to abandon validation:', err)
-        alert('Ошибка при отказе от задачи')
-      }
+    const currentValidationType = session.workLog.validation_type
+    const validationLabel = VALIDATION_TYPE_LABELS[currentValidationType]
+    
+    let message = `Пропустить "${validationLabel}"?\n\n`
+    
+    if (hasUnsavedChanges) {
+      message += `⚠️ Несохраненные изменения НА ЭТОМ ЭТАПЕ будут потеряны\n\n`
+    } else {
+      message += `✓ Несохраненных изменений нет\n\n`
+    }
+    
+    // Подсчитать завершенные этапы
+    const completedSteps = workLog.validation_steps?.filter(s => s.status === 'completed').length || 0
+    if (completedSteps > 0) {
+      message += `✓ Уже завершенные этапы (${completedSteps}) останутся сохранены`
+    }
+    
+    if (!confirm(message)) {
+      return
+    }
+    
+    try {
+      await finishStep('skipped')
+    } catch (err) {
+      console.error('Failed to skip step:', err)
+      alert('Ошибка при пропуске этапа')
     }
   }
+
+  const handleAbandon = async () => {
+    const recognitionId = session.recognition.id
+    const currentValidationType = session.workLog.validation_type
+    const validationLabel = VALIDATION_TYPE_LABELS[currentValidationType]
+    const completedSteps = workLog.validation_steps?.filter(s => s.status === 'completed').length || 0
+    const skippedSteps = workLog.validation_steps?.filter(s => s.status === 'skipped').length || 0
+    
+    let message = `Отказаться от Recognition #${recognitionId}?\n\n`
+    
+    if (hasUnsavedChanges) {
+      message += `❌ Потеряете несохраненные изменения на ТЕКУЩЕМ этапе:\n   "${validationLabel}"\n\n`
+    }
+    
+    if (completedSteps > 0 || skippedSteps > 0) {
+      message += `⚠️ Результаты уже обработанных этапов:\n`
+      if (completedSteps > 0) message += `   • Завершено: ${completedSteps}\n`
+      if (skippedSteps > 0) message += `   • Пропущено: ${skippedSteps}\n`
+      message += `   (НЕ будут сохранены в систему)\n\n`
+    }
+    
+    message += `Recognition вернется в общую очередь для других аннотаторов.`
+    
+    if (!confirm(message)) {
+      return
+    }
+    
+    try {
+      const response = await apiFetch<{ next_task?: StartValidationResponse }>(
+        '/api/validation/abandon',
+        {
+          method: 'POST',
+          body: JSON.stringify({ work_log_id: session.workLog.id }),
+        }
+      )
+      
+      if (response.success && response.data?.next_task) {
+        router.push(`/work/${response.data.next_task.workLog.id}`)
+      } else {
+        router.push('/work')
+      }
+    } catch (err) {
+      console.error('Failed to abandon validation:', err)
+      alert('Ошибка при отказе от задачи')
+    }
+  }
+
 
   const handleReset = async () => {
     if (confirm('Вы уверены, что хотите откатить все изменения к исходному состоянию?')) {
@@ -295,6 +306,52 @@ function ValidationSessionContent() {
     }
   }
 
+  // Heartbeat для обновления updated_at (предотвращает timeout)
+  useEffect(() => {
+    if (readOnly) return
+
+    const heartbeat = async () => {
+      try {
+        await apiFetch('/api/validation/heartbeat', {
+          method: 'POST',
+          body: JSON.stringify({ work_log_id: session.workLog.id }),
+        })
+        console.log('[Heartbeat] Updated at refreshed')
+      } catch (err) {
+        console.error('[Heartbeat] Failed:', err)
+      }
+    }
+
+    // Отправить heartbeat каждые 5 минут
+    const interval = setInterval(heartbeat, 5 * 60 * 1000)
+
+    return () => clearInterval(interval)
+  }, [session.workLog.id, readOnly])
+
+  // Проверка истечения сессии (30 минут)
+  useEffect(() => {
+    if (readOnly) return
+
+    const checkExpiry = () => {
+      const updatedAt = new Date(session.workLog.updated_at || session.workLog.started_at).getTime()
+      const now = Date.now()
+      const elapsed = now - updatedAt
+
+      // 30 минут = 30 * 60 * 1000 мс
+      if (elapsed > 30 * 60 * 1000) {
+        setSessionExpired(true)
+      }
+    }
+
+    // Проверять каждую минуту
+    const interval = setInterval(checkExpiry, 60 * 1000)
+    
+    // Проверить сразу
+    checkExpiry()
+
+    return () => clearInterval(interval)
+  }, [session.workLog.updated_at, session.workLog.started_at, readOnly])
+
   // Обработка горячих клавиш
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -308,6 +365,13 @@ function ValidationSessionContent() {
       if (e.key === 'Escape') {
         setSelectedItemId(null)
         setSelectedAnnotationId(null)
+        return
+      }
+
+      // Shift+Enter - пропустить этап
+      if (e.key === 'Enter' && e.shiftKey && !readOnly) {
+        e.preventDefault()
+        handleSkip()
         return
       }
 
@@ -374,6 +438,7 @@ function ValidationSessionContent() {
     readOnly,
     validationStatus.canComplete,
     handleComplete,
+    handleSkip,
     handleItemSelect,
     capabilities.showAllItemTypes,
   ])
@@ -426,10 +491,19 @@ function ValidationSessionContent() {
         actions={
           !readOnly ? (
             <div className="flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={handleSkip}>
-                <XCircle className="w-4 h-4 mr-2" />
-                {skipButtonText}
+              {/* Пропустить текущий этап - всегда доступна */}
+              <Button 
+                variant="outline" 
+                onClick={handleSkip}
+              >
+                <SkipForward className="w-4 h-4 mr-2" />
+                Пропустить этап
+                <kbd className="ml-2 px-1.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 rounded border border-gray-300">
+                  Shift+Enter
+                </kbd>
               </Button>
+              
+              {/* Завершить / Следующая */}
               <Button 
                 onClick={handleComplete}
                 disabled={!validationStatus.canComplete}
@@ -469,6 +543,31 @@ function ValidationSessionContent() {
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
+
+      {/* Session Expired Overlay */}
+      {sessionExpired && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-8 max-w-md mx-4 shadow-2xl">
+            <div className="text-center">
+              <div className="text-6xl mb-4">⏱️</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">Сессия истекла</h2>
+              <p className="text-gray-600 mb-6">
+                Ваша задача была освобождена из-за неактивности более 30 минут.
+                <br />
+                <br />
+                Обновите страницу, чтобы взять новую задачу.
+              </p>
+              <Button 
+                onClick={() => window.location.href = '/work'}
+                size="lg"
+                className="w-full"
+              >
+                Вернуться к задачам
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -498,7 +597,7 @@ export default function WorkSessionPage({
           const loadedSession = response.data.session
           
           // Если work_items пустые (и это не read-only режим), автоматически вызвать reset
-          // Это может произойти если задача была abandoned и items удалены
+          // Это может произойти если триггер не сработал или данные не были скопированы
           if (!readOnly && loadedSession.items.length === 0) {
             console.log('[WorkSession] No items found, auto-resetting from initial items')
             try {
@@ -507,16 +606,20 @@ export default function WorkSessionPage({
                 { method: 'POST' }
               )
               if (resetResponse.success && resetResponse.data) {
-                // Перезагружаем сессию после reset
-                const reloadResponse = await apiFetch<{ session: ValidationSession }>(
-                  `/api/validation/session/${workLogId}`
-                )
-                if (reloadResponse.success && reloadResponse.data) {
-                  setSession(reloadResponse.data.session)
-                }
+                // Обновляем items и annotations из reset response
+                setSession({
+                  ...loadedSession,
+                  items: resetResponse.data.items || [],
+                  annotations: resetResponse.data.annotations || []
+                })
+                console.log(`[WorkSession] Reset successful: ${resetResponse.data.items?.length || 0} items, ${resetResponse.data.annotations?.length || 0} annotations`)
+              } else {
+                // Если reset не удался, загружаем пустую сессию
+                console.warn('[WorkSession] Reset failed, loading empty session')
+                setSession(loadedSession)
               }
             } catch (resetError) {
-              console.error('Failed to auto-reset:', resetError)
+              console.error('[WorkSession] Failed to auto-reset:', resetError)
               // Если reset не удался, все равно загружаем пустую сессию
               setSession(loadedSession)
             }

@@ -67,6 +67,13 @@ export function validateItemAnnotations(
     (ann) => ann.work_item_id === item.id && !ann.is_deleted
   )
 
+  // КРИТИЧНО: Если у item нет аннотаций вообще - это ОШИБКА!
+  // Пользователь должен либо добавить аннотации, либо удалить item из списка
+  if (itemAnnotations.length === 0) {
+    errors.push('Объект в списке, но нет ни одной аннотации. Удалите объект или добавьте аннотации.')
+    return { valid: false, errors }
+  }
+
   // Подсчитываем количество на каждой камере
   const countsByCamera = new Map<number, number>()
   images.forEach(image => {

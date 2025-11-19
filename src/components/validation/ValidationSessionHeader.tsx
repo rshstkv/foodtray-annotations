@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { RotateCcw, AlertCircle, CheckCircle, Check } from 'lucide-react'
+import { RotateCcw, AlertCircle, CheckCircle, Check, Minus } from 'lucide-react'
 import type { ValidationType, ValidationStep } from '@/types/domain'
 import { VALIDATION_TYPE_LABELS } from '@/types/domain'
 import type { SessionValidationResult } from '@/lib/validation-rules'
@@ -92,27 +92,31 @@ export function ValidationSessionHeader({
               {validationSteps.map((step, index) => {
                 const isCurrent = index === currentStepIndex
                 const isCompleted = step.status === 'completed'
+                const isSkipped = step.status === 'skipped'
                 const isPending = step.status === 'pending'
 
                 return (
                   <div key={index} className="flex items-center gap-1">
                     <div
                       className={`
-                        w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0
+                        w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 transition-all
                         ${isCompleted ? 'bg-green-500 text-white' : ''}
-                        ${isCurrent ? 'bg-blue-500 text-white' : ''}
+                        ${isSkipped ? 'bg-gray-400 text-white' : ''}
+                        ${isCurrent ? 'bg-blue-500 text-white ring-2 ring-blue-200' : ''}
                         ${isPending ? 'bg-gray-300 text-gray-600' : ''}
                       `}
                       title={VALIDATION_TYPE_LABELS[step.type]}
                     >
                       {isCompleted ? (
                         <Check className="w-3.5 h-3.5" />
+                      ) : isSkipped ? (
+                        <Minus className="w-3.5 h-3.5" />
                       ) : (
                         <span>{index + 1}</span>
                       )}
                     </div>
                     {index < validationSteps.length - 1 && (
-                      <div className={`w-4 h-0.5 ${isCompleted ? 'bg-green-500' : 'bg-gray-300'}`} />
+                      <div className={`w-4 h-0.5 ${isCompleted ? 'bg-green-500' : isSkipped ? 'bg-gray-400' : 'bg-gray-300'}`} />
                     )}
                   </div>
                 )

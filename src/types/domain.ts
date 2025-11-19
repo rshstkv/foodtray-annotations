@@ -26,7 +26,7 @@ export type ValidationType =
 
 export type WorkLogStatus = 'in_progress' | 'completed' | 'abandoned'
 
-export type ValidationStepStatus = 'pending' | 'in_progress' | 'completed'
+export type ValidationStepStatus = 'pending' | 'in_progress' | 'completed' | 'skipped'
 
 // ============================================================================
 // User & Auth
@@ -296,6 +296,35 @@ export interface NextStepResponse {
   new_step_index: number
   current_step: ValidationStep
   all_completed: boolean
+}
+
+export interface SkipStepRequest {
+  work_log_id: number
+}
+
+export interface SkipStepResponse {
+  success: boolean
+  new_step_index: number
+  current_step: ValidationStep
+}
+
+export interface JumpToStepRequest {
+  work_log_id: number
+  target_step_index: number
+}
+
+export interface JumpToStepResponse {
+  success: boolean
+  new_step_index: number
+  current_step: ValidationStep
+}
+
+export interface AbandonAndGetNextRequest {
+  work_log_id: number
+}
+
+export interface AbandonAndGetNextResponse {
+  next_task?: StartValidationResponse
 }
 
 // ============================================================================

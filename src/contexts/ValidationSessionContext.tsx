@@ -58,7 +58,7 @@ interface ValidationSessionContextValue {
   // Session actions
   completeValidation: () => Promise<void>
   abandonValidation: () => Promise<void>
-  nextStep: () => Promise<void>
+  finishStep: (markAs: 'completed' | 'skipped') => Promise<void>
 }
 
 const ValidationSessionContext = createContext<ValidationSessionContextValue | null>(null)
@@ -703,9 +703,10 @@ export function ValidationSessionProvider({
   }, [session.workLog.id, readOnly])
 
   // Next step (multi-step validation)
-  const nextStep = useCallback(async () => {
+  // Универсальная функция для завершения этапа
+  const finishStep = useCallback(async (markAs: 'completed' | 'skipped') => {
     if (readOnly) {
-      console.warn('[ValidationSession] Cannot move to next step in read-only mode')
+      console.warn('[ValidationSession] Cannot finish step in read-only mode')
       return
     }
     
@@ -713,40 +714,78 @@ export function ValidationSessionProvider({
       setLoading(true)
       setError(null)
 
-      // Сохранить все несохраненные изменения перед переходом к следующему шагу
-      if (hasUnsavedChanges) {
-        console.log('[ValidationSession] Saving changes before moving to next step')
+      // Если отмечаем как completed, сохраняем изменения
+      if (markAs === 'completed' && hasUnsavedChanges) {
+        console.log('[ValidationSession] Saving changes before finishing step')
         await saveAllChanges()
       }
 
-      const response = await apiFetch('/api/validation/next-step', {
+      // Вызвать универсальное API
+      const response = await apiFetch<{
+        has_more_steps: boolean
+        current_step_index?: number
+        current_step?: any
+        next_work_log_id?: number | null
+      }>('/api/validation/finish-step', {
         method: 'POST',
-        body: JSON.stringify({ work_log_id: session.workLog.id }),
+        body: JSON.stringify({ 
+          work_log_id: session.workLog.id,
+          mark_as: markAs
+        }),
       })
 
-      if (response.success && response.data) {
-        // Обновить work log с новым step index
-        const data = response.data as { new_step_index: number; current_step: any }
+      if (!response.success || !response.data) {
+        throw new Error('Failed to finish step')
+      }
+
+      if (response.data.has_more_steps) {
+        // Есть следующий этап - обновляем локальный state
         setSession((prev) => ({
           ...prev,
           workLog: {
             ...prev.workLog,
-            current_step_index: data.new_step_index,
-            validation_type: data.current_step.type,
-            validation_steps: prev.workLog.validation_steps?.map((s, i) =>
-              i === prev.workLog.current_step_index ? { ...s, status: 'completed' } : s
-            ),
+            current_step_index: response.data.current_step_index!,
+            validation_type: response.data.current_step!.type,
+            validation_steps: prev.workLog.validation_steps?.map((s, i) => {
+              if (i === prev.workLog.current_step_index) return { ...s, status: markAs }
+              if (i === response.data.current_step_index) return { ...s, status: 'in_progress' }
+              return s
+            }),
           },
         }))
+        
+        // Очистить tracking
+        setChangesTracking({
+          createdItems: new Map(),
+          updatedItems: new Map(),
+          deletedItems: new Set(),
+          createdAnnotations: new Map(),
+          updatedAnnotations: new Map(),
+          deletedAnnotations: new Set(),
+        })
+        
+        console.log(`[ValidationSession] Step marked as ${markAs}, moved to step ${response.data.current_step_index}`)
+      } else {
+        // Последний этап - редиректим
+        const nextWorkLogId = response.data.next_work_log_id
+        
+        if (nextWorkLogId) {
+          // Перейти к следующей задаче
+          window.location.href = `/work/${nextWorkLogId}`
+        } else {
+          // Задач нет - на главную
+          window.location.href = '/work'
+        }
       }
     } catch (err) {
-      setError('Failed to move to next step')
+      setError(`Failed to ${markAs === 'completed' ? 'complete' : 'skip'} step`)
       console.error(err)
       throw err
     } finally {
       setLoading(false)
     }
   }, [session.workLog.id, readOnly, hasUnsavedChanges, saveAllChanges])
+
 
   // Вычисляем статус валидации в реальном времени (только для edit режима)
   const validationStatus = useMemo(() => {
@@ -790,7 +829,7 @@ export function ValidationSessionProvider({
     validationStatus,
     completeValidation,
     abandonValidation,
-    nextStep,
+    finishStep,
   }
 
   return (

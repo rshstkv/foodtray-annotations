@@ -18,16 +18,29 @@ interface ValidationStats {
   in_progress: number
 }
 
+interface CurrentTask {
+  work_log_id: number
+  recognition_id: number
+  validation_type: ValidationType
+  validation_steps: any[]
+  current_step_index: number
+  started_at: string
+  updated_at: string
+}
+
 export default function WorkPage() {
   const router = useRouter()
   const { user, isAdmin } = useUser()
   const [loading, setLoading] = useState(false)
   const [stats, setStats] = useState<ValidationStats[]>([])
   const [loadingStats, setLoadingStats] = useState(true)
+  const [currentTask, setCurrentTask] = useState<CurrentTask | null>(null)
+  const [loadingCurrentTask, setLoadingCurrentTask] = useState(true)
 
   useEffect(() => {
     if (user) {
       loadStats()
+      loadCurrentTask()
     }
   }, [user])
 
@@ -44,6 +57,53 @@ export default function WorkPage() {
       console.error('Error loading stats:', error)
     } finally {
       setLoadingStats(false)
+    }
+  }
+
+  const loadCurrentTask = async () => {
+    try {
+      setLoadingCurrentTask(true)
+      const response = await apiFetch<CurrentTask | null>(
+        '/api/validation/current'
+      )
+      if (response.success) {
+        setCurrentTask(response.data)
+      }
+    } catch (error) {
+      console.error('Error loading current task:', error)
+    } finally {
+      setLoadingCurrentTask(false)
+    }
+  }
+
+  const handleContinueTask = () => {
+    if (currentTask) {
+      router.push(`/work/${currentTask.work_log_id}`)
+    }
+  }
+
+  const handleAbandonCurrentTask = async () => {
+    if (!currentTask) return
+
+    if (!confirm(`Отказаться от Recognition #${currentTask.recognition_id}?\n\nЗадача вернется в общую очередь.`)) {
+      return
+    }
+
+    try {
+      setLoading(true)
+      await apiFetch('/api/validation/abandon', {
+        method: 'POST',
+        body: JSON.stringify({ work_log_id: currentTask.work_log_id }),
+      })
+      
+      // Обновить список задач
+      setCurrentTask(null)
+      loadStats()
+    } catch (error) {
+      console.error('Error abandoning task:', error)
+      alert('Ошибка при отказе от задачи')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -194,26 +254,28 @@ export default function WorkPage() {
             </div>
           )}
 
-          {/* Main CTA Button */}
-          <div className="flex justify-center">
-            <button
-              onClick={handleStartWork}
-              disabled={loading}
-              className="group relative px-10 py-4 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white text-base font-medium rounded-full transition-all duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <span className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                  Загружается...
-                </span>
-              ) : (
-                <span className="flex items-center">
-                  <Play className="w-4 h-4 mr-2 fill-current" />
-                  Начать работу
-                </span>
-              )}
-            </button>
-          </div>
+          {/* Main CTA Button - only if no current task */}
+          {!currentTask && (
+            <div className="flex justify-center">
+              <button
+                onClick={handleStartWork}
+                disabled={loading}
+                className="group relative px-10 py-4 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white text-base font-medium rounded-full transition-all duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <span className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                    Загружается...
+                  </span>
+                ) : (
+                  <span className="flex items-center">
+                    <Play className="w-4 h-4 mr-2 fill-current" />
+                    Начать работу
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
 
           {/* Subtle hint */}
           <p className="text-center text-xs text-gray-400 mt-4">

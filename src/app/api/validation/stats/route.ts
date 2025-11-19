@@ -36,12 +36,12 @@ export async function GET() {
       .select('recognition_id, validation_type, validation_steps')
       .in('status', ['completed', 'abandoned'])
 
-    // Получить все in_progress work_logs (last 30 minutes)
+    // Получить все in_progress work_logs (updated in last 30 minutes)
     const { data: inProgressWorkLogs } = await supabase
       .from('validation_work_log')
       .select('recognition_id, validation_type, validation_steps')
       .eq('status', 'in_progress')
-      .gte('started_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
+      .gte('updated_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
 
     const stats = []
 
@@ -66,16 +66,16 @@ export async function GET() {
         }
       }
 
-      // Подсчет in_progress для данного типа
+      // Подсчет in_progress для данного типа (только ТЕКУЩИЙ активный step!)
       const inProgressRecognitionIds = new Set<number>()
       
       for (const workLog of inProgressWorkLogs || []) {
-        // Multi-step: проверяем validation_steps (любой step с этим типом)
+        // Multi-step: проверяем ТОЛЬКО текущий активный step (status = in_progress)
         if (workLog.validation_steps && Array.isArray(workLog.validation_steps)) {
-          const hasStepForType = workLog.validation_steps.some(
-            (step: any) => step.type === validationType
+          const currentStep = workLog.validation_steps.find(
+            (step: any) => step.status === 'in_progress'
           )
-          if (hasStepForType) {
+          if (currentStep && currentStep.type === validationType) {
             inProgressRecognitionIds.add(workLog.recognition_id)
           }
         } else {

@@ -51,11 +51,13 @@ export async function POST(
       }
     }
 
-    if (workLog.status !== 'in_progress') {
-      return apiError('Can only reset in-progress work logs', 400, ApiErrorCode.VALIDATION_ERROR)
-    }
+    // Убрали проверку статуса - reset можно делать в любом состоянии
+    // if (workLog.status !== 'in_progress') {
+    //   return apiError('Can only reset in-progress work logs', 400, ApiErrorCode.VALIDATION_ERROR)
+    // }
 
     const recognitionId = workLog.recognition_id
+    console.log(`[validation/reset] Resetting work_log ${workLogIdNum} for recognition ${recognitionId}`)
 
     // 2. Удалить все текущие work_items и work_annotations
     const { error: deleteItemsError } = await supabase
