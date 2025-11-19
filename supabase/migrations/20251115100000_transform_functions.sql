@@ -137,7 +137,7 @@ BEGIN
       rl.id as recipe_line_id,
       (dish->>'ExternalId')::TEXT as external_id,
       (dish->>'Name')::TEXT as name,
-      (ordinality = 1) as is_selected -- First option selected by default
+      false as is_selected -- No option selected by default - user must choose
     FROM raw.recipes rr
     JOIN recipes r ON r.recognition_id = rr.recognition_id
     CROSS JOIN LATERAL jsonb_array_elements(rr.payload) WITH ORDINALITY AS t(item, item_ord)
@@ -169,6 +169,7 @@ BEGIN
   -- dish_X from Qwen corresponds to line_number from recipe (dish_0 = line 1)
   -- Expand quantity: if quantity=2, create 2 separate tray_items
   -- Take ONLY first option per recipe_line to avoid duplicates
+  -- If no option is selected, take the first one (for creating initial items)
   WITH first_options AS (
     SELECT DISTINCT ON (recipe_line_id)
       recipe_line_id,
@@ -176,8 +177,7 @@ BEGIN
       external_id,
       name
     FROM recipe_line_options
-    WHERE is_selected = true
-    ORDER BY recipe_line_id, id
+    ORDER BY recipe_line_id, id  -- Always take first option
   ),
   recipe_items_expanded AS (
     SELECT 
