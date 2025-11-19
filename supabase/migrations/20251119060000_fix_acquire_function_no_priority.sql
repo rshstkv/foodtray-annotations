@@ -70,3 +70,5 @@ $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION acquire_recognition_with_steps IS 
   'Atomically acquire recognition with all validation types as steps. Blocks entire recognition for user. Uses order_in_session only.';
 
+
+

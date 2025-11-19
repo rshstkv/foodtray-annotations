@@ -85,3 +85,5 @@ $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION acquire_recognition_with_steps IS 
   'Atomically acquire recognition with all validation types as steps. Ignores abandoned work_logs and in_progress tasks older than 30 minutes.';
 
+
+
