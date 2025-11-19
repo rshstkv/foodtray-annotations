@@ -73,6 +73,8 @@ export async function GET(
     ])
 
     console.log(`[validation/session] Loaded: ${workItems?.length || 0} items, ${workAnnotations?.length || 0} annotations`)
+    console.log(`[validation/session] workItems raw data:`, workItems)
+    console.log(`[validation/session] workAnnotations raw data:`, workAnnotations)
     
     // DEBUG: Показать структуру первого work_item
     if (workItems && workItems.length > 0) {
@@ -86,7 +88,14 @@ export async function GET(
         .select('count')
         .eq('recognition_id', recognitionId)
         
-      console.log(`[validation/session] ⚠️ No work_items found! Initial tray items for recognition: ${initialItems?.[0]?.count || 0}`)
+      console.log(`[validation/session] ⚠️ No work_items found! Initial tray items for recognition: ${JSON.stringify(initialItems)}`)
+      
+      // Проверим что вообще есть в work_items без фильтров
+      const { data: allWorkItems } = await supabase
+        .from('work_items')
+        .select('*')
+        .eq('work_log_id', workLogIdNum)
+      console.log(`[validation/session] ⚠️ All work_items (without filters):`, allWorkItems)
     }
 
     // 3. Загрузить recipe lines и options
