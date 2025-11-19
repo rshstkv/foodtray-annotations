@@ -17,7 +17,7 @@ import { validateSession, type SessionValidationResult } from '@/lib/validation-
 // Tracking для несохраненных изменений
 interface ChangesTracking {
   createdItems: Map<number, TrayItem>  // temp ID -> item
-  updatedItems: Map<number, Partial<TrayItem>>  // ID -> changes
+  updatedItems: Map<number, UpdateItemRequest>  // ID -> changes (includes selected_option_id)
   deletedItems: Set<number>  // IDs to delete
   
   createdAnnotations: Map<number | string, AnnotationView>  // temp ID -> annotation
