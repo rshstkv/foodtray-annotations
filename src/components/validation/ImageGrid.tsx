@@ -168,20 +168,20 @@ export function ImageGrid({
                               {ann.itemLabel || `#${idx + 1}`}
                             </span>
                             {isSelected && (capabilities.canToggleOcclusion || capabilities.canDeleteAnnotations) && (
-                              <div className="flex items-center gap-2 border-l border-current/20 pl-2">
+                              <div className="flex items-center gap-2 border-l border-gray-300 pl-2">
                                 {capabilities.canToggleOcclusion && (
                                   <label
                                     onClick={(e) => e.stopPropagation()}
-                                    className="flex items-center gap-1 cursor-pointer hover:opacity-80"
+                                    className="flex items-center gap-1.5 cursor-pointer hover:bg-gray-100/50 px-1.5 py-0.5 rounded transition-colors"
                                     title="Отметить перекрытие"
                                   >
                                     <input
                                       type="checkbox"
                                       checked={ann.isOccluded || false}
                                       onChange={() => onAnnotationToggleOcclusion(ann.id)}
-                                      className="w-3 h-3 cursor-pointer"
+                                      className="w-4 h-4 cursor-pointer accent-blue-600 border-2 border-gray-400 rounded"
                                     />
-                                    <span className="text-[10px] whitespace-nowrap">Перекрыт</span>
+                                    <span className="text-xs font-medium whitespace-nowrap text-gray-900">Перекрыт</span>
                                   </label>
                                 )}
                                 {capabilities.canDeleteAnnotations && (
