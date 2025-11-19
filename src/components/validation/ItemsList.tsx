@@ -191,7 +191,7 @@ export function ItemsList({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center flex-wrap gap-2 mb-1">
                       {hotkey && (
                         <span className="text-[10px] font-mono text-gray-400 flex-none">
                           {hotkey}
@@ -201,7 +201,7 @@ export function ItemsList({
                         className="w-3 h-3 rounded-full flex-none"
                         style={{ backgroundColor: color }}
                       />
-                      <span className="text-sm font-medium text-gray-900 break-words">
+                      <span className="text-sm font-medium text-gray-900">
                         {getItemLabel(item)}
                       </span>
                       {/* Неразрешенная неопределенность - КРИТИЧНО */}
