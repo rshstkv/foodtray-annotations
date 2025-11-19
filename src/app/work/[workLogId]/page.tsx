@@ -465,6 +465,7 @@ function ValidationSessionContent() {
             annotations={annotations}
             validationType={session.workLog.validation_type}
             selectedItemId={selectedItemId}
+            recipeLines={session.recipeLines}
             recipeLineOptions={session.recipeLineOptions}
             activeMenu={session.activeMenu}
             onItemSelect={handleItemSelect}

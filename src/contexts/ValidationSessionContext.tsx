@@ -802,9 +802,10 @@ export function ValidationSessionProvider({
       session.annotations,
       session.images,
       session.recipeLines,
-      session.workLog.validation_type
+      session.workLog.validation_type,
+      session.recipeLineOptions
     )
-  }, [readOnly, session.items, session.annotations, session.images, session.recipeLines, session.workLog.validation_type])
+  }, [readOnly, session.items, session.annotations, session.images, session.recipeLines, session.recipeLineOptions, session.workLog.validation_type])
 
   const value: ValidationSessionContextValue = {
     session,

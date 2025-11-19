@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Plus, Trash2, Pencil, AlertCircle } from 'lucide-react'
-import type { TrayItem, ItemType, ValidationType, RecipeLineOption, BuzzerColor, UpdateItemRequest, AnnotationView } from '@/types/domain'
+import type { TrayItem, ItemType, ValidationType, RecipeLineOption, RecipeLine, BuzzerColor, UpdateItemRequest, AnnotationView } from '@/types/domain'
 import { ITEM_TYPE_LABELS, ITEM_TYPE_COLORS, BUZZER_COLOR_LABELS, getItemTypeFromValidationType, getItemColor } from '@/types/domain'
 import { getValidationCapabilities } from '@/lib/validation-capabilities'
+import { hasUnresolvedAmbiguity, hasMultipleOptions } from '@/lib/validation-rules'
 import { cn } from '@/lib/utils'
 import { EditItemDialog } from './EditItemDialog'
 import { useValidationSession } from '@/contexts/ValidationSessionContext'
@@ -16,6 +17,7 @@ interface ItemsListProps {
   annotations?: AnnotationView[]
   validationType: ValidationType
   selectedItemId: number | null
+  recipeLines?: RecipeLine[]
   recipeLineOptions: RecipeLineOption[]
   activeMenu?: any[]
   onItemSelect: (id: number) => void
@@ -30,6 +32,7 @@ export function ItemsList({
   annotations = [],
   validationType,
   selectedItemId,
+  recipeLines = [],
   recipeLineOptions,
   activeMenu = [],
   onItemSelect,
@@ -82,6 +85,7 @@ export function ItemsList({
       }
       // Потом проверяем recipe_line_id (для блюд из чека)
       else if (item.recipe_line_id) {
+        const recipeLine = recipeLines.find(rl => rl.id === item.recipe_line_id)
         const selectedOption = recipeLineOptions.find(
           (opt) => opt.recipe_line_id === item.recipe_line_id && opt.is_selected
         )
@@ -93,9 +97,14 @@ export function ItemsList({
           const anyOption = recipeLineOptions.find((opt) => opt.recipe_line_id === item.recipe_line_id)
           if (anyOption?.name) {
             label = anyOption.name
-          } else {
+          } 
+          // Fallback на raw_name из recipe_line
+          else if (recipeLine?.raw_name) {
+            label = recipeLine.raw_name
+          } 
+          else {
             // DEBUG: Логируем почему не нашли название
-            console.warn(`[ItemsList] No recipe_line_option found for item ${item.id}, recipe_line_id=${item.recipe_line_id}. Available options:`, recipeLineOptions.length)
+            console.warn(`[ItemsList] No name found for item ${item.id}, recipe_line_id=${item.recipe_line_id}. RecipeLine:`, recipeLine, 'Options:', recipeLineOptions.length)
             label = ITEM_TYPE_LABELS[item.type]
           }
         }
@@ -158,6 +167,11 @@ export function ItemsList({
             const itemErrors = validationStatus.itemErrors.get(item.id)
             const hasErrors = itemErrors && itemErrors.length > 0
             
+            // Проверяем неопределенность (для FOOD_VALIDATION)
+            const unresolvedAmbiguity = validationType === 'FOOD_VALIDATION' && hasUnresolvedAmbiguity(item, recipeLineOptions)
+            const multipleOptions = validationType === 'FOOD_VALIDATION' && hasMultipleOptions(item, recipeLineOptions)
+            const selectedAmbiguity = multipleOptions && !unresolvedAmbiguity // Есть варианты И один выбран
+            
             // Проверяем был ли item добавлен пользователем (новый)
             const isNewItem = (item as any).isNewItem === true
             
@@ -190,7 +204,19 @@ export function ItemsList({
                       <span className="text-sm font-medium text-gray-900 truncate">
                         {getItemLabel(item)}
                       </span>
-                      {isNewItem && !hasErrors && (
+                      {/* Неразрешенная неопределенность - КРИТИЧНО */}
+                      {unresolvedAmbiguity && !readOnly && (
+                        <span className="text-[10px] font-semibold text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded flex-none border border-orange-300 animate-pulse">
+                          🆘 выбрать вариант
+                        </span>
+                      )}
+                      {/* Выбран один из вариантов - нужна проверка */}
+                      {selectedAmbiguity && !readOnly && (
+                        <span className="text-[10px] font-semibold text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded flex-none border border-yellow-300">
+                          ⚠️ проверить выбор
+                        </span>
+                      )}
+                      {isNewItem && !hasErrors && !unresolvedAmbiguity && !selectedAmbiguity && (
                         <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-1.5 py-0.5 rounded flex-none">
                           Добавлено
                         </span>
@@ -329,6 +355,7 @@ export function ItemsList({
           onClose={() => setEditingItem(null)}
           onSave={onItemUpdate}
           item={editingItem}
+          recipeLines={recipeLines}
           recipeLineOptions={recipeLineOptions}
           activeMenu={activeMenu}
         />

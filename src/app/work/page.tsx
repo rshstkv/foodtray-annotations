@@ -36,6 +36,10 @@ export default function WorkPage() {
   const [loadingStats, setLoadingStats] = useState(true)
   const [currentTask, setCurrentTask] = useState<CurrentTask | null>(null)
   const [loadingCurrentTask, setLoadingCurrentTask] = useState(true)
+  
+  // 🧪 ВРЕМЕННО: фильтр для тестирования крайних случаев
+  type TestFilter = 'any' | 'has_ambiguity' | 'unresolved_ambiguity' | 'has_food_items' | 'has_plates' | 'has_buzzers' | 'no_annotations'
+  const [testFilter, setTestFilter] = useState<TestFilter>('any')
 
   useEffect(() => {
     if (user) {
@@ -110,10 +114,15 @@ export default function WorkPage() {
   const handleStartWork = async () => {
     try {
       setLoading(true)
+      
+      // 🧪 ВРЕМЕННО: передаем фильтр в API
+      const requestBody = testFilter !== 'any' ? { priority_filter: testFilter } : {}
+      
       const response = await apiFetch<StartValidationResponse>(
         '/api/validation/start',
         {
           method: 'POST',
+          body: JSON.stringify(requestBody),
         }
       )
 
@@ -256,7 +265,25 @@ export default function WorkPage() {
 
           {/* Main CTA Button - only if no current task */}
           {!currentTask && (
-            <div className="flex justify-center">
+            <div className="flex flex-col items-center gap-4">
+              {/* 🧪 ВРЕМЕННО: фильтр для тестирования */}
+              <div className="flex flex-col items-center gap-3 px-6 py-4 bg-orange-50 border-2 border-orange-200 rounded-lg shadow-sm">
+                <span className="text-sm font-semibold text-orange-900">🧪 Debug Mode: Filter Tasks</span>
+                <select
+                  value={testFilter}
+                  onChange={(e) => setTestFilter(e.target.value as TestFilter)}
+                  className="px-4 py-2 border-2 border-orange-300 rounded-md bg-white text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                >
+                  <option value="any">🔄 Any (Normal Mode)</option>
+                  <option value="has_ambiguity">⚠️ Has Ambiguity (Need to verify choice)</option>
+                  <option value="unresolved_ambiguity">🆘 Unresolved Ambiguity (Nothing selected yet)</option>
+                  <option value="has_food_items">🍽️ Has Food Items</option>
+                  <option value="has_plates">🍴 Has Plates</option>
+                  <option value="has_buzzers">📟 Has Buzzers/Pagers</option>
+                  <option value="no_annotations">❌ Missing Annotations (Data Error)</option>
+                </select>
+              </div>
+              
               <button
                 onClick={handleStartWork}
                 disabled={loading}
@@ -279,7 +306,21 @@ export default function WorkPage() {
 
           {/* Subtle hint */}
           <p className="text-center text-xs text-gray-400 mt-4">
-            Система автоматически выберет следующую задачу
+            {testFilter === 'any' ? (
+              'Система автоматически выберет следующую задачу'
+            ) : (
+              <span className="text-orange-600 font-medium">
+                🧪 Debug mode: {
+                  testFilter === 'has_ambiguity' ? 'Searching for dishes with multiple variants (to verify choice)...' :
+                  testFilter === 'unresolved_ambiguity' ? 'Searching for unresolved ambiguity (nothing selected)...' :
+                  testFilter === 'has_food_items' ? 'Searching for tasks with food items...' :
+                  testFilter === 'has_plates' ? 'Searching for tasks with plates...' :
+                  testFilter === 'has_buzzers' ? 'Searching for tasks with pagers...' :
+                  testFilter === 'no_annotations' ? 'Searching for tasks with missing annotations...' :
+                  'Custom filter active'
+                }
+              </span>
+            )}
           </p>
         </div>
       </div>

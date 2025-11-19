@@ -158,6 +158,7 @@ function RecognitionViewContent({
             annotations={annotations}
             validationType={currentValidationType}
             selectedItemId={selectedItemId}
+            recipeLines={data.recipeLines}
             recipeLineOptions={data.recipeLineOptions}
             activeMenu={data.activeMenu}
             onItemSelect={setSelectedItemId}

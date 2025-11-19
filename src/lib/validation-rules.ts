@@ -1,4 +1,4 @@
-import type { TrayItem, AnnotationView, Image, RecipeLine, ValidationType, ItemType } from '@/types/domain'
+import type { TrayItem, AnnotationView, Image, RecipeLine, RecipeLineOption, ValidationType, ItemType } from '@/types/domain'
 
 export interface ValidationResult {
   valid: boolean
@@ -14,6 +14,51 @@ export interface SessionValidationResult {
   canComplete: boolean
   itemErrors: Map<number, string[]> // itemId -> errors
   globalErrors: string[]
+}
+
+/**
+ * Проверка наличия нескольких вариантов для FOOD item
+ * Возвращает true если есть несколько options (независимо от того, выбран ли один)
+ */
+export function hasMultipleOptions(
+  item: TrayItem,
+  recipeLineOptions: RecipeLineOption[]
+): boolean {
+  // Только для FOOD items с recipe_line_id
+  if (item.type !== 'FOOD' || !item.recipe_line_id) {
+    return false
+  }
+
+  // Получить все options для данного recipe_line
+  const options = recipeLineOptions.filter(opt => opt.recipe_line_id === item.recipe_line_id)
+  
+  // Есть несколько вариантов
+  return options.length > 1
+}
+
+/**
+ * Проверка неопределенности для FOOD item
+ * Возвращает true если есть неразрешенная неопределенность (несколько options, но ни один не выбран)
+ */
+export function hasUnresolvedAmbiguity(
+  item: TrayItem,
+  recipeLineOptions: RecipeLineOption[]
+): boolean {
+  // Только для FOOD items с recipe_line_id
+  if (item.type !== 'FOOD' || !item.recipe_line_id) {
+    return false
+  }
+
+  // Получить все options для данного recipe_line
+  const options = recipeLineOptions.filter(opt => opt.recipe_line_id === item.recipe_line_id)
+  
+  // Если есть несколько вариантов, но ни один не выбран - это неопределенность
+  if (options.length > 1) {
+    const hasSelected = options.some(opt => opt.is_selected)
+    return !hasSelected
+  }
+
+  return false
 }
 
 /**
@@ -133,7 +178,8 @@ export function validateSession(
   annotations: AnnotationView[],
   images: Image[],
   recipeLines: RecipeLine[],
-  validationType: ValidationType
+  validationType: ValidationType,
+  recipeLineOptions: RecipeLineOption[] = []
 ): SessionValidationResult {
   // Для OCCLUSION и BOTTLE_ORIENTATION валидация не требуется
   if (validationType === 'OCCLUSION_VALIDATION' || validationType === 'BOTTLE_ORIENTATION_VALIDATION') {
@@ -170,11 +216,24 @@ export function validateSession(
       return
     }
 
+    const errors: string[] = []
+
+    // 1. Проверка неопределенности (только для FOOD_VALIDATION)
+    if (validationType === 'FOOD_VALIDATION' && hasUnresolvedAmbiguity(item, recipeLineOptions)) {
+      errors.push('⚠️ Неопределенность: выберите правильный вариант блюда')
+    }
+
+    // 2. Проверка аннотаций
     const expectedQuantity = getExpectedQuantity(item, recipeLines)
     const result = validateItemAnnotations(item, annotations, images, expectedQuantity)
-
+    
     if (!result.valid) {
-      itemErrors.set(item.id, result.errors)
+      errors.push(...result.errors)
+    }
+
+    // Если есть ошибки - добавляем в map
+    if (errors.length > 0) {
+      itemErrors.set(item.id, errors)
     }
   })
 

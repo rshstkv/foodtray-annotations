@@ -4,9 +4,8 @@ import { apiSuccess, apiError, ApiErrorCode } from '@/lib/api-response'
 /**
  * POST /api/validation/[workLogId]/reset
  * 
- * Сбросить сессию валидации к начальному состоянию:
- * - Удалить все work_items и work_annotations
- * - Заново скопировать данные из initial_tray_items и initial_annotations
+ * Откатить work_items и work_annotations к начальному состоянию ТЕКУЩЕГО ЭТАПА
+ * (не всего recognition, а только текущей валидации)
  */
 export async function POST(
   request: Request,
@@ -27,7 +26,9 @@ export async function POST(
       return apiError('Authentication required', 401, ApiErrorCode.UNAUTHORIZED)
     }
 
-    // 1. Проверить work log
+    console.log(`[validation/reset] Resetting work_log ${workLogIdNum} to initial state`)
+
+    // 1. Получить work_log для проверки прав
     const { data: workLog, error: workLogError } = await supabase
       .from('validation_work_log')
       .select('*')
@@ -38,164 +39,174 @@ export async function POST(
       return apiError('Work log not found', 404, ApiErrorCode.NOT_FOUND)
     }
 
-    // Проверка доступа
     if (workLog.assigned_to !== user.id) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-      if (profile?.role !== 'admin') {
-        return apiError('Access denied', 403, ApiErrorCode.FORBIDDEN)
-      }
+      return apiError('Access denied', 403, ApiErrorCode.FORBIDDEN)
     }
 
-    // Убрали проверку статуса - reset можно делать в любом состоянии
-    // if (workLog.status !== 'in_progress') {
-    //   return apiError('Can only reset in-progress work logs', 400, ApiErrorCode.VALIDATION_ERROR)
-    // }
-
     const recognitionId = workLog.recognition_id
-    console.log(`[validation/reset] Resetting work_log ${workLogIdNum} for recognition ${recognitionId}`)
 
-    // 2. Удалить все текущие work_items и work_annotations
-    const { error: deleteItemsError } = await supabase
+    // 2. Удалить все work_items (каскадно удалятся work_annotations)
+    await supabase
       .from('work_items')
       .delete()
       .eq('work_log_id', workLogIdNum)
 
-    if (deleteItemsError) {
-      console.error('[validation/reset] Error deleting work_items:', deleteItemsError)
-      return apiError('Failed to delete work items', 500, ApiErrorCode.INTERNAL_ERROR)
-    }
+    console.log(`[validation/reset] Deleted all work_items for work_log ${workLogIdNum}`)
 
-    const { error: deleteAnnotationsError } = await supabase
-      .from('work_annotations')
-      .delete()
-      .eq('work_log_id', workLogIdNum)
-
-    if (deleteAnnotationsError) {
-      console.error('[validation/reset] Error deleting work_annotations:', deleteAnnotationsError)
-      return apiError('Failed to delete work annotations', 500, ApiErrorCode.INTERNAL_ERROR)
-    }
-
-    // 3. Скопировать заново initial_tray_items в work_items
-    const { data: initialItems, error: initialItemsError } = await supabase
+    // 3. Скопировать заново из initial_tray_items
+    // Используем ту же логику что и в триггере initialize_work_session
+    const { data: initialItems } = await supabase
       .from('initial_tray_items')
-      .select('*')
+      .select(`
+        id,
+        recognition_id,
+        item_type,
+        source,
+        recipe_line_option_id,
+        bottle_orientation,
+        metadata
+      `)
       .eq('recognition_id', recognitionId)
 
-    if (initialItemsError) {
-      console.error('[validation/reset] Error loading initial items:', initialItemsError)
-      return apiError('Failed to load initial items', 500, ApiErrorCode.INTERNAL_ERROR)
+    if (!initialItems || initialItems.length === 0) {
+      console.warn(`[validation/reset] No initial_tray_items found for recognition ${recognitionId}`)
+      return apiSuccess({ items: [], annotations: [] })
     }
 
-    // Вставляем work_items
-    if (initialItems && initialItems.length > 0) {
-      const workItemsToInsert = initialItems.map(item => ({
-        work_log_id: workLogIdNum,
-        initial_item_id: item.id,
-        recognition_id: item.recognition_id,
-        type: item.item_type,
-        source: item.source,
-        recipe_line_id: item.recipe_line_id,
-        quantity: item.quantity || 1,
-        bottle_orientation: item.bottle_orientation,
-      }))
+    // 4. Для каждого initial_item создаем work_item
+    const workItemsToInsert = []
+    for (const iti of initialItems) {
+      // Получить recipe_line_id через recipe_line_options (если есть)
+      let recipeLineId = null
+      let quantity = 1
 
-      const { data: insertedItems, error: insertItemsError } = await supabase
-        .from('work_items')
-        .insert(workItemsToInsert)
-        .select()
+      if (iti.recipe_line_option_id) {
+        const { data: rlo } = await supabase
+          .from('recipe_line_options')
+          .select('recipe_line_id, recipe_id')
+          .eq('id', iti.recipe_line_option_id)
+          .single()
 
-      if (insertItemsError) {
-        console.error('[validation/reset] Error inserting work_items:', insertItemsError)
-        return apiError('Failed to create work items', 500, ApiErrorCode.INTERNAL_ERROR)
-      }
+        if (rlo) {
+          recipeLineId = rlo.recipe_line_id
 
-      // 4. Скопировать initial_annotations в work_annotations
-      // Сначала загрузим image IDs для этого recognition
-      const { data: imagesData, error: imagesError } = await supabase
-        .from('images')
-        .select('id')
-        .eq('recognition_id', recognitionId)
-      
-      if (imagesError) {
-        console.error('[validation/reset] Error loading images:', imagesError)
-        return apiError('Failed to load images', 500, ApiErrorCode.INTERNAL_ERROR)
-      }
+          // Получить quantity из recipe_lines
+          const { data: rl } = await supabase
+            .from('recipe_lines')
+            .select('quantity')
+            .eq('id', rlo.recipe_line_id)
+            .single()
 
-      const imageIds = imagesData?.map(img => img.id) || []
-      
-      // Теперь загружаем initial_annotations для этих изображений
-      const { data: initialAnnotations, error: initialAnnotationsError } = await supabase
-        .from('initial_annotations')
-        .select('*')
-        .in('image_id', imageIds.length > 0 ? imageIds : [0])
-
-      if (initialAnnotationsError) {
-        console.error('[validation/reset] Error loading initial annotations:', initialAnnotationsError)
-        return apiError('Failed to load initial annotations', 500, ApiErrorCode.INTERNAL_ERROR)
-      }
-
-      // Создаем mapping: initial_item_id -> work_item_id
-      const itemMapping = new Map<number, number>()
-      insertedItems?.forEach(workItem => {
-        if (workItem.initial_item_id) {
-          itemMapping.set(workItem.initial_item_id, workItem.id)
-        }
-      })
-
-      // Вставляем work_annotations
-      if (initialAnnotations && initialAnnotations.length > 0) {
-        const workAnnotationsToInsert = initialAnnotations
-          .filter(ann => ann.initial_tray_item_id && itemMapping.has(ann.initial_tray_item_id))
-          .map(ann => ({
-            work_log_id: workLogIdNum,
-            initial_annotation_id: ann.id,
-            image_id: ann.image_id,
-            work_item_id: itemMapping.get(ann.initial_tray_item_id!)!,
-            bbox: ann.bbox,
-            is_occluded: ann.is_occluded,
-            occlusion_metadata: ann.occlusion_metadata,
-          }))
-
-        if (workAnnotationsToInsert.length > 0) {
-          const { error: insertAnnotationsError } = await supabase
-            .from('work_annotations')
-            .insert(workAnnotationsToInsert)
-
-          if (insertAnnotationsError) {
-            console.error('[validation/reset] Error inserting work_annotations:', insertAnnotationsError)
-            return apiError('Failed to create work annotations', 500, ApiErrorCode.INTERNAL_ERROR)
+          if (rl) {
+            quantity = rl.quantity
           }
         }
       }
+
+      workItemsToInsert.push({
+        work_log_id: workLogIdNum,
+        initial_item_id: iti.id,
+        recognition_id: iti.recognition_id,
+        type: iti.item_type,
+        source: iti.source,
+        recipe_line_id: recipeLineId,
+        quantity: quantity,
+        bottle_orientation: iti.bottle_orientation,
+        metadata: iti.metadata, // ВАЖНО: копируем metadata (там может быть name для блюд из меню)
+      })
     }
 
-    // 5. Загрузить обновленные данные
-    const { data: items } = await supabase
+    const { data: newWorkItems, error: insertError } = await supabase
+      .from('work_items')
+      .insert(workItemsToInsert)
+      .select()
+
+    if (insertError) {
+      console.error('[validation/reset] Error inserting work_items:', insertError)
+      return apiError('Failed to reset items', 500, ApiErrorCode.INTERNAL_ERROR)
+    }
+
+    console.log(`[validation/reset] Created ${newWorkItems.length} work_items`)
+
+    // 5. Получить image IDs для recognition
+    const { data: images } = await supabase
+      .from('images')
+      .select('id')
+      .eq('recognition_id', recognitionId)
+
+    const imageIds = images?.map(img => img.id) || []
+
+    if (imageIds.length === 0) {
+      console.warn(`[validation/reset] No images found for recognition ${recognitionId}`)
+      return apiSuccess({ items: newWorkItems, annotations: [] })
+    }
+
+    // 6. Скопировать annotations из initial_annotations
+    const { data: initialAnnotations } = await supabase
+      .from('initial_annotations')
+      .select('*')
+      .in('image_id', imageIds)
+
+    console.log(`[validation/reset] Found ${initialAnnotations?.length || 0} initial_annotations`)
+
+    if (initialAnnotations && initialAnnotations.length > 0) {
+      const annotationsToInsert = []
+      
+      for (const ia of initialAnnotations) {
+        // Найти соответствующий work_item
+        const workItem = newWorkItems.find(wi => wi.initial_item_id === ia.initial_tray_item_id)
+        
+        if (workItem) {
+          annotationsToInsert.push({
+            work_log_id: workLogIdNum,
+            initial_annotation_id: ia.id,
+            image_id: ia.image_id,
+            work_item_id: workItem.id,
+            bbox: ia.bbox,
+            is_occluded: ia.is_occluded,
+            occlusion_metadata: null,
+          })
+        }
+      }
+
+      if (annotationsToInsert.length > 0) {
+        const { error: annError } = await supabase
+          .from('work_annotations')
+          .insert(annotationsToInsert)
+
+        if (annError) {
+          console.error('[validation/reset] Error inserting work_annotations:', annError)
+        } else {
+          console.log(`[validation/reset] Created ${annotationsToInsert.length} work_annotations`)
+        }
+      }
+    }
+
+    // 7. Загрузить обновленные данные для возврата
+    const { data: finalItems } = await supabase
       .from('work_items')
       .select('*')
       .eq('work_log_id', workLogIdNum)
       .eq('is_deleted', false)
 
-    const { data: annotations } = await supabase
+    const { data: finalAnnotations } = await supabase
       .from('work_annotations')
       .select('*')
       .eq('work_log_id', workLogIdNum)
       .eq('is_deleted', false)
 
-    console.log(`[validation/reset] Reset work_log ${workLogIdNum}: ${items?.length || 0} items, ${annotations?.length || 0} annotations`)
+    console.log(`[validation/reset] ✓ Reset complete:`)
+    console.log(`  - Items: ${finalItems?.length || 0}`)
+    console.log(`  - Annotations: ${finalAnnotations?.length || 0}`)
+    console.log(`  - Initial items had: ${initialItems.length}`)
+    console.log(`  - Initial annotations had: ${initialAnnotations?.length || 0}`)
 
     return apiSuccess({
-      items: items || [],
-      annotations: annotations || [],
+      items: finalItems || [],
+      annotations: finalAnnotations || [],
     })
   } catch (error) {
-    console.error('[validation/reset] Error:', error)
+    console.error('[validation/reset] Unexpected error:', error)
     return apiError('Internal server error', 500, ApiErrorCode.INTERNAL_ERROR)
   }
 }
-

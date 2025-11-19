@@ -20,19 +20,21 @@ import {
 } from '@/components/ui/select'
 import type {
   TrayItem,
+  RecipeLine,
   RecipeLineOption,
   UpdateItemRequest,
   BuzzerColor,
   ActiveMenuItem,
 } from '@/types/domain'
 import { ITEM_TYPE_LABELS, BUZZER_COLOR_LABELS } from '@/types/domain'
-import { Search } from 'lucide-react'
+import { Search, AlertCircle } from 'lucide-react'
 
 interface EditItemDialogProps {
   open: boolean
   onClose: () => void
   onSave: (id: number, data: UpdateItemRequest) => void
   item: TrayItem
+  recipeLines: RecipeLine[]
   recipeLineOptions: RecipeLineOption[]
   activeMenu?: ActiveMenuItem[]
 }
@@ -42,6 +44,7 @@ export function EditItemDialog({
   onClose,
   onSave,
   item,
+  recipeLines,
   recipeLineOptions,
   activeMenu = [],
 }: EditItemDialogProps) {
@@ -49,11 +52,45 @@ export function EditItemDialog({
   const [selectedRecipeLineId, setSelectedRecipeLineId] = useState(
     item.recipe_line_id ? String(item.recipe_line_id) : ''
   )
+  const [selectedOptionId, setSelectedOptionId] = useState<string>('') // Для выбора конкретного option
   const [selectedMenuItem, setSelectedMenuItem] = useState<string>('')
   const [menuSearch, setMenuSearch] = useState('')
   const [buzzerColor, setBuzzerColor] = useState<BuzzerColor>(
     (item.metadata?.color as BuzzerColor) || 'green'
   )
+
+  // Группируем options по recipe_line_id
+  const optionsByRecipeLine = useMemo(() => {
+    const map = new Map<number, RecipeLineOption[]>()
+    recipeLineOptions.forEach(option => {
+      if (!map.has(option.recipe_line_id)) {
+        map.set(option.recipe_line_id, [])
+      }
+      map.get(option.recipe_line_id)!.push(option)
+    })
+    return map
+  }, [recipeLineOptions])
+
+  // Получить название для recipe_line
+  const getRecipeLineName = (recipeLineId: number): string => {
+    const recipeLine = recipeLines.find(rl => rl.id === recipeLineId)
+    const options = optionsByRecipeLine.get(recipeLineId) || []
+    
+    // DEBUG
+    if (options.length === 0) {
+      console.warn(`[EditItemDialog] No options for recipe_line ${recipeLineId}. RecipeLine:`, recipeLine)
+    }
+    
+    // Если есть выбранный option - берем его название
+    const selectedOption = options.find(opt => opt.is_selected)
+    if (selectedOption) return selectedOption.name
+    // Иначе берем первый доступный
+    if (options.length > 0) return options[0].name
+    // Fallback на raw_name из recipe_line
+    if (recipeLine?.raw_name) return recipeLine.raw_name
+    
+    return 'Без названия'
+  }
 
   // Фильтрация блюд из меню по поисковому запросу
   const filteredActiveMenu = useMemo(() => {
@@ -83,8 +120,14 @@ export function EditItemDialog({
     }
     // Для FOOD: можно изменить recipe_line_id (выбор другого блюда из чека)
     else if (item.type === 'FOOD' && selectedRecipeLineId) {
-      updates.recipe_line_id = parseInt(selectedRecipeLineId)
+      const recipeLineId = parseInt(selectedRecipeLineId)
+      updates.recipe_line_id = recipeLineId
       updates.metadata = null // Убираем metadata.name если переключаемся на чек
+      
+      // Если выбран конкретный option (разрешение неопределенности)
+      if (selectedOptionId) {
+        updates.selected_option_id = parseInt(selectedOptionId)
+      }
     }
 
     // Для BUZZER: можно изменить цвет
@@ -115,27 +158,113 @@ export function EditItemDialog({
             />
           </div>
 
-          {/* Для FOOD: выбор из чека (показываем ВСЕ блюда) */}
-          {item.type === 'FOOD' && recipeLineOptions.length > 0 && (
+          {/* Для FOOD: выбор из чека (показываем строки чека) */}
+          {item.type === 'FOOD' && (
             <div className="space-y-2">
               <Label>Блюдо из чека</Label>
-              <Select value={selectedRecipeLineId} onValueChange={setSelectedRecipeLineId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Выберите блюдо из чека" />
-                </SelectTrigger>
-                <SelectContent>
-                  {recipeLineOptions
-                    .filter(option => option && option.recipe_line_id)
-                    .map((option) => (
-                      <SelectItem key={option.id} value={String(option.recipe_line_id)}>
-                        {option.name} ({option.external_id})
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-500">
-                Можно выбрать другое блюдо из чека
-              </p>
+              {recipeLines.length > 0 ? (
+                <>
+                  {/* Выбор строки чека */}
+                  <Select value={selectedRecipeLineId} onValueChange={(value) => {
+                    setSelectedRecipeLineId(value)
+                    setSelectedOptionId('') // Сбросить выбор option при смене recipe_line
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Выберите блюдо из чека" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {recipeLines.map((recipeLine) => {
+                        const options = optionsByRecipeLine.get(recipeLine.id) || []
+                        const hasAmbiguity = options.length > 1
+                        return (
+                          <SelectItem key={recipeLine.id} value={String(recipeLine.id)}>
+                            {getRecipeLineName(recipeLine.id)} (кол-во: {recipeLine.quantity})
+                            {hasAmbiguity && <span className="ml-2 text-orange-600">⚠️ неопределенность</span>}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Если у выбранного recipe_line есть несколько options - показываем выбор */}
+                  {selectedRecipeLineId && (() => {
+                    const options = optionsByRecipeLine.get(parseInt(selectedRecipeLineId)) || []
+                    if (options.length > 1) {
+                      const hasSelected = options.some(opt => opt.is_selected)
+                      const selectedOption = options.find(opt => opt.is_selected)
+                      
+                      return (
+                        <div className={`p-3 border rounded-md space-y-2 ${
+                          hasSelected 
+                            ? 'bg-yellow-50 border-yellow-200' 
+                            : 'bg-orange-50 border-orange-200'
+                        }`}>
+                          <p className={`text-sm font-medium flex items-center gap-2 ${
+                            hasSelected ? 'text-yellow-900' : 'text-orange-900'
+                          }`}>
+                            <AlertCircle className="w-4 h-4" />
+                            {hasSelected 
+                              ? 'Проверьте выбор: можно изменить вариант' 
+                              : 'Неопределенность: выберите правильный вариант'
+                            }
+                          </p>
+                          
+                          {hasSelected && selectedOption && (
+                            <div className="px-3 py-2 bg-white border-l-4 border-l-green-500 rounded">
+                              <p className="text-xs text-gray-600 mb-1">Сейчас выбрано:</p>
+                              <p className="text-sm font-medium text-gray-900">
+                                ✓ {selectedOption.name} ({selectedOption.external_id})
+                              </p>
+                            </div>
+                          )}
+                          
+                          <Select 
+                            value={selectedOptionId} 
+                            onValueChange={setSelectedOptionId}
+                          >
+                            <SelectTrigger className="bg-white">
+                              <SelectValue placeholder="Выберите вариант" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {options.map((option) => (
+                                <SelectItem 
+                                  key={option.id} 
+                                  value={String(option.id)}
+                                  className={option.is_selected ? 'bg-green-50 font-medium' : ''}
+                                >
+                                  {option.is_selected && '✓ '}
+                                  {option.name} ({option.external_id})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          
+                          <p className="text-xs text-gray-500 italic">
+                            {hasSelected 
+                              ? 'Если текущий выбор неверный - выберите другой вариант'
+                              : 'Выберите правильное название для продолжения'
+                            }
+                          </p>
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
+
+                  <p className="text-xs text-gray-500">
+                    Можно выбрать другое блюдо из чека
+                  </p>
+                </>
+              ) : (
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
+                  <p className="text-sm text-gray-600">
+                    Нет чека для этого распознавания
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Все блюда были добавлены вручную или из активного меню
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

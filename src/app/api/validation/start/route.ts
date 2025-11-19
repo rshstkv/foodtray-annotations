@@ -11,9 +11,19 @@ import type { StartValidationResponse } from '@/types/domain'
  * 
  * Производительность: 80-150ms
  * Recognition блокируется целиком для одного пользователя
+ * 
+ * OPTIONAL: priority_filter - для тестирования крайних случаев:
+ *   - 'any' (default)
+ *   - 'has_ambiguity' - recognition с неопределенностью в блюдах
+ *   - 'plate_count_mismatch' - несоответствие количества тарелок
+ *   - 'annotation_count_mismatch' - несоответствие количества аннотаций
  */
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    // Получить опциональный фильтр из body
+    const body = await request.json().catch(() => ({}))
+    const priorityFilter = body.priority_filter || 'any'
+
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -22,8 +32,13 @@ export async function POST() {
     }
 
     // ШАГ 1: Атомарно захватить recognition со всеми validation steps
+    console.log(`[validation/start] Using priority filter: ${priorityFilter}`)
+    
     const { data: taskData, error: taskError } = await supabase
-      .rpc('acquire_recognition_with_steps', { p_user_id: user.id })
+      .rpc('acquire_recognition_with_steps', { 
+        p_user_id: user.id,
+        p_filter: priorityFilter 
+      })
       .maybeSingle()
 
     if (taskError) {

@@ -247,6 +247,7 @@ export interface CreateItemRequest {
 export interface UpdateItemRequest {
   type?: ItemType
   recipe_line_id?: number | null
+  selected_option_id?: number // Для разрешения неопределенности (помечает option как is_selected)
   quantity?: number
   bottle_orientation?: BottleOrientation | null
   metadata?: Record<string, any> | null

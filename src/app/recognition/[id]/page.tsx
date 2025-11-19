@@ -138,6 +138,7 @@ function RecognitionViewContentInner({
           annotations={activeSession.annotations}
           validationType={activeSession.workLog.validation_type}
           selectedItemId={null}
+          recipeLines={activeSession.recipeLines}
           recipeLineOptions={activeSession.recipeLineOptions}
           activeMenu={activeSession.activeMenu}
           onItemSelect={() => {}}
