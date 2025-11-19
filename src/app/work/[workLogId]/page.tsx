@@ -598,10 +598,20 @@ export default function WorkSessionPage({
         )
         if (response.success && response.data) {
           const loadedSession = response.data.session
+          
+          // Проверка: если задача уже завершена или отменена - редирект на главную
+          if (loadedSession.workLog.status === 'abandoned' || loadedSession.workLog.status === 'completed') {
+            console.warn(`[work] Session ${workLogId} is ${loadedSession.workLog.status}, redirecting to /work`)
+            router.push('/work')
+            return
+          }
+          
           setSession(loadedSession)
         }
       } catch (error) {
         console.error('Failed to load session:', error)
+        // Если ошибка загрузки - тоже редирект
+        router.push('/work')
       } finally {
         setLoading(false)
       }
@@ -610,7 +620,7 @@ export default function WorkSessionPage({
     if (user) {
       loadSession()
     }
-  }, [workLogId, user, readOnly])
+  }, [workLogId, user, readOnly, router])
 
   if (!user || loading || !session) {
     return (
