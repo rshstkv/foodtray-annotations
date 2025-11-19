@@ -36,7 +36,7 @@ jobs:
           # Link to production project  
           supabase link --project-ref $SUPABASE_PROJECT_ID --password $SUPABASE_DB_PASSWORD
           
-          # Push all migrations to production
-          supabase db push
+          # Push all migrations to production (including ones before last applied)
+          supabase db push --include-all
           
           echo "✅ All migrations pushed successfully"
