@@ -283,23 +283,34 @@ export default function RecognitionViewPage({
   const allItems = data.sessions.flatMap(session => session.workItems)
   const allAnnotations = data.sessions.flatMap(session => session.workAnnotations)
   
-  // Фильтруем items по текущему типу валидации
-  const currentItemType = getItemTypeFromValidationType(currentValidationType)
-  const filteredItems = allItems.filter(
-    item => !item.is_deleted && item.type === currentItemType
-  )
+  // Для OCCLUSION_VALIDATION передаем ВСЕ items и annotations (фильтрация будет в компонентах)
+  // Для остальных типов - фильтруем по типу item
+  let filteredItems: any[]
+  let filteredAnnotations: any[]
+  
+  if (currentValidationType === 'OCCLUSION_VALIDATION') {
+    // Для окклюзий - передаем все (не удаленные)
+    filteredItems = allItems.filter(item => !item.is_deleted)
+    filteredAnnotations = allAnnotations.filter(ann => !ann.is_deleted)
+  } else {
+    // Для остальных типов - фильтруем по типу валидации
+    const currentItemType = getItemTypeFromValidationType(currentValidationType)
+    filteredItems = allItems.filter(
+      item => !item.is_deleted && item.type === currentItemType
+    )
+    
+    // Фильтруем annotations по items текущего типа
+    const filteredItemIds = new Set(filteredItems.map(item => item.id))
+    filteredAnnotations = allAnnotations.filter(
+      ann => !ann.is_deleted && filteredItemIds.has(ann.work_item_id)
+    )
+  }
   
   // Помечаем items которые были добавлены пользователем (не из initial)
   const itemsWithChangeStatus = filteredItems.map(item => ({
     ...item,
     isNewItem: item.initial_item_id === null, // Новый item добавлен пользователем
   }))
-  
-  // Фильтруем annotations по items текущего типа
-  const filteredItemIds = new Set(filteredItems.map(item => item.id))
-  const filteredAnnotations = allAnnotations.filter(
-    ann => !ann.is_deleted && filteredItemIds.has(ann.work_item_id)
-  )
 
   // Преобразуем в формат ValidationSession
   const mockSession: any = {
