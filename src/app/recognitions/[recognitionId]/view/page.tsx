@@ -159,6 +159,7 @@ function RecognitionViewContent({
             validationType={currentValidationType}
             selectedItemId={selectedItemId}
             recipeLineOptions={data.recipeLineOptions}
+            activeMenu={data.activeMenu}
             onItemSelect={setSelectedItemId}
             onItemCreate={() => {}}
             onItemDelete={() => {}}

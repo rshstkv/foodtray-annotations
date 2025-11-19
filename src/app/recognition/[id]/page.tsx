@@ -139,6 +139,7 @@ function RecognitionViewContentInner({
           validationType={activeSession.workLog.validation_type}
           selectedItemId={null}
           recipeLineOptions={activeSession.recipeLineOptions}
+          activeMenu={activeSession.activeMenu}
           onItemSelect={() => {}}
           onItemCreate={() => {}}
           onItemDelete={() => {}}

@@ -17,6 +17,7 @@ interface ItemsListProps {
   validationType: ValidationType
   selectedItemId: number | null
   recipeLineOptions: RecipeLineOption[]
+  activeMenu?: any[]
   onItemSelect: (id: number) => void
   onItemCreate: () => void
   onItemDelete: (id: number) => void
@@ -30,6 +31,7 @@ export function ItemsList({
   validationType,
   selectedItemId,
   recipeLineOptions,
+  activeMenu = [],
   onItemSelect,
   onItemCreate,
   onItemDelete,
@@ -328,6 +330,7 @@ export function ItemsList({
           onSave={onItemUpdate}
           item={editingItem}
           recipeLineOptions={recipeLineOptions}
+          activeMenu={activeMenu}
         />
       )}
     </div>
