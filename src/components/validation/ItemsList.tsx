@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Plus, Trash2, Pencil, AlertCircle } from 'lucide-react'
 import type { TrayItem, ItemType, ValidationType, RecipeLineOption, BuzzerColor, UpdateItemRequest } from '@/types/domain'
-import { ITEM_TYPE_LABELS, ITEM_TYPE_COLORS, BUZZER_COLOR_LABELS, getItemTypeFromValidationType } from '@/types/domain'
+import { ITEM_TYPE_LABELS, ITEM_TYPE_COLORS, BUZZER_COLOR_LABELS, getItemTypeFromValidationType, getItemColor } from '@/types/domain'
 import { getValidationCapabilities } from '@/lib/validation-capabilities'
 import { cn } from '@/lib/utils'
 import { EditItemDialog } from './EditItemDialog'
@@ -125,7 +125,7 @@ export function ItemsList({
         ) : (
           filteredItems.map((item, index) => {
             const isSelected = item.id === selectedItemId
-            const color = ITEM_TYPE_COLORS[item.type]
+            const color = getItemColor(item)
             // Все work_items имеют уникальные ID
             const uniqueKey = item.id
 

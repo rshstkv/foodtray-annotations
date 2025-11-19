@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { Image, AnnotationView, TrayItem, ItemType, RecipeLineOption, ValidationType } from '@/types/domain'
 import { BBoxCanvas } from './BBoxCanvas'
 import type { BBox } from '@/types/domain'
-import { ITEM_TYPE_COLORS, getItemTypeFromValidationType } from '@/types/domain'
+import { ITEM_TYPE_COLORS, getItemTypeFromValidationType, getItemColor } from '@/types/domain'
 import { getValidationCapabilities } from '@/lib/validation-capabilities'
 
 // Supabase URL - must be set as NEXT_PUBLIC_SUPABASE_URL env variable
@@ -108,6 +108,7 @@ export function ImageGrid({
           itemType: item?.type || ('OTHER' as ItemType),
           itemId: ann.work_item_id,
           itemLabel: getItemLabel(item),
+          itemColor: item ? getItemColor(item) : ITEM_TYPE_COLORS.OTHER,
           isOccluded: ann.is_occluded,
         }
       })
@@ -156,9 +157,9 @@ export function ImageGrid({
                               isSelected ? 'ring-2 ring-offset-1' : 'hover:brightness-90'
                             }`}
                             style={{ 
-                              backgroundColor: ITEM_TYPE_COLORS[ann.itemType] + (isSelected ? '40' : '20'),
-                              color: ITEM_TYPE_COLORS[ann.itemType],
-                              border: `${isSelected ? '2px' : '1px'} solid ${ITEM_TYPE_COLORS[ann.itemType]}`,
+                              backgroundColor: ann.itemColor + (isSelected ? '40' : '20'),
+                              color: ann.itemColor,
+                              border: `${isSelected ? '2px' : '1px'} solid ${ann.itemColor}`,
                               opacity: ann.isOccluded ? 0.6 : 1
                             }}
                             onClick={() => onAnnotationSelect(ann.id, ann.itemId)}

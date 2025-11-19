@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { CheckCircle2, AlertTriangle, XCircle, Eye, EyeOff, Trash2 } from 'lucide-react'
 import type { AnnotationView, Image, TrayItem, RecipeLineOption } from '@/types/domain'
-import { ITEM_TYPE_COLORS, ITEM_TYPE_LABELS } from '@/types/domain'
+import { ITEM_TYPE_COLORS, ITEM_TYPE_LABELS, getItemColor } from '@/types/domain'
 
 interface AnnotationPanelProps {
   selectedItem: TrayItem | null
@@ -63,7 +63,7 @@ export function AnnotationPanel({
   const missingCameras = images.filter((img) => !annotationsByCamera.has(img.id))
 
   const item = selectedItem as any
-  const itemColor = ITEM_TYPE_COLORS[(item.item_type || item.type) as keyof typeof ITEM_TYPE_COLORS] || '#6B7280'
+  const itemColor = getItemColor(selectedItem)
 
   return (
     <Card className="p-4">

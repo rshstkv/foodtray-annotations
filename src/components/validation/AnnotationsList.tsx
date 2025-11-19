@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Trash2 } from 'lucide-react'
 import type { AnnotationView, TrayItem } from '@/types/domain'
-import { ITEM_TYPE_LABELS, ITEM_TYPE_COLORS } from '@/types/domain'
+import { ITEM_TYPE_LABELS, ITEM_TYPE_COLORS, getItemColor } from '@/types/domain'
 import { cn } from '@/lib/utils'
 
 interface AnnotationsListProps {
@@ -83,7 +83,7 @@ export function AnnotationsList({
 
             const anyItem = item as any
             const itemType = (anyItem.item_type || anyItem.type) as keyof typeof ITEM_TYPE_COLORS
-            const color = ITEM_TYPE_COLORS[itemType]
+            const color = getItemColor(item)
 
             return (
               <div key={itemId} className="space-y-2">

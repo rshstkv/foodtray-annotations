@@ -11,6 +11,7 @@ interface BBoxData {
   itemType: ItemType
   itemId: number
   itemLabel?: string
+  itemColor?: string
   isOccluded?: boolean
 }
 
@@ -274,7 +275,7 @@ export function BBoxCanvas({
         })
       }
 
-      const color = ITEM_TYPE_COLORS[ann.itemType] || '#6B7280'
+      const color = ann.itemColor || ITEM_TYPE_COLORS[ann.itemType] || '#6B7280'
       const isSelected = ann.id === selectedAnnotationId
       const isHighlighted = ann.itemId === highlightedItemId
       const isHovered = ann.id === hoveredAnnotationId

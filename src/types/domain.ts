@@ -333,6 +333,24 @@ export const BUZZER_COLOR_LABELS: Record<BuzzerColor, string> = {
   white: 'Белый',
 }
 
+export const BUZZER_COLOR_HEX: Record<BuzzerColor, string> = {
+  green: '#10B981', // green
+  blue: '#3B82F6', // blue
+  red: '#EF4444', // red
+  white: '#E5E7EB', // light gray
+}
+
+// Helper to get item color
+export function getItemColor(item: WorkItem | TrayItem): string {
+  // For BUZZER type, use the specific buzzer color from metadata
+  if (item.type === 'BUZZER' && item.metadata?.color) {
+    const buzzerColor = item.metadata.color as BuzzerColor
+    return BUZZER_COLOR_HEX[buzzerColor] || ITEM_TYPE_COLORS.BUZZER
+  }
+  // For all other types, use the default color mapping
+  return ITEM_TYPE_COLORS[item.type]
+}
+
 // Helper to get item type from validation type
 export function getItemTypeFromValidationType(
   validationType: ValidationType
