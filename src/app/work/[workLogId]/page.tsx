@@ -462,6 +462,7 @@ function ValidationSessionContent() {
         sidebar={
           <ItemsList
             items={items}
+            annotations={annotations}
             validationType={session.workLog.validation_type}
             selectedItemId={selectedItemId}
             recipeLineOptions={session.recipeLineOptions}

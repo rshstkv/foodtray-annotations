@@ -135,6 +135,7 @@ function RecognitionViewContentInner({
       sidebar={
         <ItemsList
           items={activeSession.items}
+          annotations={activeSession.annotations}
           validationType={activeSession.workLog.validation_type}
           selectedItemId={null}
           recipeLineOptions={activeSession.recipeLineOptions}

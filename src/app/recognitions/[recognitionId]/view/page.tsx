@@ -155,6 +155,7 @@ function RecognitionViewContent({
         sidebar={
           <ItemsList
             items={items}
+            annotations={annotations}
             validationType={currentValidationType}
             selectedItemId={selectedItemId}
             recipeLineOptions={data.recipeLineOptions}

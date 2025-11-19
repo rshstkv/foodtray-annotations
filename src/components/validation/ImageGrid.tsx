@@ -78,7 +78,12 @@ export function ImageGrid({
 
   // Фильтрация annotations по типу валидации
   const getRelevantAnnotations = (annotations: AnnotationView[]) => {
-    // Если показываем все типы (например для OCCLUSION_VALIDATION)
+    // Для OCCLUSION_VALIDATION показываем только аннотации с is_occluded=true
+    if (validationType === 'OCCLUSION_VALIDATION') {
+      return annotations.filter(ann => ann.is_occluded === true)
+    }
+    
+    // Если показываем все типы (например для других случаев)
     if (capabilities.showAllItemTypes) {
       return annotations
     }
@@ -160,7 +165,8 @@ export function ImageGrid({
                               backgroundColor: ann.itemColor + (isSelected ? '40' : '20'),
                               color: ann.itemColor,
                               border: `${isSelected ? '2px' : '1px'} solid ${ann.itemColor}`,
-                              opacity: ann.isOccluded ? 0.6 : 1
+                              // Показываем затемнение окклюзии только на вкладке OCCLUSION_VALIDATION
+                              opacity: (validationType === 'OCCLUSION_VALIDATION' && ann.isOccluded) ? 0.6 : 1
                             }}
                             onClick={() => onAnnotationSelect(ann.id, ann.itemId)}
                           >

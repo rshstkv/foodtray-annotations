@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Plus, Trash2, Pencil, AlertCircle } from 'lucide-react'
-import type { TrayItem, ItemType, ValidationType, RecipeLineOption, BuzzerColor, UpdateItemRequest } from '@/types/domain'
+import type { TrayItem, ItemType, ValidationType, RecipeLineOption, BuzzerColor, UpdateItemRequest, AnnotationView } from '@/types/domain'
 import { ITEM_TYPE_LABELS, ITEM_TYPE_COLORS, BUZZER_COLOR_LABELS, getItemTypeFromValidationType, getItemColor } from '@/types/domain'
 import { getValidationCapabilities } from '@/lib/validation-capabilities'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,7 @@ import { useValidationSession } from '@/contexts/ValidationSessionContext'
 
 interface ItemsListProps {
   items: TrayItem[]
+  annotations?: AnnotationView[]
   validationType: ValidationType
   selectedItemId: number | null
   recipeLineOptions: RecipeLineOption[]
@@ -25,6 +26,7 @@ interface ItemsListProps {
 
 export function ItemsList({
   items,
+  annotations = [],
   validationType,
   selectedItemId,
   recipeLineOptions,
@@ -44,11 +46,27 @@ export function ItemsList({
   // Получаем capabilities для текущего типа валидации
   const capabilities = getValidationCapabilities(validationType)
   
-  // Filter items by validation type (но не фильтруем если showAllItemTypes)
+  // Filter items by validation type
   const itemType = getItemTypeFromValidationType(validationType)
-  const filteredItems = (itemType && !capabilities.showAllItemTypes)
-    ? items.filter((item) => item.type === itemType)
-    : items
+  
+  let filteredItems: TrayItem[]
+  
+  // Для OCCLUSION_VALIDATION показываем только items с окклюзированными аннотациями
+  if (validationType === 'OCCLUSION_VALIDATION') {
+    const itemsWithOcclusions = new Set(
+      annotations
+        .filter(ann => ann.is_occluded === true)
+        .map(ann => ann.work_item_id)
+    )
+    filteredItems = items.filter(item => itemsWithOcclusions.has(item.id))
+  } 
+  // Для остальных типов - стандартная фильтрация
+  else if (itemType && !capabilities.showAllItemTypes) {
+    filteredItems = items.filter((item) => item.type === itemType)
+  } 
+  else {
+    filteredItems = items
+  }
 
   // Get item label - showing names from recipe_line (from check)
   const getItemLabel = (item: TrayItem): string => {
