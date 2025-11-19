@@ -76,8 +76,8 @@ class IngestConfig:
         database_url = os.getenv("DATABASE_URL")
         
         # Для production - меньше потоков чтобы не перегружать Supabase Storage
-        thread_count = 4 if use_production else 16
-        batch_size = 50 if use_production else 100
+        thread_count = 1 if use_production else 16
+        batch_size = 10 if use_production else 100
         
         # Validate required variables
         if not all([supabase_url, supabase_key, database_url]):

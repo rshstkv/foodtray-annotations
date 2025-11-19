@@ -191,7 +191,7 @@ class StorageManager:
         max_workers: Optional[int] = None
     ) -> Tuple[int, int]:
         """
-        Upload multiple files in parallel.
+        Upload multiple files in parallel or sequentially.
         
         Args:
             files: List of (path, data) tuples
@@ -202,9 +202,51 @@ class StorageManager:
             Tuple of (successful_count, failed_count)
         """
         if max_workers is None:
-            # Для production - используем 1 поток для storage API (rate limiting)
-            max_workers = 1 if self.config.is_production() else self.config.thread_count
+            max_workers = self.config.thread_count
         
+        # Для production - загружаем последовательно с задержками
+        if self.config.is_production():
+            return self._sequential_upload(files, use_temp)
+        
+        # Для local - параллельная загрузка
+        return self._parallel_upload(files, use_temp, max_workers)
+    
+    def _sequential_upload(
+        self,
+        files: List[Tuple[str, bytes]],
+        use_temp: bool = False
+    ) -> Tuple[int, int]:
+        """
+        Upload files sequentially with delays (для production rate limiting).
+        """
+        successful = 0
+        failed = 0
+        
+        for i, (path, data) in enumerate(files):
+            try:
+                if self.upload_file(path, data, use_temp=use_temp):
+                    successful += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                self.logger.warning(f"Upload failed for {path}", error=str(e))
+                failed += 1
+            
+            # Небольшая задержка между загрузками (0.1 сек = 10 files/sec max)
+            if i < len(files) - 1:
+                time.sleep(0.1)
+        
+        return successful, failed
+    
+    def _parallel_upload(
+        self,
+        files: List[Tuple[str, bytes]],
+        use_temp: bool,
+        max_workers: int
+    ) -> Tuple[int, int]:
+        """
+        Upload files in parallel (для local разработки).
+        """
         successful = 0
         failed = 0
         

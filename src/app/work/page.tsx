@@ -256,8 +256,47 @@ export default function WorkPage() {
             </div>
           )}
 
+          {/* Current Task - Continue or Abandon */}
+          {currentTask && !loadingCurrentTask && (
+            <div className="bg-white rounded-3xl shadow-sm p-6 mb-6">
+              <div className="text-center mb-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-orange-50 rounded-full text-sm text-orange-600 mb-2">
+                  <Clock className="w-4 h-4" />
+                  У вас есть незавершенная задача
+                </div>
+                <div className="text-lg font-medium text-gray-900">
+                  Recognition #{currentTask.recognition_id}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {VALIDATION_TYPE_LABELS[currentTask.validation_type]}
+                  {' • '}
+                  Шаг {currentTask.current_step_index + 1} из {currentTask.validation_steps.length}
+                </div>
+              </div>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={handleContinueTask}
+                  disabled={loading}
+                  className="px-6 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white text-sm font-medium rounded-full transition-all duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
+                >
+                  <span className="flex items-center">
+                    <Play className="w-4 h-4 mr-2 fill-current" />
+                    Продолжить работу
+                  </span>
+                </button>
+                <button
+                  onClick={handleAbandonCurrentTask}
+                  disabled={loading}
+                  className="px-6 py-3 bg-white hover:bg-gray-50 disabled:bg-gray-100 text-gray-700 text-sm font-medium rounded-full border border-gray-200 transition-all duration-200 disabled:cursor-not-allowed"
+                >
+                  Отказаться от задачи
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Main CTA Button - only if no current task */}
-          {!currentTask && (
+          {!currentTask && !loadingCurrentTask && (
             <div className="flex flex-col items-center gap-4">
               <button
                 onClick={handleStartWork}
@@ -280,9 +319,11 @@ export default function WorkPage() {
           )}
 
           {/* Subtle hint */}
-          <p className="text-center text-xs text-gray-400 mt-4">
-            Система автоматически выберет следующую задачу
-          </p>
+          {!currentTask && !loadingCurrentTask && (
+            <p className="text-center text-xs text-gray-400 mt-4">
+              Система автоматически выберет следующую задачу
+            </p>
+          )}
         </div>
       </div>
     </RootLayout>
