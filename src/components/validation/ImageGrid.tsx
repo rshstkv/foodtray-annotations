@@ -114,7 +114,8 @@ export function ImageGrid({
           itemId: ann.work_item_id,
           itemLabel: getItemLabel(item),
           itemColor: item ? getItemColor(item) : ITEM_TYPE_COLORS.OTHER,
-          isOccluded: ann.is_occluded,
+          // Показываем визуальные признаки окклюзии ТОЛЬКО на вкладке OCCLUSION_VALIDATION
+          isOccluded: validationType === 'OCCLUSION_VALIDATION' ? ann.is_occluded : false,
         }
       })
   }
