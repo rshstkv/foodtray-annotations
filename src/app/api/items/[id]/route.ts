@@ -83,11 +83,6 @@ export async function PATCH(
           } else {
             console.log(`[items/update] ✓ Resolved ambiguity: recipe_line=${recipeLineId}, selected_option=${selected_option_id}`)
           }
-          
-          // 3. Обновить work_item.recipe_line_option_id если был NULL
-          if (!itemUpdates.recipe_line_option_id) {
-            itemUpdates.recipe_line_option_id = selected_option_id
-          }
         } else {
           console.log(`[items/update] No ambiguity to resolve (${options?.length || 0} options)`)
         }
