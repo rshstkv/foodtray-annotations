@@ -472,6 +472,7 @@ function ValidationSessionContent() {
             onItemCreate={handleItemCreate}
             onItemDelete={handleItemDelete}
             onItemUpdate={handleItemUpdate}
+            mode={mode}
           />
         }
         images={
@@ -484,6 +485,7 @@ function ValidationSessionContent() {
             selectedAnnotationId={selectedAnnotationId}
             validationType={session.workLog.validation_type}
             mode={mode}
+            displayMode={mode}
             onAnnotationCreate={handleAnnotationCreate}
             onAnnotationUpdate={handleAnnotationUpdate}
             onAnnotationSelect={handleAnnotationSelect}

@@ -19,6 +19,7 @@ interface ImageGridProps {
   selectedAnnotationId: number | string | null
   validationType: ValidationType
   mode: 'view' | 'draw' | 'edit'
+  displayMode?: 'edit' | 'view'  // Режим отображения для фильтрации (edit=все объекты, view=только с окклюзиями)
   onAnnotationCreate: (imageId: number, bbox: BBox) => void
   onAnnotationUpdate: (id: number | string, data: { bbox: BBox }) => void
   onAnnotationSelect: (id: number | string | null, itemId?: number) => void
@@ -35,6 +36,7 @@ export function ImageGrid({
   selectedAnnotationId,
   validationType,
   mode,
+  displayMode = 'view',
   onAnnotationCreate,
   onAnnotationUpdate,
   onAnnotationSelect,
@@ -78,9 +80,15 @@ export function ImageGrid({
 
   // Фильтрация annotations по типу валидации
   const getRelevantAnnotations = (annotations: AnnotationView[]) => {
-    // Для OCCLUSION_VALIDATION показываем только аннотации с is_occluded=true
+    // Для OCCLUSION_VALIDATION фильтрация зависит от displayMode
     if (validationType === 'OCCLUSION_VALIDATION') {
-      return annotations.filter(ann => ann.is_occluded === true)
+      if (displayMode === 'edit') {
+        // В режиме edit показываем ВСЕ аннотации (можно пометить окклюзию на любой)
+        return annotations
+      } else {
+        // В режиме view показываем только аннотации с is_occluded=true
+        return annotations.filter(ann => ann.is_occluded === true)
+      }
     }
     
     // Если показываем все типы (например для других случаев)

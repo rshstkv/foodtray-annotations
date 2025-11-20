@@ -25,6 +25,7 @@ interface ItemsListProps {
   onItemDelete: (id: number) => void
   onItemUpdate?: (id: number, data: UpdateItemRequest) => void
   readOnly?: boolean
+  mode?: 'edit' | 'view'
 }
 
 export function ItemsList({
@@ -40,6 +41,7 @@ export function ItemsList({
   onItemDelete,
   onItemUpdate,
   readOnly = false,
+  mode = 'view',
 }: ItemsListProps) {
   // State для редактирования
   const [editingItem, setEditingItem] = useState<TrayItem | null>(null)
@@ -56,14 +58,20 @@ export function ItemsList({
   
   let filteredItems: TrayItem[]
   
-  // Для OCCLUSION_VALIDATION показываем только items с окклюзированными аннотациями
+  // Для OCCLUSION_VALIDATION фильтрация зависит от режима
   if (validationType === 'OCCLUSION_VALIDATION') {
-    const itemsWithOcclusions = new Set(
-      annotations
-        .filter(ann => ann.is_occluded === true)
-        .map(ann => ann.work_item_id)
-    )
-    filteredItems = items.filter(item => itemsWithOcclusions.has(item.id))
+    if (mode === 'edit') {
+      // В режиме edit показываем ВСЕ items (любые объекты доступны для окклюзий)
+      filteredItems = items
+    } else {
+      // В режиме view показываем только items с окклюзированными аннотациями
+      const itemsWithOcclusions = new Set(
+        annotations
+          .filter(ann => ann.is_occluded === true)
+          .map(ann => ann.work_item_id)
+      )
+      filteredItems = items.filter(item => itemsWithOcclusions.has(item.id))
+    }
   } 
   // Для остальных типов - стандартная фильтрация
   else if (itemType && !capabilities.showAllItemTypes) {

@@ -53,6 +53,9 @@ function RecognitionViewContent({
   const { user, isAdmin } = useUser()
   const { items, annotations } = useValidationSession()
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
+  
+  // Режим просмотра (не редактирования)
+  const mode = 'view' as const
 
   // Берем первый (последний по времени) work_log
   const currentSession = data.sessions[0]
@@ -166,6 +169,7 @@ function RecognitionViewContent({
             onItemDelete={() => {}}
             onItemUpdate={() => {}}
             readOnly={true}
+            mode={mode}
           />
         }
         images={
@@ -178,6 +182,7 @@ function RecognitionViewContent({
             selectedAnnotationId={null}
             validationType={currentValidationType}
             mode="view"
+            displayMode={mode}
             onAnnotationCreate={() => {}}
             onAnnotationUpdate={() => {}}
             onAnnotationSelect={() => {}}
