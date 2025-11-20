@@ -119,7 +119,8 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
           onUserCreated()
         }
       } else {
-        setError('error' in response ? response.error : 'Ошибка создания пользователя')
+        const errorMessage = !response.success && 'error' in response ? response.error : 'Ошибка создания пользователя'
+        setError(errorMessage)
       }
     } catch (err: any) {
       setError(err.message || 'Ошибка создания пользователя')

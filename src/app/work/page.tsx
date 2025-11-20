@@ -7,7 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useUser } from '@/hooks/useUser'
 import { apiFetch } from '@/lib/api-response'
-import { Play, Clock, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Play, Clock } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { StartValidationResponse, ValidationType, PriorityFilterType } from '@/types/domain'
 import { VALIDATION_TYPE_LABELS } from '@/types/domain'
 
@@ -209,7 +216,7 @@ export default function WorkPage() {
       userEmail={user.email}
       isAdmin={isAdmin}
     >
-      <div className="h-[calc(100vh-73px)] bg-gray-50 flex flex-col items-center justify-center px-6">
+      <div className="min-h-[calc(100vh-73px)] bg-gray-50 flex flex-col items-center py-12 px-6">
         <div className="max-w-xl w-full">
           {/* Hero Section */}
           <div className="text-center mb-8">
@@ -338,189 +345,78 @@ export default function WorkPage() {
             </div>
           )}
 
-          {/* Problem Filters - only if no current task */}
-          {!currentTask && !loadingCurrentTask && !loadingProblemStats && problemStats && (
-            <div className="bg-white rounded-3xl shadow-sm p-6 mb-6">
-              <div className="text-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                  Фильтр по проблемам
-                </h2>
-                <p className="text-sm text-gray-500">
-                  Выберите тип задач для валидации
-                </p>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {/* All tasks */}
-                <button
-                  onClick={() => setSelectedFilter('any')}
-                  className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left ${
-                    selectedFilter === 'any'
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${
-                      selectedFilter === 'any' ? 'bg-blue-100' : 'bg-gray-100'
-                    }`}>
-                      <CheckCircle2 className={`w-5 h-5 ${
-                        selectedFilter === 'any' ? 'text-blue-600' : 'text-gray-600'
-                      }`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 mb-1">
-                        Все задачи
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Любая доступная задача
-                      </div>
-                    </div>
-                  </div>
-                </button>
-
-                {/* Unresolved ambiguity */}
-                <button
-                  onClick={() => setSelectedFilter('unresolved_ambiguity')}
-                  className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left ${
-                    selectedFilter === 'unresolved_ambiguity'
-                      ? 'border-yellow-500 bg-yellow-50'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${
-                      selectedFilter === 'unresolved_ambiguity' ? 'bg-yellow-100' : 'bg-gray-100'
-                    }`}>
-                      <AlertTriangle className={`w-5 h-5 ${
-                        selectedFilter === 'unresolved_ambiguity' ? 'text-yellow-600' : 'text-gray-600'
-                      }`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 mb-1">
-                        Неопределенность
-                      </div>
-                      <div className="text-xs text-gray-500 mb-1">
-                        Нужно выбрать блюдо
-                      </div>
-                      <div className={`text-lg font-bold ${
-                        selectedFilter === 'unresolved_ambiguity' ? 'text-yellow-600' : 'text-gray-900'
-                      }`}>
-                        {problemStats.unresolved_ambiguity}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-
-                {/* Food annotation mismatch */}
-                <button
-                  onClick={() => setSelectedFilter('food_annotation_mismatch')}
-                  className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left ${
-                    selectedFilter === 'food_annotation_mismatch'
-                      ? 'border-red-500 bg-red-50'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${
-                      selectedFilter === 'food_annotation_mismatch' ? 'bg-red-100' : 'bg-gray-100'
-                    }`}>
-                      <AlertCircle className={`w-5 h-5 ${
-                        selectedFilter === 'food_annotation_mismatch' ? 'text-red-600' : 'text-gray-600'
-                      }`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 mb-1">
-                        Блюда
-                      </div>
-                      <div className="text-xs text-gray-500 mb-1">
-                        Несоответствие аннотаций
-                      </div>
-                      <div className={`text-lg font-bold ${
-                        selectedFilter === 'food_annotation_mismatch' ? 'text-red-600' : 'text-gray-900'
-                      }`}>
-                        {problemStats.food_annotation_mismatch}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-
-                {/* Plate annotation mismatch */}
-                <button
-                  onClick={() => setSelectedFilter('plate_annotation_mismatch')}
-                  className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left ${
-                    selectedFilter === 'plate_annotation_mismatch'
-                      ? 'border-red-500 bg-red-50'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${
-                      selectedFilter === 'plate_annotation_mismatch' ? 'bg-red-100' : 'bg-gray-100'
-                    }`}>
-                      <AlertCircle className={`w-5 h-5 ${
-                        selectedFilter === 'plate_annotation_mismatch' ? 'text-red-600' : 'text-gray-600'
-                      }`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 mb-1">
-                        Тарелки
-                      </div>
-                      <div className="text-xs text-gray-500 mb-1">
-                        Несоответствие аннотаций
-                      </div>
-                      <div className={`text-lg font-bold ${
-                        selectedFilter === 'plate_annotation_mismatch' ? 'text-red-600' : 'text-gray-900'
-                      }`}>
-                        {problemStats.plate_annotation_mismatch}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              </div>
-
-              {/* Summary */}
-              {problemStats.total_with_issues > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-100 text-center">
-                  <p className="text-xs text-gray-500">
-                    Всего задач с проблемами:{' '}
-                    <span className="font-semibold text-gray-900">
-                      {problemStats.total_with_issues}
-                    </span>
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Main CTA Button - only if no current task */}
+          {/* Main CTA Button with Filter Dropdown - only if no current task */}
           {!currentTask && !loadingCurrentTask && (
             <div className="flex flex-col items-center gap-4">
-              <button
-                onClick={handleStartWork}
-                disabled={loading}
-                className="group relative px-10 py-4 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white text-base font-medium rounded-full transition-all duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <span className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                    Загружается...
-                  </span>
-                ) : (
-                  <span className="flex items-center">
-                    <Play className="w-4 h-4 mr-2 fill-current" />
-                    Начать работу
-                  </span>
+              <div className="flex items-center gap-4">
+                {/* Filter Dropdown */}
+                {!loadingProblemStats && problemStats && (
+                  <div className="bg-white rounded-full shadow-sm px-4 py-2">
+                    <Select value={selectedFilter} onValueChange={(value) => setSelectedFilter(value as PriorityFilterType)}>
+                      <SelectTrigger className="w-[280px] border-0 focus:ring-0 h-auto py-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any">
+                          <div className="flex items-center justify-between w-full">
+                            <span>Все задачи</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="unresolved_ambiguity">
+                          <div className="flex items-center justify-between w-full">
+                            <span>Неопределенность</span>
+                            <span className="ml-4 text-xs text-yellow-600 font-semibold bg-yellow-50 px-2 py-0.5 rounded-full">
+                              {problemStats.unresolved_ambiguity}
+                            </span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="food_annotation_mismatch">
+                          <div className="flex items-center justify-between w-full">
+                            <span>Несоответствие: блюда</span>
+                            <span className="ml-4 text-xs text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-full">
+                              {problemStats.food_annotation_mismatch}
+                            </span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="plate_annotation_mismatch">
+                          <div className="flex items-center justify-between w-full">
+                            <span>Несоответствие: тарелки</span>
+                            <span className="ml-4 text-xs text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-full">
+                              {problemStats.plate_annotation_mismatch}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
-              </button>
-            </div>
-          )}
 
-          {/* Subtle hint */}
-          {!currentTask && !loadingCurrentTask && (
-            <p className="text-center text-xs text-gray-400 mt-4">
-              Система автоматически выберет следующую задачу
-            </p>
+                {/* Start Work Button */}
+                <button
+                  onClick={handleStartWork}
+                  disabled={loading}
+                  className="group relative px-10 py-4 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white text-base font-medium rounded-full transition-all duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <span className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                      Загружается...
+                    </span>
+                  ) : (
+                    <span className="flex items-center">
+                      <Play className="w-4 h-4 mr-2 fill-current" />
+                      Начать работу
+                    </span>
+                  )}
+                </button>
+              </div>
+              
+              {/* Subtle hint */}
+              <p className="text-center text-xs text-gray-400">
+                Система автоматически выберет следующую задачу
+              </p>
+            </div>
           )}
         </div>
       </div>
