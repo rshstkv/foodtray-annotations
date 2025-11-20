@@ -47,10 +47,30 @@ WHERE initial_tray_item_id IN (
 );
 
 -- ============================================================
--- STEP 2: Clean up duplicate initial_tray_items
+-- STEP 2: Clean up work_items that reference duplicate items
 -- ============================================================
 
--- Delete duplicate items (keep first occurrence)
+-- Delete work_items that reference duplicate initial_tray_items
+WITH duplicate_items AS (
+  SELECT 
+    id,
+    ROW_NUMBER() OVER (
+      PARTITION BY recognition_id, recipe_line_id, (metadata->>'qwen_label')
+      ORDER BY id
+    ) as rn
+  FROM initial_tray_items
+  WHERE source = 'RECIPE_LINE_OPTION' AND recipe_line_option_id IS NULL
+)
+DELETE FROM work_items
+WHERE initial_item_id IN (
+  SELECT id FROM duplicate_items WHERE rn > 1
+);
+
+-- ============================================================
+-- STEP 3: Clean up duplicate initial_tray_items
+-- ============================================================
+
+-- Now delete duplicate items (safe now)
 WITH duplicate_items AS (
   SELECT 
     id,
