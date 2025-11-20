@@ -18,6 +18,7 @@ export async function POST(request: Request) {
       quantity = 1,
       metadata,
       bottle_orientation,
+      selected_option_id,
     } = body
 
     if (!work_log_id || !recognition_id || !type) {
@@ -55,6 +56,32 @@ export async function POST(request: Request) {
     if (createError || !item) {
       console.error('[items/create] Error:', createError)
       return apiError('Failed to create item', 500, ApiErrorCode.INTERNAL_ERROR)
+    }
+
+    // Если был выбран конкретный вариант блюда (ambiguity resolution)
+    if (selected_option_id && recipe_line_id) {
+      console.log('[items/create] Resolving ambiguity: recipe_line_id=', recipe_line_id, 'selected_option_id=', selected_option_id)
+      
+      // Обновляем recipe_line_options: выбранный option -> is_selected = true, остальные -> false
+      const { error: updateError } = await supabase
+        .from('recipe_line_options')
+        .update({ is_selected: false })
+        .eq('recipe_line_id', recipe_line_id)
+      
+      if (updateError) {
+        console.error('[items/create] Failed to reset is_selected:', updateError)
+      }
+      
+      const { error: selectError } = await supabase
+        .from('recipe_line_options')
+        .update({ is_selected: true })
+        .eq('id', selected_option_id)
+      
+      if (selectError) {
+        console.error('[items/create] Failed to set is_selected:', selectError)
+      } else {
+        console.log('[items/create] ✓ Ambiguity resolved successfully')
+      }
     }
 
     return apiSuccess({ item })

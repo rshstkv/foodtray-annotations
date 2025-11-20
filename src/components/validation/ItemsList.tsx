@@ -94,27 +94,29 @@ export function ItemsList({
       // Потом проверяем recipe_line_id (для блюд из чека)
       else if (item.recipe_line_id) {
         const recipeLine = recipeLines.find(rl => rl.id === item.recipe_line_id)
-        const selectedOption = recipeLineOptions.find(
-          (opt) => opt.recipe_line_id === item.recipe_line_id && opt.is_selected
-        )
+        const allOptions = recipeLineOptions.filter((opt) => opt.recipe_line_id === item.recipe_line_id)
+        const selectedOption = allOptions.find(opt => opt.is_selected)
         
-        if (selectedOption?.name) {
+        // Если есть несколько вариантов и ни один не выбран - это неопределенность
+        if (allOptions.length > 1 && !selectedOption) {
+          label = 'Выберите вариант блюда'
+        }
+        // Если есть выбранный вариант - показываем его название
+        else if (selectedOption?.name) {
           label = selectedOption.name
-        } else {
-          // Если нет selected, показываем первый доступный
-          const anyOption = recipeLineOptions.find((opt) => opt.recipe_line_id === item.recipe_line_id)
-          if (anyOption?.name) {
-            label = anyOption.name
-          } 
-          // Fallback на raw_name из recipe_line
-          else if (recipeLine?.raw_name) {
-            label = recipeLine.raw_name
-          } 
-          else {
-            // DEBUG: Логируем почему не нашли название
-            console.warn(`[ItemsList] No name found for item ${item.id}, recipe_line_id=${item.recipe_line_id}. RecipeLine:`, recipeLine, 'Options:', recipeLineOptions.length)
-            label = ITEM_TYPE_LABELS[item.type]
-          }
+        } 
+        // Если только один вариант - показываем его
+        else if (allOptions.length === 1 && allOptions[0]?.name) {
+          label = allOptions[0].name
+        }
+        // Fallback на raw_name из recipe_line
+        else if (recipeLine?.raw_name) {
+          label = recipeLine.raw_name
+        } 
+        else {
+          // DEBUG: Логируем почему не нашли название
+          console.warn(`[ItemsList] No name found for item ${item.id}, recipe_line_id=${item.recipe_line_id}. RecipeLine:`, recipeLine, 'Options:', recipeLineOptions.length)
+          label = ITEM_TYPE_LABELS[item.type]
         }
       }
       else {
@@ -356,12 +358,41 @@ export function ItemsList({
         )}
       </div>
 
-      {/* Диалог редактирования */}
+      {/* Диалог редактирования/создания */}
       {editingItem && onItemUpdate && (
         <EditItemDialog
           open={Boolean(editingItem)}
           onClose={() => setEditingItem(null)}
-          onSave={onItemUpdate}
+          onSave={(id, data) => {
+            // Если id === -1, это новый item - создаем его
+            if (id === -1 && editingItem.recipe_line_id) {
+              // Создаем новый item через onItemCreate с использованием recipe_line_id
+              // и выбранного option_id если есть
+              const createData: any = {
+                type: 'FOOD',
+                recipe_line_id: data.recipe_line_id || editingItem.recipe_line_id,
+                quantity: data.quantity || editingItem.quantity,
+              }
+              
+              if (data.selected_option_id) {
+                createData.selected_option_id = data.selected_option_id
+              }
+              
+              onItemCreate()
+              // После вызова onItemCreate нужно передать данные
+              // Но onItemCreate не принимает данные, поэтому используем другой подход
+              // Используем контекст напрямую
+              const newItemId = context?.createItem(createData)
+              if (newItemId) {
+                onItemSelect(newItemId)
+              }
+              setEditingItem(null)
+            } else {
+              // Обычное обновление существующего item
+              onItemUpdate(id, data)
+              setEditingItem(null)
+            }
+          }}
           item={editingItem}
           recipeLines={recipeLines}
           recipeLineOptions={recipeLineOptions}

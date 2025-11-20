@@ -28,6 +28,19 @@ export type WorkLogStatus = 'in_progress' | 'completed' | 'abandoned'
 
 export type ValidationStepStatus = 'pending' | 'in_progress' | 'completed' | 'skipped'
 
+export type PriorityFilterType = 
+  | 'any'
+  | 'unresolved_ambiguity'
+  | 'food_annotation_mismatch'
+  | 'plate_annotation_mismatch'
+  | 'annotation_mismatch'
+  | 'has_ambiguity'
+  | 'clean_ambiguity'
+  | 'has_food_items'
+  | 'has_plates'
+  | 'has_buzzers'
+  | 'no_annotations'
+
 // ============================================================================
 // User & Auth
 // ============================================================================
@@ -242,6 +255,7 @@ export interface CreateItemRequest {
   quantity?: number
   bottle_orientation?: BottleOrientation | null
   metadata?: Record<string, any> | null
+  selected_option_id?: number | null
 }
 
 export interface UpdateItemRequest {

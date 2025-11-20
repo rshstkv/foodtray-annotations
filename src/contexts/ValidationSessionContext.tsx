@@ -196,15 +196,44 @@ export function ValidationSessionProvider({
       }
       
       // Добавляем в локальный state
-      setSession((prev) => ({
-        ...prev,
-        items: [...prev.items, newItem],
-      }))
+      setSession((prev) => {
+        let updatedRecipeLineOptions = prev.recipeLineOptions
+        
+        // Если есть selected_option_id - обновляем recipeLineOptions
+        if (data.selected_option_id && data.recipe_line_id) {
+          console.log('[createItem] Updating recipe_line_options for new item with ambiguity resolution:', {
+            recipe_line_id: data.recipe_line_id,
+            selected_option_id: data.selected_option_id
+          })
+          
+          updatedRecipeLineOptions = prev.recipeLineOptions.map(opt => {
+            if (opt.recipe_line_id === data.recipe_line_id) {
+              return {
+                ...opt,
+                is_selected: opt.id === data.selected_option_id
+              }
+            }
+            return opt
+          })
+          
+          console.log('[createItem] ✓ Updated recipeLineOptions locally')
+        }
+        
+        return {
+          ...prev,
+          items: [...prev.items, newItem],
+          recipeLineOptions: updatedRecipeLineOptions,
+        }
+      })
       
-      // Добавляем в tracking
+      // Добавляем в tracking (включая selected_option_id если есть)
       setChangesTracking((prev) => {
         const newCreatedItems = new Map(prev.createdItems)
-        newCreatedItems.set(tempId, newItem)
+        // Сохраняем item с дополнительными полями для API
+        newCreatedItems.set(tempId, {
+          ...newItem,
+          selected_option_id: data.selected_option_id // Сохраняем для передачи в API
+        } as any)
         return {
           ...prev,
           createdItems: newCreatedItems,
@@ -510,17 +539,25 @@ export function ValidationSessionProvider({
       for (const [tempId, item] of changesTracking.createdItems) {
         console.log('[DEBUG saveAllChanges] Creating item via API for tempId:', tempId, 'item:', item, 'at', new Date().toISOString())
         
+        const createPayload: any = {
+          work_log_id: session.workLog.id,
+          recognition_id: session.recognition.id,
+          type: item.type,
+          recipe_line_id: item.recipe_line_id,
+          quantity: item.quantity,
+          metadata: item.metadata,
+          bottle_orientation: item.bottle_orientation,
+        }
+        
+        // Добавляем selected_option_id если есть
+        if ((item as any).selected_option_id) {
+          createPayload.selected_option_id = (item as any).selected_option_id
+          console.log('[DEBUG saveAllChanges] Including selected_option_id:', createPayload.selected_option_id)
+        }
+        
         const response = await apiFetch('/api/items/create', {
           method: 'POST',
-          body: JSON.stringify({
-            work_log_id: session.workLog.id,
-            recognition_id: session.recognition.id,
-            type: item.type,
-            recipe_line_id: item.recipe_line_id,
-            quantity: item.quantity,
-            metadata: item.metadata,
-            bottle_orientation: item.bottle_orientation,
-          }),
+          body: JSON.stringify(createPayload),
         })
         
         console.log('[DEBUG saveAllChanges] API response for tempId:', tempId, 'response:', response)
@@ -531,15 +568,34 @@ export function ValidationSessionProvider({
           itemIdMapping.set(tempId, realId)
           
           // Обновляем ID в session
-          setSession((prev) => ({
-            ...prev,
-            items: prev.items.map((i) => 
-              i.id === tempId ? { ...i, id: realId } : i
-            ),
-            annotations: prev.annotations.map((a) =>
-              a.work_item_id === tempId ? { ...a, work_item_id: realId } : a
-            ),
-          }))
+          setSession((prev) => {
+            let updatedRecipeLineOptions = prev.recipeLineOptions
+            
+            // Если был selected_option_id - синхронизируем recipeLineOptions
+            if ((item as any).selected_option_id && item.recipe_line_id) {
+              console.log('[DEBUG saveAllChanges] Syncing recipe_line_options after item creation')
+              updatedRecipeLineOptions = prev.recipeLineOptions.map(opt => {
+                if (opt.recipe_line_id === item.recipe_line_id) {
+                  return {
+                    ...opt,
+                    is_selected: opt.id === (item as any).selected_option_id
+                  }
+                }
+                return opt
+              })
+            }
+            
+            return {
+              ...prev,
+              items: prev.items.map((i) => 
+                i.id === tempId ? { ...i, id: realId } : i
+              ),
+              annotations: prev.annotations.map((a) =>
+                a.work_item_id === tempId ? { ...a, work_item_id: realId } : a
+              ),
+              recipeLineOptions: updatedRecipeLineOptions,
+            }
+          })
         } else {
           console.error('[DEBUG saveAllChanges] Failed to create item for tempId:', tempId)
         }

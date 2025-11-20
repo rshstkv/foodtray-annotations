@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useUser } from '@/hooks/useUser'
 import { apiFetch } from '@/lib/api-response'
-import { Play, Clock } from 'lucide-react'
-import type { StartValidationResponse, ValidationType } from '@/types/domain'
+import { Play, Clock, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react'
+import type { StartValidationResponse, ValidationType, PriorityFilterType } from '@/types/domain'
 import { VALIDATION_TYPE_LABELS } from '@/types/domain'
 
 interface ValidationStats {
@@ -28,6 +28,13 @@ interface CurrentTask {
   updated_at: string
 }
 
+interface ProblemStats {
+  unresolved_ambiguity: number
+  food_annotation_mismatch: number
+  plate_annotation_mismatch: number
+  total_with_issues: number
+}
+
 export default function WorkPage() {
   const router = useRouter()
   const { user, isAdmin } = useUser()
@@ -36,11 +43,15 @@ export default function WorkPage() {
   const [loadingStats, setLoadingStats] = useState(true)
   const [currentTask, setCurrentTask] = useState<CurrentTask | null>(null)
   const [loadingCurrentTask, setLoadingCurrentTask] = useState(true)
+  const [selectedFilter, setSelectedFilter] = useState<PriorityFilterType>('any')
+  const [problemStats, setProblemStats] = useState<ProblemStats | null>(null)
+  const [loadingProblemStats, setLoadingProblemStats] = useState(true)
 
   useEffect(() => {
     if (user) {
       loadStats()
       loadCurrentTask()
+      loadProblemStats()
     }
   }, [user])
 
@@ -73,6 +84,22 @@ export default function WorkPage() {
       console.error('Error loading current task:', error)
     } finally {
       setLoadingCurrentTask(false)
+    }
+  }
+
+  const loadProblemStats = async () => {
+    try {
+      setLoadingProblemStats(true)
+      const response = await apiFetch<ProblemStats>(
+        '/api/validation/problem-stats'
+      )
+      if (response.success && response.data) {
+        setProblemStats(response.data)
+      }
+    } catch (error) {
+      console.error('Error loading problem stats:', error)
+    } finally {
+      setLoadingProblemStats(false)
     }
   }
 
@@ -115,7 +142,7 @@ export default function WorkPage() {
         '/api/validation/start',
         {
           method: 'POST',
-          body: JSON.stringify({}),
+          body: JSON.stringify({ priority_filter: selectedFilter }),
         }
       )
 
@@ -124,12 +151,28 @@ export default function WorkPage() {
         router.push(`/work/${workLog.id}`)
       } else {
         // Нет доступных задач
+        const filterLabels: Record<PriorityFilterType, string> = {
+          'any': 'задач для валидации',
+          'unresolved_ambiguity': 'задач с неопределенностью',
+          'food_annotation_mismatch': 'задач с несоответствием аннотаций в блюдах',
+          'plate_annotation_mismatch': 'задач с несоответствием аннотаций в тарелках',
+          'annotation_mismatch': 'задач с несоответствием аннотаций',
+          'has_ambiguity': 'задач',
+          'clean_ambiguity': 'задач',
+          'has_food_items': 'задач',
+          'has_plates': 'задач',
+          'has_buzzers': 'задач',
+          'no_annotations': 'задач'
+        }
+        
+        const filterLabel = filterLabels[selectedFilter] || 'задач'
+        
         if (totalInProgress > 0) {
-          alert(`Нет доступных задач для валидации.\n\nВсе свободные задачи сейчас в работе (${totalInProgress}). Попробуйте через несколько минут.`)
+          alert(`Нет доступных ${filterLabel}.\n\nВсе свободные задачи сейчас в работе (${totalInProgress}). Попробуйте через несколько минут.`)
         } else if (totalRemaining === 0) {
           alert('Все задачи выполнены! 🎉')
         } else {
-          alert('Нет доступных задач для валидации')
+          alert(`Нет доступных ${filterLabel}`)
         }
       }
     } catch (error) {
@@ -292,6 +335,161 @@ export default function WorkPage() {
                   Отказаться от задачи
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Problem Filters - only if no current task */}
+          {!currentTask && !loadingCurrentTask && !loadingProblemStats && problemStats && (
+            <div className="bg-white rounded-3xl shadow-sm p-6 mb-6">
+              <div className="text-center mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                  Фильтр по проблемам
+                </h2>
+                <p className="text-sm text-gray-500">
+                  Выберите тип задач для валидации
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* All tasks */}
+                <button
+                  onClick={() => setSelectedFilter('any')}
+                  className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left ${
+                    selectedFilter === 'any'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${
+                      selectedFilter === 'any' ? 'bg-blue-100' : 'bg-gray-100'
+                    }`}>
+                      <CheckCircle2 className={`w-5 h-5 ${
+                        selectedFilter === 'any' ? 'text-blue-600' : 'text-gray-600'
+                      }`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 mb-1">
+                        Все задачи
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Любая доступная задача
+                      </div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Unresolved ambiguity */}
+                <button
+                  onClick={() => setSelectedFilter('unresolved_ambiguity')}
+                  className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left ${
+                    selectedFilter === 'unresolved_ambiguity'
+                      ? 'border-yellow-500 bg-yellow-50'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${
+                      selectedFilter === 'unresolved_ambiguity' ? 'bg-yellow-100' : 'bg-gray-100'
+                    }`}>
+                      <AlertTriangle className={`w-5 h-5 ${
+                        selectedFilter === 'unresolved_ambiguity' ? 'text-yellow-600' : 'text-gray-600'
+                      }`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 mb-1">
+                        Неопределенность
+                      </div>
+                      <div className="text-xs text-gray-500 mb-1">
+                        Нужно выбрать блюдо
+                      </div>
+                      <div className={`text-lg font-bold ${
+                        selectedFilter === 'unresolved_ambiguity' ? 'text-yellow-600' : 'text-gray-900'
+                      }`}>
+                        {problemStats.unresolved_ambiguity}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Food annotation mismatch */}
+                <button
+                  onClick={() => setSelectedFilter('food_annotation_mismatch')}
+                  className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left ${
+                    selectedFilter === 'food_annotation_mismatch'
+                      ? 'border-red-500 bg-red-50'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${
+                      selectedFilter === 'food_annotation_mismatch' ? 'bg-red-100' : 'bg-gray-100'
+                    }`}>
+                      <AlertCircle className={`w-5 h-5 ${
+                        selectedFilter === 'food_annotation_mismatch' ? 'text-red-600' : 'text-gray-600'
+                      }`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 mb-1">
+                        Блюда
+                      </div>
+                      <div className="text-xs text-gray-500 mb-1">
+                        Несоответствие аннотаций
+                      </div>
+                      <div className={`text-lg font-bold ${
+                        selectedFilter === 'food_annotation_mismatch' ? 'text-red-600' : 'text-gray-900'
+                      }`}>
+                        {problemStats.food_annotation_mismatch}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Plate annotation mismatch */}
+                <button
+                  onClick={() => setSelectedFilter('plate_annotation_mismatch')}
+                  className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left ${
+                    selectedFilter === 'plate_annotation_mismatch'
+                      ? 'border-red-500 bg-red-50'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${
+                      selectedFilter === 'plate_annotation_mismatch' ? 'bg-red-100' : 'bg-gray-100'
+                    }`}>
+                      <AlertCircle className={`w-5 h-5 ${
+                        selectedFilter === 'plate_annotation_mismatch' ? 'text-red-600' : 'text-gray-600'
+                      }`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 mb-1">
+                        Тарелки
+                      </div>
+                      <div className="text-xs text-gray-500 mb-1">
+                        Несоответствие аннотаций
+                      </div>
+                      <div className={`text-lg font-bold ${
+                        selectedFilter === 'plate_annotation_mismatch' ? 'text-red-600' : 'text-gray-900'
+                      }`}>
+                        {problemStats.plate_annotation_mismatch}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Summary */}
+              {problemStats.total_with_issues > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+                  <p className="text-xs text-gray-500">
+                    Всего задач с проблемами:{' '}
+                    <span className="font-semibold text-gray-900">
+                      {problemStats.total_with_issues}
+                    </span>
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

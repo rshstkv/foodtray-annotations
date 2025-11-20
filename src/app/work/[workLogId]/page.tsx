@@ -355,9 +355,19 @@ function ValidationSessionContent() {
   // Обработка горячих клавиш
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Игнорируем, если фокус на input/textarea
+      // Игнорируем, если фокус на input/textarea/select или contenteditable
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      if (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      ) {
+        return
+      }
+
+      // Игнорируем если открыт диалог (проверяем наличие dialog в DOM)
+      if (document.querySelector('[role="dialog"]')) {
         return
       }
 
@@ -390,10 +400,9 @@ function ValidationSessionContent() {
         ? items.filter((item) => item.type === currentItemType)
         : items
 
-      if (filteredItems.length === 0) return
-
       // Цифры 1-9 - выбрать айтем по индексу
       if (e.key >= '1' && e.key <= '9') {
+        e.preventDefault()
         const index = parseInt(e.key) - 1
         if (index < filteredItems.length) {
           handleItemSelect(filteredItems[index].id)
@@ -401,9 +410,13 @@ function ValidationSessionContent() {
         return
       }
 
+      if (filteredItems.length === 0) return
+
       // Стрелки влево/вправо - двигаться между айтемами
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.preventDefault()
+        
+        if (filteredItems.length === 0) return
         
         if (selectedItemId === null) {
           // Если ничего не выбрано, выбрать первый

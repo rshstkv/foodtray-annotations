@@ -37,42 +37,60 @@ export async function PATCH(
     })
 
     // Если указан selected_option_id - разрешаем неопределенность
-    if (selected_option_id && itemUpdates.recipe_line_id) {
-      // 1. Получить все options для данного recipe_line (через JOIN с recipe_lines для recipe_id)
-      const { data: options } = await supabase
-        .from('recipe_line_options')
-        .select('id, recipe_line_id, recipe_lines!inner(recipe_id)')
-        .eq('recipe_line_id', itemUpdates.recipe_line_id)
-
-      if (options && options.length > 1) {
-        // 2. Пометить выбранный option как is_selected, остальные - false
-        const recipeId = (options[0].recipe_lines as any).recipe_id
-        
-        console.log(`[items/update] Resolving ambiguity: recipe_line=${itemUpdates.recipe_line_id}, recipe_id=${recipeId}, total_options=${options.length}`)
-        
-        // Сначала сбросим все options для этого recipe_line
-        const { error: resetError } = await supabase
+    if (selected_option_id) {
+      // Получить recipe_line_id из work_item если не передан в updates
+      let recipeLineId = itemUpdates.recipe_line_id
+      if (!recipeLineId) {
+        const { data: workItem } = await supabase
+          .from('work_items')
+          .select('recipe_line_id')
+          .eq('id', itemId)
+          .single()
+        recipeLineId = workItem?.recipe_line_id
+      }
+      
+      if (recipeLineId) {
+        // 1. Получить все options для данного recipe_line
+        const { data: options } = await supabase
           .from('recipe_line_options')
-          .update({ is_selected: false })
-          .eq('recipe_line_id', itemUpdates.recipe_line_id)
-        
-        if (resetError) {
-          console.error(`[items/update] ✗ Failed to reset options:`, resetError)
-        }
+          .select('id, recipe_line_id, recipe_lines!inner(recipe_id)')
+          .eq('recipe_line_id', recipeLineId)
 
-        // Затем пометим выбранный
-        const { error: selectError } = await supabase
-          .from('recipe_line_options')
-          .update({ is_selected: true })
-          .eq('id', selected_option_id)
-        
-        if (selectError) {
-          console.error(`[items/update] ✗ Failed to select option:`, selectError)
+        if (options && options.length > 1) {
+          // 2. Пометить выбранный option как is_selected, остальные - false
+          const recipeId = (options[0].recipe_lines as any).recipe_id
+          
+          console.log(`[items/update] Resolving ambiguity: recipe_line=${recipeLineId}, recipe_id=${recipeId}, total_options=${options.length}`)
+          
+          // Сначала сбросим все options для этого recipe_line
+          const { error: resetError } = await supabase
+            .from('recipe_line_options')
+            .update({ is_selected: false })
+            .eq('recipe_line_id', recipeLineId)
+          
+          if (resetError) {
+            console.error(`[items/update] ✗ Failed to reset options:`, resetError)
+          }
+
+          // Затем пометим выбранный
+          const { error: selectError } = await supabase
+            .from('recipe_line_options')
+            .update({ is_selected: true })
+            .eq('id', selected_option_id)
+          
+          if (selectError) {
+            console.error(`[items/update] ✗ Failed to select option:`, selectError)
+          } else {
+            console.log(`[items/update] ✓ Resolved ambiguity: recipe_line=${recipeLineId}, selected_option=${selected_option_id}`)
+          }
+          
+          // 3. Обновить work_item.recipe_line_option_id если был NULL
+          if (!itemUpdates.recipe_line_option_id) {
+            itemUpdates.recipe_line_option_id = selected_option_id
+          }
         } else {
-          console.log(`[items/update] ✓ Resolved ambiguity: recipe_line=${itemUpdates.recipe_line_id}, selected_option=${selected_option_id}`)
+          console.log(`[items/update] No ambiguity to resolve (${options?.length || 0} options)`)
         }
-      } else {
-        console.log(`[items/update] No ambiguity to resolve (${options?.length || 0} options)`)
       }
     }
 
