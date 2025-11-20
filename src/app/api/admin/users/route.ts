@@ -64,10 +64,23 @@ export async function GET() {
 }
 
 /**
+ * Helper: генерация случайного пароля
+ */
+function generatePassword(length: number = 16): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
+  let password = ''
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return password
+}
+
+/**
  * POST /api/admin/users
  * 
  * Создать нового пользователя (только для admin)
- * Body: { email: string, password: string, role?: 'admin' | 'annotator', full_name?: string }
+ * Body: { email: string, password?: string, role?: 'admin' | 'annotator', full_name?: string }
+ * Если password не передан, генерируется автоматически
  */
 export async function POST(request: NextRequest) {
   try {
@@ -79,14 +92,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: authCheck.error }, { status: authCheck.status })
     }
 
-    const { email, password, role = 'annotator', full_name } = await request.json()
+    const { email, password: providedPassword, role = 'annotator', full_name } = await request.json()
 
-    if (!email || !password) {
+    if (!email) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Email is required' },
         { status: 400 }
       )
     }
+
+    // Генерировать пароль, если не передан
+    const password = providedPassword || generatePassword()
+    const passwordWasGenerated = !providedPassword
 
     // Создать service client для admin операций
     const serviceClient = createServiceClient(
@@ -135,7 +152,9 @@ export async function POST(request: NextRequest) {
         email: data.user.email,
         role,
         full_name
-      }
+      },
+      // Возвращаем пароль только если он был сгенерирован автоматически
+      ...(passwordWasGenerated && { password })
     })
   } catch (error) {
     console.error('[Admin] Unexpected error:', error)

@@ -2,7 +2,7 @@
 
 import { ReactNode } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,7 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { User, Settings, LogOut } from 'lucide-react'
+import { User, Settings, LogOut, ClipboardList } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface RootLayoutProps {
   children: ReactNode
@@ -23,6 +24,7 @@ interface RootLayoutProps {
 
 export function RootLayout({ children, userName, userEmail, isAdmin }: RootLayoutProps) {
   const router = useRouter()
+  const pathname = usePathname()
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -32,7 +34,7 @@ export function RootLayout({ children, userName, userEmail, isAdmin }: RootLayou
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-full mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             {/* Logo */}
@@ -52,9 +54,28 @@ export function RootLayout({ children, userName, userEmail, isAdmin }: RootLayou
             {/* User Menu */}
             {(userName || userEmail) && (
               <div className="flex items-center gap-4">
+                <Link href="/my-validations">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className={cn(
+                      pathname === '/my-validations' && 'bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700'
+                    )}
+                  >
+                    <ClipboardList className="w-4 h-4 mr-2" />
+                    Мои валидации
+                  </Button>
+                </Link>
+
                 {isAdmin && (
                   <Link href="/admin">
-                    <Button variant="ghost" size="sm">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className={cn(
+                        pathname?.startsWith('/admin') && 'bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700'
+                      )}
+                    >
                       <Settings className="w-4 h-4 mr-2" />
                       Админ
                     </Button>
