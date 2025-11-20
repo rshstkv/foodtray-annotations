@@ -5,10 +5,17 @@
 ALTER TABLE initial_tray_items 
 ADD COLUMN IF NOT EXISTS recipe_line_id BIGINT;
 
--- Add foreign key constraint
-ALTER TABLE initial_tray_items
-ADD CONSTRAINT initial_tray_items_recipe_line_id_fkey 
-FOREIGN KEY (recipe_line_id) REFERENCES recipe_lines(id) ON DELETE CASCADE;
+-- Add foreign key constraint (only if not exists)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'initial_tray_items_recipe_line_id_fkey'
+  ) THEN
+    ALTER TABLE initial_tray_items
+    ADD CONSTRAINT initial_tray_items_recipe_line_id_fkey 
+    FOREIGN KEY (recipe_line_id) REFERENCES recipe_lines(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- Add index for recipe_line_id
 CREATE INDEX IF NOT EXISTS idx_initial_tray_items_recipe_line 
