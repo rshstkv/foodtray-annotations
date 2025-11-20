@@ -63,6 +63,25 @@ class MetricsCollector:
         self._lock = Lock()
         self._start_time = time.time()
     
+    @property
+    def counters(self) -> Dict[str, int]:
+        """Get current counter values."""
+        with self._lock:
+            return {name: counter.count for name, counter in self._counters.items()}
+    
+    @property
+    def timers(self) -> Dict[str, Dict[str, float]]:
+        """Get current timer statistics."""
+        with self._lock:
+            return {
+                name: {
+                    "total": timer.total_time,
+                    "count": timer.count,
+                    "average": timer.average()
+                }
+                for name, timer in self._timers.items()
+            }
+    
     def start_timer(self, name: str):
         """Start a named timer."""
         with self._lock:

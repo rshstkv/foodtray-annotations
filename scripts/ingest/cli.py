@@ -193,6 +193,19 @@ def load_qwen_command(args):
             logger.error("No recognitions in database. Load recognitions first.")
             return 1
         
+        # Get recognitions that already have Qwen annotations
+        existing_qwen_ids = database.get_recognitions_with_qwen()
+        if existing_qwen_ids:
+            logger.info(f"Found recognitions with existing Qwen", count=len(existing_qwen_ids))
+        
+        # Only load for recognitions that DON'T have Qwen annotations yet
+        target_ids = existing_ids - existing_qwen_ids
+        if not target_ids:
+            logger.info("All recognitions already have Qwen annotations")
+            return 0
+        
+        logger.info(f"Loading Qwen for recognitions without annotations", count=len(target_ids))
+        
         # Parse annotations
         annotations = []
         for image_path, data in qwen_data.items():
@@ -256,9 +269,9 @@ def load_qwen_command(args):
         
         logger.info(f"Parsed annotations", total=len(annotations))
         
-        # Load with transaction
+        # Load with transaction (using target_ids instead of existing_ids)
         with QwenTransactionContext(database) as tx:
-            tx.load_qwen_annotations(annotations, existing_ids)
+            tx.load_qwen_annotations(annotations, target_ids)
         
         logger.success("Qwen annotations loaded successfully")
         

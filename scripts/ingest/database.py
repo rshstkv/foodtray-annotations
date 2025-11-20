@@ -222,6 +222,16 @@ class DatabaseManager:
             self.logger.warning("Could not check existing recognitions", error=str(e))
             return set()
     
+    def get_recognitions_with_qwen(self, conn: Optional[Connection] = None) -> set:
+        """Get set of recognition IDs that already have Qwen annotations."""
+        try:
+            query = "SELECT DISTINCT recognition_id FROM raw.qwen_annotations"
+            results = self.execute_query(query, conn=conn)
+            return {row[0] for row in results} if results else set()
+        except Exception as e:
+            self.logger.warning("Could not check recognitions with qwen", error=str(e))
+            return set()
+    
     def get_recognition_ids_by_batch(
         self,
         batch_id: str,

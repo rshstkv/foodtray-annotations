@@ -41,6 +41,10 @@ class IngestConfig:
     # Database
     db_connect_timeout: int = 30
     
+    # Rate limiting (internal use, set via benchmark or profile)
+    _rate_limit_strategy: str = "adaptive"  # "none", "fixed", "adaptive"
+    _rate_limit_delay: float = 0.0  # Initial delay for fixed/adaptive
+    
     def __post_init__(self):
         if self.dataset_search_paths is None:
             self.dataset_search_paths = [
@@ -50,8 +54,18 @@ class IngestConfig:
             ]
     
     @classmethod
-    def from_env(cls, use_production: bool = False) -> "IngestConfig":
-        """Load configuration from environment variables."""
+    def from_env(
+        cls, 
+        use_production: bool = False,
+        profile: str = "balanced"
+    ) -> "IngestConfig":
+        """
+        Load configuration from environment variables.
+        
+        Args:
+            use_production: Use production environment
+            profile: Performance profile - "safe", "balanced", "fast", or "custom"
+        """
         project_root = Path(__file__).parent.parent.parent
         
         # Determine which env file to load
@@ -75,10 +89,6 @@ class IngestConfig:
         supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         database_url = os.getenv("DATABASE_URL")
         
-        # Для production - меньше потоков чтобы не перегружать Supabase Storage
-        thread_count = 1 if use_production else 16
-        batch_size = 10 if use_production else 100
-        
         # Validate required variables
         if not all([supabase_url, supabase_key, database_url]):
             missing = []
@@ -90,7 +100,30 @@ class IngestConfig:
                 missing.append("DATABASE_URL")
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
         
-        return cls(
+        # Apply performance profile
+        if profile == "safe":
+            thread_count = 2
+            batch_size = 50
+            rate_strategy = "adaptive"
+            rate_delay = 0.0
+        elif profile == "balanced":
+            thread_count = 1
+            batch_size = 50
+            rate_strategy = "none"
+            rate_delay = 0.0
+        elif profile == "fast":
+            thread_count = 12
+            batch_size = 100
+            rate_strategy = "adaptive"
+            rate_delay = 0.0
+        else:  # custom or legacy
+            # Legacy behavior: conservative for production, aggressive for local
+            thread_count = 1 if use_production else 16
+            batch_size = 10 if use_production else 100
+            rate_strategy = "fixed" if use_production else "none"
+            rate_delay = 0.1 if use_production else 0.0
+        
+        config = cls(
             environment=environment,
             supabase_url=supabase_url,
             supabase_key=supabase_key,
@@ -98,6 +131,12 @@ class IngestConfig:
             thread_count=thread_count,
             batch_size=batch_size,
         )
+        
+        # Set rate limiting parameters
+        config._rate_limit_strategy = rate_strategy
+        config._rate_limit_delay = rate_delay
+        
+        return config
     
     def is_production(self) -> bool:
         """Check if running in production environment."""
