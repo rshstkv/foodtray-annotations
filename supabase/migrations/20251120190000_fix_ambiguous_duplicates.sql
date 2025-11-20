@@ -2,10 +2,35 @@
 -- Description: Add UNIQUE constraint for items where recipe_line_option_id IS NULL (ambiguous dishes)
 
 -- ============================================================
+-- STEP 0: Clean up work_annotations that reference duplicate items
+-- ============================================================
+
+-- First, delete work_annotations that reference duplicate initial_annotations
+WITH duplicate_items AS (
+  SELECT 
+    id,
+    ROW_NUMBER() OVER (
+      PARTITION BY recognition_id, recipe_line_id, (metadata->>'qwen_label')
+      ORDER BY id
+    ) as rn
+  FROM initial_tray_items
+  WHERE source = 'RECIPE_LINE_OPTION' AND recipe_line_option_id IS NULL
+),
+duplicate_annotations AS (
+  SELECT ia.id
+  FROM initial_annotations ia
+  WHERE ia.initial_tray_item_id IN (
+    SELECT id FROM duplicate_items WHERE rn > 1
+  )
+)
+DELETE FROM work_annotations
+WHERE initial_annotation_id IN (SELECT id FROM duplicate_annotations);
+
+-- ============================================================
 -- STEP 1: Clean up existing duplicates in initial_annotations
 -- ============================================================
 
--- First, delete annotations that belong to duplicate items
+-- Now delete annotations that belong to duplicate items (safe now)
 WITH duplicate_items AS (
   SELECT 
     id,
