@@ -92,9 +92,15 @@ export async function POST(request: Request) {
 
       console.log(`[finish-step] Last step marked as ${mark_as}, work_log completed`)
 
-      // Берем следующий recognition
+      // Берем следующий recognition С ТЕМ ЖЕ ФИЛЬТРОМ
+      const savedFilter = workLog.priority_filter || 'any'
+      console.log(`[finish-step] Using saved filter: ${savedFilter}`)
+      
       const { data: nextTask } = await supabase
-        .rpc('acquire_recognition_with_steps', { p_user_id: user.id })
+        .rpc('acquire_recognition_with_steps', { 
+          p_user_id: user.id,
+          p_filter: savedFilter
+        })
         .maybeSingle<AcquireRecognitionResult>()
 
       if (nextTask) {
