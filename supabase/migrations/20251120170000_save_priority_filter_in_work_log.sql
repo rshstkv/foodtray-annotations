@@ -329,13 +329,14 @@ BEGIN
   -- Собрать validation_steps из активных конфигов
   SELECT jsonb_agg(
     jsonb_build_object(
-      'type', vc.type,
-      'status', 'pending'
+      'type', validation_type,
+      'status', 'pending',
+      'order', order_in_session
     ) 
-    ORDER BY vc.sequence_order
+    ORDER BY order_in_session
   )
   INTO v_steps
-  FROM validation_configs vc
+  FROM validation_priority_config
   WHERE is_active = true;
   
   -- Создать work_log со всеми steps + СОХРАНИТЬ priority_filter
