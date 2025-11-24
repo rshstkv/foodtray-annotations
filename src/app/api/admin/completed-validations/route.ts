@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
       .in('status', ['completed', 'abandoned'])
       .order('recognition_id')
       .order('completed_at', { ascending: false })
+      .limit(10000)
 
     if (userId && userId !== 'all') {
       workLogsQuery = workLogsQuery.eq('assigned_to', userId)
