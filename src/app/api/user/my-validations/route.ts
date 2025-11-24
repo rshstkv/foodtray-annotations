@@ -47,16 +47,31 @@ export async function GET(request: NextRequest) {
     // Получить уникальные recognition_ids
     const recognitionIds = [...new Set(workLogs.map(log => log.recognition_id))]
 
-    // Получить recognitions
-    const { data: recognitions, error: recognitionsError } = await supabase
-      .from('recognitions')
-      .select('id, batch_id')
-      .in('id', recognitionIds)
+    console.log('[my-validations] Total unique recognition_ids:', recognitionIds.length)
 
-    if (recognitionsError) {
-      console.error('[my-validations] Error fetching recognitions:', recognitionsError)
-      return apiError('Failed to fetch recognitions', 500, ApiErrorCode.INTERNAL_ERROR)
+    // Получить recognitions (батчинг для обхода ограничения .in() на ~1000 элементов)
+    const BATCH_SIZE = 1000
+    const recognitions = []
+    
+    for (let i = 0; i < recognitionIds.length; i += BATCH_SIZE) {
+      const batch = recognitionIds.slice(i, i + BATCH_SIZE)
+      
+      const { data, error } = await supabase
+        .from('recognitions')
+        .select('id, batch_id')
+        .in('id', batch)
+
+      if (error) {
+        console.error('[my-validations] Error fetching recognitions batch:', error)
+        return apiError('Failed to fetch recognitions', 500, ApiErrorCode.INTERNAL_ERROR)
+      }
+      
+      if (data) {
+        recognitions.push(...data)
+      }
     }
+
+    console.log('[my-validations] Total recognitions fetched:', recognitions.length)
 
     // Получить email пользователя
     const { data: profile } = await supabase

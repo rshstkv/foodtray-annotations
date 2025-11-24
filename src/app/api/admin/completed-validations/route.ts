@@ -64,16 +64,32 @@ export async function GET(request: NextRequest) {
     // Получить уникальные recognition_ids
     const recognitionIds = [...new Set(workLogs.map(log => log.recognition_id))]
 
-    // Получить recognitions
-    const { data: recognitions, error: recognitionsError } = await supabase
-      .from('recognitions')
-      .select('id, batch_id')
-      .in('id', recognitionIds)
+    console.log('[completed-validations] Total unique recognition_ids:', recognitionIds.length)
 
-    if (recognitionsError) {
-      console.error('[completed-validations] Error fetching recognitions:', recognitionsError)
-      return apiError('Failed to fetch recognitions', 500, ApiErrorCode.INTERNAL_ERROR)
+    // Получить recognitions (батчинг для обхода ограничения .in() на ~1000 элементов)
+    const BATCH_SIZE = 1000
+    const recognitions = []
+    
+    for (let i = 0; i < recognitionIds.length; i += BATCH_SIZE) {
+      const batch = recognitionIds.slice(i, i + BATCH_SIZE)
+      console.log(`[completed-validations] Fetching batch ${Math.floor(i / BATCH_SIZE) + 1}, IDs: ${batch.length}`)
+      
+      const { data, error } = await supabase
+        .from('recognitions')
+        .select('id, batch_id')
+        .in('id', batch)
+
+      if (error) {
+        console.error('[completed-validations] Error fetching recognitions batch:', error)
+        return apiError('Failed to fetch recognitions', 500, ApiErrorCode.INTERNAL_ERROR)
+      }
+      
+      if (data) {
+        recognitions.push(...data)
+      }
     }
+
+    console.log('[completed-validations] Total recognitions fetched:', recognitions.length)
 
     // Получить emails пользователей для отображения
     const userIds = [...new Set(workLogs.map(log => log.assigned_to))]
