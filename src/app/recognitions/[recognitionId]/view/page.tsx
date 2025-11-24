@@ -13,6 +13,7 @@ import { apiFetch } from '@/lib/api-response'
 import { Save } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { getValidationCapabilities } from '@/lib/validation-capabilities'
+import { getItemTypeFromValidationType } from '@/types/domain'
 import type { 
   Recognition, 
   Image as RecognitionImage, 
@@ -459,17 +460,6 @@ export default function RecognitionViewPage({
       />
     </ValidationSessionProvider>
   )
-}
-
-function getItemTypeFromValidationType(validationType: ValidationType) {
-  const map: Record<ValidationType, string> = {
-    FOOD_VALIDATION: 'FOOD',
-    PLATE_VALIDATION: 'PLATE',
-    BUZZER_VALIDATION: 'BUZZER',
-    OCCLUSION_VALIDATION: 'FOOD',
-    BOTTLE_ORIENTATION_VALIDATION: 'FOOD' // Бутылки это FOOD items с bottle_orientation
-  }
-  return map[validationType]
 }
 
 
