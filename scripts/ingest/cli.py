@@ -33,8 +33,46 @@ def load_command(args):
     logger = get_logger()
     logger.section("RECOGNITION DATA LOAD")
     
+    # 🔒 SAFETY: Prevent --force in production (would destroy user work!)
+    if args.force and args.production:
+        logger.error("=" * 60)
+        logger.error("❌ FATAL ERROR: --force is FORBIDDEN in production!")
+        logger.error("=" * 60)
+        logger.error("Using --force in production would:")
+        logger.error("  • Destroy user validation work (work_items, work_annotations)")
+        logger.error("  • Delete validation_work_log entries")
+        logger.error("  • Cause irreversible data loss")
+        logger.error("")
+        logger.error("Use --force ONLY in local/staging environments!")
+        logger.error("=" * 60)
+        return 1
+    
+    # 🔒 SAFETY: Require explicit confirmation for production
+    if args.production:
+        logger.warning("=" * 60)
+        logger.warning("⚠️  PRODUCTION MODE ENABLED")
+        logger.warning("=" * 60)
+        logger.warning("This will load data to PRODUCTION environment")
+        logger.warning("")
+        logger.warning("Safety guarantees:")
+        logger.warning("  ✓ Only NEW recognitions will be loaded")
+        logger.warning("  ✓ Existing recognitions will be SKIPPED")
+        logger.warning("  ✓ User validation work will NOT be touched")
+        logger.warning("  ✓ No data will be deleted or overwritten")
+        logger.warning("=" * 60)
+        logger.warning("")
+        confirm = input("Type 'CONFIRM' to proceed: ")
+        if confirm != "CONFIRM":
+            logger.info("Operation cancelled by user")
+            return 1
+        logger.info("Confirmation received, proceeding...")
+        logger.info("")
+    
     # Initialize configuration
-    config = IngestConfig.from_env(use_production=args.production)
+    config = IngestConfig.from_env(
+        use_production=args.production,
+        use_staging=getattr(args, 'staging', False)
+    )
     logger.info(
         "Environment loaded",
         environment=config.environment,
@@ -122,6 +160,7 @@ def load_command(args):
             logger.info("Loading Qwen annotations...")
             qwen_args = argparse.Namespace(
                 production=args.production,
+                staging=getattr(args, 'staging', False),
                 file=None  # Use default search paths
             )
             qwen_result = load_qwen_command(qwen_args)
@@ -145,8 +184,19 @@ def load_qwen_command(args):
     logger = get_logger()
     logger.section("QWEN ANNOTATIONS LOAD")
     
+    # 🔒 SAFETY: Require confirmation for production
+    if args.production:
+        logger.warning("⚠️  Loading Qwen annotations to PRODUCTION")
+        confirm = input("Type 'CONFIRM' to proceed: ")
+        if confirm != "CONFIRM":
+            logger.info("Operation cancelled by user")
+            return 1
+    
     # Initialize configuration
-    config = IngestConfig.from_env(use_production=args.production)
+    config = IngestConfig.from_env(
+        use_production=args.production,
+        use_staging=getattr(args, 'staging', False)
+    )
     logger.info("Environment loaded", environment=config.environment)
     
     # Initialize components
@@ -292,8 +342,38 @@ def reset_command(args):
     logger = get_logger()
     logger.section("RESET BATCH DATA")
     
+    # 🔒 SAFETY: Strongly discourage reset in production
+    if args.production:
+        logger.error("=" * 60)
+        logger.error("⛔️ DANGER: Attempting to DELETE data from PRODUCTION!")
+        logger.error("=" * 60)
+        logger.error("This operation will PERMANENTLY DELETE:")
+        logger.error("  • Recognition records")
+        logger.error("  • Images from storage")
+        logger.error("  • Associated validation work")
+        logger.error("")
+        logger.error("This action is IRREVERSIBLE!")
+        logger.error("=" * 60)
+        logger.error("")
+        logger.error("Are you ABSOLUTELY SURE you want to proceed?")
+        confirm1 = input("Type the batch_id to confirm: ")
+        if confirm1 != args.batch_id:
+            logger.info("Batch ID mismatch. Operation cancelled.")
+            return 1
+        
+        confirm2 = input("Type 'DELETE FROM PRODUCTION' to proceed: ")
+        if confirm2 != "DELETE FROM PRODUCTION":
+            logger.info("Confirmation failed. Operation cancelled.")
+            return 1
+        
+        logger.warning("Proceeding with production deletion...")
+        logger.warning("")
+    
     # Initialize configuration
-    config = IngestConfig.from_env(use_production=args.production)
+    config = IngestConfig.from_env(
+        use_production=args.production,
+        use_staging=getattr(args, 'staging', False)
+    )
     logger.info("Environment loaded", environment=config.environment)
     
     # Initialize managers
@@ -369,7 +449,10 @@ def status_command(args):
     logger.section("SYSTEM STATUS")
     
     # Initialize configuration
-    config = IngestConfig.from_env(use_production=args.production)
+    config = IngestConfig.from_env(
+        use_production=args.production,
+        use_staging=getattr(args, 'staging', False)
+    )
     logger.info("Environment", type=config.environment)
     
     # Initialize managers
@@ -468,6 +551,11 @@ def main():
         '--production',
         action='store_true',
         help='Use production environment'
+    )
+    parser.add_argument(
+        '--staging',
+        action='store_true',
+        help='Use staging environment'
     )
     parser.add_argument(
         '--verbose',
