@@ -38,24 +38,47 @@ export async function GET(request: NextRequest) {
 
     // Запрос completed и abandoned work logs (включая validation_steps для multi-step архитектуры)
     // Abandoned work_logs могут содержать completed шаги
-    let workLogsQuery = supabase
-      .from('validation_work_log')
-      .select('id, recognition_id, validation_type, validation_steps, completed_at, assigned_to, status')
-      .in('status', ['completed', 'abandoned'])
-      .order('recognition_id')
-      .order('completed_at', { ascending: false })
-      .limit(10000)
+    // Используем пагинацию для обхода лимита в 1000 строк
+    const PAGE_SIZE = 1000
+    const workLogs = []
+    let page = 0
+    let hasMore = true
 
-    if (userId && userId !== 'all') {
-      workLogsQuery = workLogsQuery.eq('assigned_to', userId)
+    while (hasMore) {
+      const from = page * PAGE_SIZE
+      const to = from + PAGE_SIZE - 1
+
+      console.log(`[completed-validations] Fetching work_logs page ${page + 1}, range: ${from}-${to}`)
+
+      let query = supabase
+        .from('validation_work_log')
+        .select('id, recognition_id, validation_type, validation_steps, completed_at, assigned_to, status')
+        .in('status', ['completed', 'abandoned'])
+        .order('recognition_id')
+        .order('completed_at', { ascending: false })
+        .range(from, to)
+
+      if (userId && userId !== 'all') {
+        query = query.eq('assigned_to', userId)
+      }
+
+      const { data, error: workLogsError } = await query
+
+      if (workLogsError) {
+        console.error('[completed-validations] Error fetching work logs:', workLogsError)
+        return apiError('Failed to fetch work logs', 500, ApiErrorCode.INTERNAL_ERROR)
+      }
+
+      if (data && data.length > 0) {
+        workLogs.push(...data)
+        hasMore = data.length === PAGE_SIZE
+        page++
+      } else {
+        hasMore = false
+      }
     }
 
-    const { data: workLogs, error: workLogsError } = await workLogsQuery
-
-    if (workLogsError) {
-      console.error('[completed-validations] Error fetching work logs:', workLogsError)
-      return apiError('Failed to fetch work logs', 500, ApiErrorCode.INTERNAL_ERROR)
-    }
+    console.log('[completed-validations] Total work_logs fetched:', workLogs.length)
 
     if (!workLogs || workLogs.length === 0) {
       return apiSuccess({ recognitions: [] })

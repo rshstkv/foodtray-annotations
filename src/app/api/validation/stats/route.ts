@@ -31,19 +31,59 @@ export async function GET() {
 
     // Получить все completed и abandoned work_logs (включая validation_steps для multi-step)
     // Abandoned work_logs могут содержать completed шаги, которые нужно учитывать
-    const { data: completedWorkLogs } = await supabase
-      .from('validation_work_log')
-      .select('recognition_id, validation_type, validation_steps')
-      .in('status', ['completed', 'abandoned'])
-      .limit(10000)
+    // Используем пагинацию для обхода лимита в 1000 строк
+    const PAGE_SIZE = 1000
+    const completedWorkLogs = []
+    let page = 0
+    let hasMore = true
+
+    while (hasMore) {
+      const from = page * PAGE_SIZE
+      const to = from + PAGE_SIZE - 1
+
+      const { data } = await supabase
+        .from('validation_work_log')
+        .select('recognition_id, validation_type, validation_steps')
+        .in('status', ['completed', 'abandoned'])
+        .range(from, to)
+
+      if (data && data.length > 0) {
+        completedWorkLogs.push(...data)
+        hasMore = data.length === PAGE_SIZE
+        page++
+      } else {
+        hasMore = false
+      }
+    }
+
+    console.log('[validation/stats] Total completed work_logs:', completedWorkLogs.length)
 
     // Получить все in_progress work_logs (updated in last 30 minutes)
-    const { data: inProgressWorkLogs } = await supabase
-      .from('validation_work_log')
-      .select('recognition_id, validation_type, validation_steps')
-      .eq('status', 'in_progress')
-      .gte('updated_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
-      .limit(10000)
+    const inProgressWorkLogs = []
+    page = 0
+    hasMore = true
+
+    while (hasMore) {
+      const from = page * PAGE_SIZE
+      const to = from + PAGE_SIZE - 1
+
+      const { data } = await supabase
+        .from('validation_work_log')
+        .select('recognition_id, validation_type, validation_steps')
+        .eq('status', 'in_progress')
+        .gte('updated_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
+        .range(from, to)
+
+      if (data && data.length > 0) {
+        inProgressWorkLogs.push(...data)
+        hasMore = data.length === PAGE_SIZE
+        page++
+      } else {
+        hasMore = false
+      }
+    }
+
+    console.log('[validation/stats] Total in_progress work_logs:', inProgressWorkLogs.length)
 
     const stats = []
 
