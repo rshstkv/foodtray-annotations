@@ -22,6 +22,7 @@
     "ingest:status:staging": "python3 scripts/ingest/cli.py --staging status",
     "ingest:status:production": "python3 scripts/ingest/cli.py --production status",
     "ingest:all": "npm run ingest:load -- --limit 100 && npm run ingest:load-qwen",
+    "db:load-staging": "bash scripts/load-dump-to-staging.sh",
     "prepare": "husky"
   },
   "dependencies": {
