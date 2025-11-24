@@ -60,8 +60,6 @@ export async function GET(request: NextRequest) {
 
     console.log('[my-validations] Total work_logs fetched:', workLogs.length)
 
-    const workLogsError = null
-
     if (!workLogs || workLogs.length === 0) {
       return apiSuccess({ recognitions: [] })
     }

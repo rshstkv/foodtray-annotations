@@ -80,13 +80,6 @@ export async function GET(request: NextRequest) {
 
     console.log('[completed-validations] Total work_logs fetched:', workLogs.length)
 
-    const workLogsError = null
-
-    if (workLogsError) {
-      console.error('[completed-validations] Error fetching work logs:', workLogsError)
-      return apiError('Failed to fetch work logs', 500, ApiErrorCode.INTERNAL_ERROR)
-    }
-
     if (!workLogs || workLogs.length === 0) {
       return apiSuccess({ recognitions: [] })
     }
