@@ -16,6 +16,9 @@ project_root = Path(__file__).parent.parent
 if len(sys.argv) > 1 and sys.argv[1] == "--production":
     env_path = project_root / ".env.production"
     env_type = "production"
+elif len(sys.argv) > 1 and sys.argv[1] == "--staging":
+    env_path = project_root / ".env.staging"
+    env_type = "staging"
 else:
     env_path = project_root / ".env.local"
     env_type = "local"

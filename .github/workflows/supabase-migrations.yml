@@ -2,16 +2,25 @@ name: Supabase Migrations
 
 on:
   push:
-    branches: [ main ]
-    paths:
-      - "supabase/migrations/**"
-      - "supabase/**"
-      - ".github/workflows/supabase-migrations.yml"
+    branches:
+      - staging  # Automatic deployment to staging environment
+  
+  workflow_dispatch:  # Manual trigger for production only
+    inputs:
+      environment:
+        description: 'Target environment for migrations'
+        required: true
+        type: choice
+        options:
+          - production
+        default: 'production'
 
 jobs:
   db-push:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    environment: 
+      name: ${{ github.event_name == 'push' && 'staging' || github.event.inputs.environment }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -33,10 +42,21 @@ jobs:
 
       - name: Link and push migrations
         run: |
-          # Link to production project  
+          ENV_NAME="${{ github.event_name == 'push' && 'staging' || github.event.inputs.environment }}"
+          
+          if [ "$ENV_NAME" = "production" ]; then
+            echo "🔒 MANUAL DEPLOYMENT TO PRODUCTION"
+            echo "This is a critical operation - migrations will be applied to production database"
+          else
+            echo "🚀 AUTOMATIC DEPLOYMENT TO STAGING"
+            echo "Triggered by push to staging branch"
+          fi
+          echo ""
+          
+          # Link to project (staging or production based on environment)
           supabase link --project-ref $SUPABASE_PROJECT_ID --password $SUPABASE_DB_PASSWORD
           
-          # Push all migrations to production (including ones before last applied)
+          # Push all migrations
           supabase db push --include-all
           
-          echo "✅ All migrations pushed successfully"
+          echo "✅ All migrations pushed successfully to $ENV_NAME"

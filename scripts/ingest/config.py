@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 # Environment types
 ENV_LOCAL = "local"
+ENV_STAGING = "staging"
 ENV_PRODUCTION = "production"
 
 
@@ -57,6 +58,7 @@ class IngestConfig:
     def from_env(
         cls, 
         use_production: bool = False,
+        use_staging: bool = False,
         profile: str = "balanced"
     ) -> "IngestConfig":
         """
@@ -64,14 +66,22 @@ class IngestConfig:
         
         Args:
             use_production: Use production environment
+            use_staging: Use staging environment
             profile: Performance profile - "safe", "balanced", "fast", or "custom"
         """
+        # Ensure only one environment is selected
+        if use_production and use_staging:
+            raise ValueError("Cannot use both production and staging environments")
+        
         project_root = Path(__file__).parent.parent.parent
         
         # Determine which env file to load
         if use_production:
             env_path = project_root / ".env.production"
             environment = ENV_PRODUCTION
+        elif use_staging:
+            env_path = project_root / ".env.staging"
+            environment = ENV_STAGING
         else:
             env_path = project_root / ".env.local"
             if not env_path.exists():
@@ -118,10 +128,11 @@ class IngestConfig:
             rate_delay = 0.0
         else:  # custom or legacy
             # Legacy behavior: conservative for production, aggressive for local
-            thread_count = 1 if use_production else 16
-            batch_size = 10 if use_production else 100
-            rate_strategy = "fixed" if use_production else "none"
-            rate_delay = 0.1 if use_production else 0.0
+            # Staging uses same profile as production for safety
+            thread_count = 1 if (use_production or use_staging) else 16
+            batch_size = 10 if (use_production or use_staging) else 100
+            rate_strategy = "fixed" if (use_production or use_staging) else "none"
+            rate_delay = 0.1 if (use_production or use_staging) else 0.0
         
         config = cls(
             environment=environment,
