@@ -204,9 +204,11 @@ export default function WorkPage() {
   }
 
   // Подсчет общей статистики
-  const totalAvailable = stats.reduce((sum, s) => sum + s.total, 0)
-  const totalCompleted = stats.reduce((sum, s) => sum + s.completed, 0)
-  const totalInProgress = stats.reduce((sum, s) => sum + s.in_progress, 0)
+  // Для multi-step валидации: total - это общее количество recognitions (одинаковое для всех типов)
+  // completed - минимум по всем типам (recognition считается completed только если завершены ВСЕ типы)
+  const totalAvailable = stats.length > 0 ? stats[0].total : 0
+  const totalCompleted = stats.length > 0 ? Math.min(...stats.map(s => s.completed)) : 0
+  const totalInProgress = stats.length > 0 ? Math.max(...stats.map(s => s.in_progress)) : 0
   const totalRemaining = totalAvailable - totalCompleted - totalInProgress
   const overallProgress = totalAvailable > 0 ? Math.round((totalCompleted / totalAvailable) * 100) : 0
 

@@ -52,17 +52,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No valid recognition IDs provided' }, { status: 400 })
     }
 
-    // Получить recognitions
-    const { data: recognitions, error: recognitionsError } = await supabase
-      .from('recognitions')
-      .select('id')
-      .in('id', recognitionIds)
-      .order('id')
+    console.log('[export] Total recognition IDs to export:', recognitionIds.length)
 
-    if (recognitionsError) {
-      console.error('[export] Error fetching recognitions:', recognitionsError)
-      return NextResponse.json({ error: recognitionsError.message }, { status: 500 })
+    // Получить recognitions (батчинг для обхода ограничения .in() на ~1000 элементов)
+    const BATCH_SIZE = 1000
+    const recognitions = []
+    
+    for (let i = 0; i < recognitionIds.length; i += BATCH_SIZE) {
+      const batch = recognitionIds.slice(i, i + BATCH_SIZE)
+      
+      const { data, error } = await supabase
+        .from('recognitions')
+        .select('id')
+        .in('id', batch)
+        .order('id')
+
+      if (error) {
+        console.error('[export] Error fetching recognitions batch:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      
+      if (data) {
+        recognitions.push(...data)
+      }
     }
+
+    console.log('[export] Total recognitions fetched:', recognitions.length)
 
     if (!recognitions || recognitions.length === 0) {
       return NextResponse.json({ error: 'No recognitions found' }, { status: 404 })
