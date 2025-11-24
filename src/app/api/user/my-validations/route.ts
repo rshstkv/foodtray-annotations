@@ -25,20 +25,42 @@ export async function GET(request: NextRequest) {
     const validationType = searchParams.get('validationType') as ValidationType | null
 
     // Запрос completed и abandoned work logs текущего пользователя
-    const workLogsQuery = supabase
-      .from('validation_work_log')
-      .select('id, recognition_id, validation_type, validation_steps, completed_at, assigned_to, status')
-      .in('status', ['completed', 'abandoned'])
-      .eq('assigned_to', user.id)
-      .order('recognition_id')
-      .order('completed_at', { ascending: false })
+    // Используем пагинацию для обхода лимита в 1000 строк
+    const PAGE_SIZE = 1000
+    const workLogs = []
+    let page = 0
+    let hasMore = true
 
-    const { data: workLogs, error: workLogsError } = await workLogsQuery
+    while (hasMore) {
+      const from = page * PAGE_SIZE
+      const to = from + PAGE_SIZE - 1
 
-    if (workLogsError) {
-      console.error('[my-validations] Error fetching work logs:', workLogsError)
-      return apiError('Failed to fetch work logs', 500, ApiErrorCode.INTERNAL_ERROR)
+      const { data, error: workLogsError } = await supabase
+        .from('validation_work_log')
+        .select('id, recognition_id, validation_type, validation_steps, completed_at, assigned_to, status')
+        .in('status', ['completed', 'abandoned'])
+        .eq('assigned_to', user.id)
+        .order('recognition_id')
+        .order('completed_at', { ascending: false })
+        .range(from, to)
+
+      if (workLogsError) {
+        console.error('[my-validations] Error fetching work logs:', workLogsError)
+        return apiError('Failed to fetch work logs', 500, ApiErrorCode.INTERNAL_ERROR)
+      }
+
+      if (data && data.length > 0) {
+        workLogs.push(...data)
+        hasMore = data.length === PAGE_SIZE
+        page++
+      } else {
+        hasMore = false
+      }
     }
+
+    console.log('[my-validations] Total work_logs fetched:', workLogs.length)
+
+    const workLogsError = null
 
     if (!workLogs || workLogs.length === 0) {
       return apiSuccess({ recognitions: [] })
