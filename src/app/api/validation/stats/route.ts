@@ -35,6 +35,7 @@ export async function GET() {
       .from('validation_work_log')
       .select('recognition_id, validation_type, validation_steps')
       .in('status', ['completed', 'abandoned'])
+      .limit(10000)
 
     // Получить все in_progress work_logs (updated in last 30 minutes)
     const { data: inProgressWorkLogs } = await supabase
@@ -42,6 +43,7 @@ export async function GET() {
       .select('recognition_id, validation_type, validation_steps')
       .eq('status', 'in_progress')
       .gte('updated_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
+      .limit(10000)
 
     const stats = []
 
