@@ -462,8 +462,8 @@ export function BBoxCanvas({
           // Клик по пустому месту - снимаем выделение
           onAnnotationSelect?.(null)
           
-          // Создание новой аннотации только если canEdit
-          if (canEdit) {
+          // Создание новой аннотации только если canEdit И выбран item
+          if (canEdit && highlightedItemId) {
             setIsDrawing(true)
             setStartPoint(pos)
             setCurrentPoint(pos)
@@ -471,7 +471,7 @@ export function BBoxCanvas({
         }
       }
     },
-    [canEdit, mode, annotations, selectedAnnotationId, tempBBox, getMousePos, getScale, bboxToCanvas, getResizeHandle, onAnnotationSelect]
+    [canEdit, mode, annotations, selectedAnnotationId, tempBBox, highlightedItemId, getMousePos, getScale, bboxToCanvas, getResizeHandle, onAnnotationSelect]
   )
 
   // Mouse move
@@ -717,7 +717,13 @@ export function BBoxCanvas({
           ref={canvasRef}
           width={containerSize.width}
           height={containerSize.height}
-          className="absolute inset-0 cursor-crosshair"
+          className={`absolute inset-0 ${
+            canEdit && highlightedItemId 
+              ? 'cursor-crosshair' 
+              : canEdit 
+                ? 'cursor-not-allowed' 
+                : 'cursor-default'
+          }`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}

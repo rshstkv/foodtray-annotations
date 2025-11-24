@@ -27,6 +27,8 @@ interface ValidationSessionHeaderProps {
   readOnly?: boolean
   validationSteps?: ValidationStep[] | null
   currentStepIndex?: number
+  onStepClick?: (index: number) => void
+  highlightedStepIndex?: number | null // Для анимации переключения этапа
 }
 
 export function ValidationSessionHeader({
@@ -39,6 +41,8 @@ export function ValidationSessionHeader({
   readOnly = false,
   validationSteps = null,
   currentStepIndex = 0,
+  onStepClick,
+  highlightedStepIndex = null,
 }: ValidationSessionHeaderProps) {
   // Подсчёт количества items с ошибками
   const itemsWithErrors = validationStatus ? validationStatus.itemErrors.size : 0
@@ -94,16 +98,22 @@ export function ValidationSessionHeader({
                 const isCompleted = step.status === 'completed'
                 const isSkipped = step.status === 'skipped'
                 const isPending = step.status === 'pending'
+                const isClickable = onStepClick !== undefined
+                const isHighlighted = index === highlightedStepIndex
 
                 return (
                   <div key={index} className="flex items-center gap-1">
-                    <div
+                    <button
+                      onClick={isClickable ? () => onStepClick(index) : undefined}
+                      disabled={!isClickable}
                       className={`
                         w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 transition-all
                         ${isCompleted ? 'bg-green-500 text-white' : ''}
                         ${isSkipped ? 'bg-gray-400 text-white' : ''}
                         ${isCurrent ? 'bg-blue-500 text-white ring-2 ring-blue-200' : ''}
                         ${isPending ? 'bg-gray-300 text-gray-600' : ''}
+                        ${isClickable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}
+                        ${isHighlighted ? 'animate-pulse ring-4 ring-blue-400 scale-110' : ''}
                       `}
                       title={VALIDATION_TYPE_LABELS[step.type]}
                     >
@@ -114,7 +124,7 @@ export function ValidationSessionHeader({
                       ) : (
                         <span>{index + 1}</span>
                       )}
-                    </div>
+                    </button>
                     {index < validationSteps.length - 1 && (
                       <div className={`w-4 h-0.5 ${isCompleted ? 'bg-green-500' : isSkipped ? 'bg-gray-400' : 'bg-gray-300'}`} />
                     )}
@@ -128,35 +138,37 @@ export function ValidationSessionHeader({
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           {/* Индикатор статуса валидации */}
           {validationStatus && (
-            validationStatus.canComplete ? (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-md">
-                <CheckCircle className="w-4 h-4 text-green-600" />
-                <span className="text-sm font-medium text-green-700">
-                  Все проверки пройдены
-                </span>
-              </div>
-            ) : (
-              <button
-                onClick={onSelectFirstError}
-                className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors cursor-pointer"
-                title="Кликните чтобы перейти к проблемному объекту"
-              >
-                <AlertCircle className="w-4 h-4 text-red-600" />
-                <span className="text-sm font-medium text-red-700">
-                  {itemsWithErrors} {itemsWithErrors === 1 ? 'объект требует' : itemsWithErrors > 1 && itemsWithErrors < 5 ? 'объекта требуют' : 'объектов требуют'} внимания
-                </span>
-              </button>
-            )
+            <div className="flex-shrink-0">
+              {validationStatus.canComplete ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-md">
+                  <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                  <span className="text-sm font-medium text-green-700 whitespace-nowrap">
+                    Все проверки пройдены
+                  </span>
+                </div>
+              ) : (
+                <button
+                  onClick={onSelectFirstError}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors cursor-pointer"
+                  title="Кликните чтобы перейти к проблемному объекту"
+                >
+                  <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                  <span className="text-sm font-medium text-red-700 whitespace-nowrap">
+                    {itemsWithErrors} {itemsWithErrors === 1 ? 'объект требует' : itemsWithErrors > 1 && itemsWithErrors < 5 ? 'объекта требуют' : 'объектов требуют'} внимания
+                  </span>
+                </button>
+              )}
+            </div>
           )}
 
           {/* Индикатор несохраненных изменений - только в edit режиме */}
           {!readOnly && hasUnsavedChanges && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md">
-              <AlertCircle className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-700">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md flex-shrink-0">
+              <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              <span className="text-sm font-medium text-blue-700 whitespace-nowrap">
                 Есть несохраненные изменения
               </span>
             </div>
@@ -169,6 +181,7 @@ export function ValidationSessionHeader({
               size="sm"
               onClick={onReset}
               disabled={!hasUnsavedChanges}
+              className="flex-shrink-0"
             >
               <RotateCcw className="w-4 h-4 mr-2" />
               Reset to Initial

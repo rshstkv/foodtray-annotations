@@ -53,6 +53,8 @@ function ValidationSessionContent() {
   const mode = 'edit' as const
   const [showItemDialog, setShowItemDialog] = useState(false)
   const [sessionExpired, setSessionExpired] = useState(false)
+  const [isCompleting, setIsCompleting] = useState(false)
+  const [highlightedStepIndex, setHighlightedStepIndex] = useState<number | null>(null)
 
   const itemType = getItemTypeFromValidationType(session.workLog.validation_type)
   
@@ -201,11 +203,33 @@ function ValidationSessionContent() {
   }
 
   const handleComplete = async () => {
+    // Предотвращаем повторные нажатия
+    if (isCompleting) return
+    
     try {
+      setIsCompleting(true)
+      
+      // Если есть следующий этап - подсвечиваем его
+      if (!isLastStep) {
+        const nextStepIndex = currentStepIndex + 1
+        setHighlightedStepIndex(nextStepIndex)
+        
+        // Задержка чтобы пользователь увидел анимацию
+        await new Promise(resolve => setTimeout(resolve, 800))
+      }
+      
+      // Завершаем этап
       await finishStep('completed')
+      
+      // Убираем подсветку
+      setHighlightedStepIndex(null)
     } catch (err) {
       console.error('Failed to complete step:', err)
       alert('Ошибка при завершении этапа')
+      setHighlightedStepIndex(null)
+    } finally {
+      // Разблокируем через секунду после завершения
+      setTimeout(() => setIsCompleting(false), 1000)
     }
   }
 
@@ -379,14 +403,14 @@ function ValidationSessionContent() {
       }
 
       // Shift+Enter - пропустить этап
-      if (e.key === 'Enter' && e.shiftKey && !readOnly) {
+      if (e.key === 'Enter' && e.shiftKey && !readOnly && !isCompleting) {
         e.preventDefault()
         handleSkip()
         return
       }
 
       // Enter - завершить валидацию / следующая валидация
-      if (e.key === 'Enter' && !readOnly) {
+      if (e.key === 'Enter' && !readOnly && !isCompleting) {
         e.preventDefault()
         if (validationStatus.canComplete) {
           handleComplete()
@@ -454,6 +478,7 @@ function ValidationSessionContent() {
     handleSkip,
     handleItemSelect,
     capabilities.showAllItemTypes,
+    isCompleting,
   ])
 
   return (
@@ -470,6 +495,7 @@ function ValidationSessionContent() {
             readOnly={readOnly}
             validationSteps={workLog.validation_steps}
             currentStepIndex={currentStepIndex}
+            highlightedStepIndex={highlightedStepIndex}
           />
         }
         sidebar={
@@ -524,15 +550,21 @@ function ValidationSessionContent() {
               {/* Завершить / Следующая */}
               <Button 
                 onClick={handleComplete}
-                disabled={!validationStatus.canComplete}
-                title={!validationStatus.canComplete ? 'Исправьте ошибки валидации перед завершением' : (isLastStep ? 'Завершить всё' : 'Следующая валидация')}
+                disabled={!validationStatus.canComplete || isCompleting}
+                title={
+                  isCompleting ? 'Сохранение...' :
+                  !validationStatus.canComplete ? 'Исправьте ошибки валидации перед завершением' : 
+                  (isLastStep ? 'Завершить всё' : 'Следующая валидация')
+                }
                 className="relative"
               >
                 <CheckCircle className="w-4 h-4 mr-2" />
-                {isLastStep ? 'Завершить всё' : 'Следующая валидация'}
-                <kbd className="ml-2 px-1.5 py-0.5 text-xs font-semibold bg-white/20 rounded border border-white/30">
-                  Enter
-                </kbd>
+                {isCompleting ? 'Сохранение...' : (isLastStep ? 'Завершить всё' : 'Следующая валидация')}
+                {!isCompleting && (
+                  <kbd className="ml-2 px-1.5 py-0.5 text-xs font-semibold bg-white/20 rounded border border-white/30">
+                    Enter
+                  </kbd>
+                )}
               </Button>
             </div>
           ) : (
