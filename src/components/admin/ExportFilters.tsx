@@ -138,34 +138,38 @@ export function ExportFilters({
           <Label className="text-sm font-semibold text-gray-900 mb-2 block">
             Фильтр по пользователям
           </Label>
+          
+          {/* Selected users badges */}
+          {selectedUserIds.size > 0 && (
+            <div className="flex flex-wrap gap-1 mb-2 p-2 bg-gray-50 rounded-md border">
+              {selectedUsers.map(user => (
+                <Badge key={user.id} variant="secondary" className="gap-1">
+                  {user.email}
+                  <button
+                    onClick={() => clearUser(user.id)}
+                    className="ml-1 hover:bg-gray-300 rounded-full p-0.5"
+                    type="button"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
+          
           <Popover open={userSelectOpen} onOpenChange={setUserSelectOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 role="combobox"
                 aria-expanded={userSelectOpen}
-                className="w-full justify-between h-auto min-h-[40px] py-2"
+                className="w-full justify-between"
               >
-                <div className="flex flex-wrap gap-1 flex-1">
-                  {selectedUserIds.size === 0 ? (
-                    <span className="text-gray-500">Выберите пользователей...</span>
-                  ) : (
-                    selectedUsers.map(user => (
-                      <Badge key={user.id} variant="secondary" className="gap-1">
-                        {user.email}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            clearUser(user.id)
-                          }}
-                          className="ml-1 hover:bg-gray-300 rounded-full p-0.5"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </Badge>
-                    ))
-                  )}
-                </div>
+                <span className="text-gray-700">
+                  {selectedUserIds.size === 0 
+                    ? 'Выберите пользователей...' 
+                    : `Выбрано: ${selectedUserIds.size}`}
+                </span>
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
