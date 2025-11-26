@@ -30,15 +30,16 @@ export default function AdminExportPage() {
 
   // Filters
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
-  const [validationStepStatuses, setValidationStepStatuses] = useState<Map<ValidationType, 'any' | 'completed' | 'skipped'>>(
+  const [validationStepFilters, setValidationStepFilters] = useState<Map<ValidationType, { enabled: boolean; status: 'any' | 'completed' | 'skipped' }>>(
     new Map([
-      ['FOOD_VALIDATION', 'any'],
-      ['PLATE_VALIDATION', 'any'],
-      ['BUZZER_VALIDATION', 'any'],
-      ['OCCLUSION_VALIDATION', 'any'],
-      ['BOTTLE_ORIENTATION_VALIDATION', 'any'],
+      ['FOOD_VALIDATION', { enabled: false, status: 'completed' }],
+      ['PLATE_VALIDATION', { enabled: false, status: 'completed' }],
+      ['BUZZER_VALIDATION', { enabled: false, status: 'completed' }],
+      ['OCCLUSION_VALIDATION', { enabled: false, status: 'completed' }],
+      ['BOTTLE_ORIENTATION_VALIDATION', { enabled: false, status: 'completed' }],
     ])
   )
+  const [previewCount, setPreviewCount] = useState<number | undefined>(undefined)
 
   // Data
   const [recognitions, setRecognitions] = useState<RecognitionWithValidations[]>([])
@@ -59,6 +60,13 @@ export default function AdminExportPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin])
+
+  useEffect(() => {
+    if (recognitions.length > 0) {
+      updatePreviewCount()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recognitions, validationStepFilters, selectedUserIds])
 
   const loadUsers = async () => {
     try {
@@ -93,12 +101,43 @@ export default function AdminExportPage() {
     }
   }
 
-  const handleValidationStepStatusChange = (type: ValidationType, status: 'any' | 'completed' | 'skipped') => {
-    setValidationStepStatuses(prev => {
+  const handleValidationStepFilterChange = (type: ValidationType, filter: { enabled: boolean; status: 'any' | 'completed' | 'skipped' }) => {
+    setValidationStepFilters(prev => {
       const newMap = new Map(prev)
-      newMap.set(type, status)
+      newMap.set(type, filter)
       return newMap
     })
+    // Update preview count when filters change
+    updatePreviewCount()
+  }
+
+  const updatePreviewCount = () => {
+    // Простой подсчет: recognitions которые проходят фильтры
+    let filtered = [...recognitions]
+
+    // Filter by enabled steps
+    const enabledSteps = Array.from(validationStepFilters.entries())
+      .filter(([_, filter]) => filter.enabled)
+    
+    if (enabledSteps.length > 0) {
+      filtered = filtered.filter(rec => {
+        return enabledSteps.every(([type, filter]) => {
+          const completedTypes = rec.completed_validations.map(v => v.validation_type)
+          
+          if (filter.status === 'completed') {
+            return completedTypes.includes(type)
+          } else if (filter.status === 'skipped') {
+            // Check if skipped - would need validation_steps info
+            return false // Пока упрощенно
+          } else {
+            // any
+            return true
+          }
+        })
+      })
+    }
+
+    setPreviewCount(filtered.length)
   }
 
   const applyFilters = async () => {
@@ -133,10 +172,10 @@ export default function AdminExportPage() {
         params.append('userIds', Array.from(selectedUserIds).join(','))
       }
       
-      // Передаем статусы этапов
-      for (const [type, status] of validationStepStatuses.entries()) {
-        if (status !== 'any') {
-          params.append(`step_${type}`, status)
+      // Передаем статусы этапов (только enabled)
+      for (const [type, filter] of validationStepFilters.entries()) {
+        if (filter.enabled) {
+          params.append(`step_${type}`, filter.status)
         }
       }
 
@@ -272,10 +311,11 @@ export default function AdminExportPage() {
           users={users}
           selectedUserIds={selectedUserIds}
           onUserIdsChange={setSelectedUserIds}
-          validationStepStatuses={validationStepStatuses}
-          onValidationStepStatusChange={handleValidationStepStatusChange}
+          validationStepFilters={validationStepFilters}
+          onValidationStepFilterChange={handleValidationStepFilterChange}
           onApply={applyFilters}
           loading={loading}
+          previewCount={previewCount}
         />
       </div>
 

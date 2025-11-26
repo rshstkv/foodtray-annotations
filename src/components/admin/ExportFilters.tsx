@@ -5,7 +5,21 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { X } from 'lucide-react'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from '@/components/ui/command'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { Badge } from '@/components/ui/badge'
+import { Check, ChevronsUpDown, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { ValidationType } from '@/types/domain'
 
 const VALIDATION_TYPES: ValidationType[] = [
@@ -38,25 +52,33 @@ interface User {
   recognitions_count?: number
 }
 
+interface StepFilter {
+  enabled: boolean
+  status: StepStatus
+}
+
 interface ExportFiltersProps {
   users: User[]
   selectedUserIds: Set<string>
   onUserIdsChange: (userIds: Set<string>) => void
-  validationStepStatuses: Map<ValidationType, StepStatus>
-  onValidationStepStatusChange: (type: ValidationType, status: StepStatus) => void
+  validationStepFilters: Map<ValidationType, StepFilter>
+  onValidationStepFilterChange: (type: ValidationType, filter: StepFilter) => void
   onApply: () => void
   loading?: boolean
+  previewCount?: number
 }
 
 export function ExportFilters({
   users,
   selectedUserIds,
   onUserIdsChange,
-  validationStepStatuses,
-  onValidationStepStatusChange,
+  validationStepFilters,
+  onValidationStepFilterChange,
   onApply,
   loading = false,
+  previewCount,
 }: ExportFiltersProps) {
+  const [userSelectOpen, setUserSelectOpen] = useState(false)
 
   const toggleUser = (userId: string) => {
     const newSet = new Set(selectedUserIds)
@@ -66,6 +88,16 @@ export function ExportFilters({
       newSet.add(userId)
     }
     onUserIdsChange(newSet)
+  }
+
+  const toggleStepEnabled = (type: ValidationType) => {
+    const current = validationStepFilters.get(type) || { enabled: false, status: 'completed' }
+    onValidationStepFilterChange(type, { ...current, enabled: !current.enabled })
+  }
+
+  const setStepStatus = (type: ValidationType, status: StepStatus) => {
+    const current = validationStepFilters.get(type) || { enabled: false, status: 'completed' }
+    onValidationStepFilterChange(type, { ...current, status })
   }
 
   const getStatusColor = (status: StepStatus) => {
@@ -94,89 +126,99 @@ export function ExportFilters({
   }
 
   const hasActiveFilters = selectedUserIds.size > 0 || 
-    Array.from(validationStepStatuses.values()).some(status => status !== 'any')
+    Array.from(validationStepFilters.values()).some(filter => filter.enabled)
+  
+  const selectedUsers = users.filter(u => selectedUserIds.has(u.id))
 
   return (
     <Card className="p-6 rounded-xl shadow-sm">
       <div className="space-y-6">
-        {/* User Filter */}
+        {/* User Filter - Multiselect Dropdown */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <Label className="text-sm font-semibold text-gray-900">
-              Фильтр по пользователям
-            </Label>
-            <div className="flex items-center gap-2">
+          <Label className="text-sm font-semibold text-gray-900 mb-2 block">
+            Фильтр по пользователям
+          </Label>
+          <Popover open={userSelectOpen} onOpenChange={setUserSelectOpen}>
+            <PopoverTrigger asChild>
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={selectAllUsers}
-                disabled={loading}
-                className="h-7 text-xs"
+                variant="outline"
+                role="combobox"
+                aria-expanded={userSelectOpen}
+                className="w-full justify-between h-auto min-h-[40px] py-2"
               >
-                Выбрать всех
+                <div className="flex flex-wrap gap-1 flex-1">
+                  {selectedUserIds.size === 0 ? (
+                    <span className="text-gray-500">Выберите пользователей...</span>
+                  ) : (
+                    selectedUsers.map(user => (
+                      <Badge key={user.id} variant="secondary" className="gap-1">
+                        {user.email}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            clearUser(user.id)
+                          }}
+                          className="ml-1 hover:bg-gray-300 rounded-full p-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))
+                  )}
+                </div>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={deselectAllUsers}
-                disabled={loading}
-                className="h-7 text-xs"
-              >
-                Сбросить
-              </Button>
-            </div>
-          </div>
-
-          {/* Selected users as chips */}
-          {selectedUserIds.size > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {Array.from(selectedUserIds).map(userId => {
-                const user = users.find(u => u.id === userId)
-                if (!user) return null
-                return (
-                  <div
-                    key={userId}
-                    className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-sm"
-                  >
-                    <span>{user.email}</span>
-                    {user.recognitions_count && (
-                      <span className="text-xs opacity-75">
-                        ({user.recognitions_count})
-                      </span>
-                    )}
-                    <button
-                      onClick={() => clearUser(userId)}
-                      className="ml-1 hover:bg-blue-200 rounded p-0.5"
+            </PopoverTrigger>
+            <PopoverContent className="w-[500px] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Поиск пользователя..." />
+                <CommandEmpty>Пользователи не найдены.</CommandEmpty>
+                <CommandGroup className="max-h-64 overflow-auto">
+                  {users.map((user) => (
+                    <CommandItem
+                      key={user.id}
+                      value={user.email}
+                      onSelect={() => {
+                        toggleUser(user.id)
+                      }}
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* User checkboxes */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-2 bg-gray-50 rounded-lg">
-            {users.map(user => (
-              <label
-                key={user.id}
-                className="flex items-center gap-2 px-3 py-2 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-              >
-                <Checkbox
-                  checked={selectedUserIds.has(user.id)}
-                  onCheckedChange={() => toggleUser(user.id)}
-                />
-                <span className="text-sm flex-1 truncate" title={user.email}>
-                  {user.email}
-                </span>
-                {user.recognitions_count !== undefined && (
-                  <span className="text-xs text-gray-500">
-                    {user.recognitions_count}
-                  </span>
-                )}
-              </label>
-            ))}
+                      <Check
+                        className={cn(
+                          'mr-2 h-4 w-4',
+                          selectedUserIds.has(user.id) ? 'opacity-100' : 'opacity-0'
+                        )}
+                      />
+                      <span className="flex-1">{user.email}</span>
+                      {user.recognitions_count !== undefined && (
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          {user.recognitions_count}
+                        </Badge>
+                      )}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </Command>
+            </PopoverContent>
+          </Popover>
+          <div className="flex items-center gap-2 mt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={selectAllUsers}
+              disabled={loading}
+              className="h-7 text-xs"
+            >
+              Выбрать всех
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={deselectAllUsers}
+              disabled={loading}
+              className="h-7 text-xs"
+            >
+              Сбросить
+            </Button>
           </div>
         </div>
 
@@ -185,24 +227,33 @@ export function ExportFilters({
           <Label className="text-sm font-semibold text-gray-900 mb-3 block">
             Фильтр по этапам валидации
           </Label>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {VALIDATION_TYPES.map(type => {
-              const currentStatus = validationStepStatuses.get(type) || 'any'
+              const filter = validationStepFilters.get(type) || { enabled: false, status: 'completed' }
               return (
                 <div key={type} className="flex items-center gap-3">
-                  <span className="text-sm text-gray-700 w-32">
-                    {VALIDATION_TYPE_LABELS[type]}:
-                  </span>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={filter.enabled}
+                      onCheckedChange={() => toggleStepEnabled(type)}
+                    />
+                    <span className="text-sm text-gray-700 w-28">
+                      {VALIDATION_TYPE_LABELS[type]}
+                    </span>
+                  </label>
                   <div className="flex gap-2">
-                    {(['any', 'completed', 'skipped'] as StepStatus[]).map(status => (
+                    {(['completed', 'skipped', 'any'] as StepStatus[]).map(status => (
                       <button
                         key={status}
                         type="button"
-                        onClick={() => onValidationStepStatusChange(type, status)}
+                        onClick={() => setStepStatus(type, status)}
+                        disabled={!filter.enabled}
                         className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
-                          currentStatus === status
+                          filter.enabled && filter.status === status
                             ? getStatusColor(status)
-                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                            : filter.enabled
+                            ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                            : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
                         }`}
                       >
                         {STATUS_LABELS[status]}
@@ -214,26 +265,39 @@ export function ExportFilters({
             })}
           </div>
           <p className="text-xs text-gray-500 mt-3">
-            Выберите требуемый статус для каждого этапа. "Любой" - включает recognitions с любым статусом этапа.
+            Отметьте этапы для фильтрации и выберите статус. По умолчанию: "Завершен".
           </p>
         </div>
 
-        {/* Apply Button */}
-        <div className="flex items-center justify-between pt-4 border-t">
-          <div className="text-sm text-gray-600">
-            {hasActiveFilters ? (
-              <span>Фильтры активны</span>
-            ) : (
-              <span>Фильтры не применены</span>
-            )}
+        {/* Preview and Apply */}
+        <div className="pt-4 border-t space-y-3">
+          {previewCount !== undefined && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm font-medium text-blue-900">
+                {previewCount > 0 ? (
+                  <>Будет выгружено: <span className="text-lg font-bold">{previewCount}</span> recognitions</>
+                ) : (
+                  'Нет данных для выгрузки с текущими фильтрами'
+                )}
+              </p>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              {hasActiveFilters ? (
+                <span>Фильтры активны</span>
+              ) : (
+                <span>Фильтры не применены</span>
+              )}
+            </div>
+            <Button
+              onClick={onApply}
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {loading ? 'Загрузка...' : 'Применить фильтры'}
+            </Button>
           </div>
-          <Button
-            onClick={onApply}
-            disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            {loading ? 'Загрузка...' : 'Применить фильтры'}
-          </Button>
         </div>
       </div>
     </Card>
