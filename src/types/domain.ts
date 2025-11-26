@@ -468,14 +468,65 @@ export interface ValidationExportRecipe {
   items: ValidationExportItem[]
 }
 
+export interface ValidationExportMetadata {
+  work_log_id: number
+  assigned_to: string
+  assigned_to_email: string
+  completed_at: string
+  validation_steps: Array<{
+    type: ValidationType
+    status: 'completed' | 'skipped' | 'pending'
+    order: number
+  }>
+}
+
 export interface ValidationExportRecognition {
   recognition_id: number
+  batch_id: string | null
+  validation_metadata?: ValidationExportMetadata
   recipe: ValidationExportRecipe
   images: ValidationExportImage[]
 }
 
 export interface ValidationExportData {
   recognitions: ValidationExportRecognition[]
+}
+
+// Export Preview Statistics
+export interface ExportPreviewStats {
+  total_recognitions: number
+  total_items: Record<ItemType, number>
+  total_annotations: number
+  modified_annotations: number
+  unmodified_annotations: number
+  users_breakdown: Array<{
+    user_id: string
+    email: string
+    recognitions_count: number
+    items_count: number
+    annotations_count: number
+  }>
+  validation_steps_breakdown: Record<ValidationType, {
+    completed: number
+    skipped: number
+    pending: number
+  }>
+}
+
+export interface ExportPreviewData {
+  stats: ExportPreviewStats
+  recognitions: Array<{
+    recognition_id: number
+    batch_id: string | null
+    items_by_type: Record<ItemType, number>
+    annotations_count: number
+    modified_annotations_count: number
+    validation_steps: ValidationExportMetadata['validation_steps']
+    assigned_users: Array<{
+      user_id: string
+      email: string
+    }>
+  }>
 }
 
 // Completed validation list for admin statistics
