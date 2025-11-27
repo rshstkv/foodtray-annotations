@@ -61,8 +61,8 @@ export async function GET(request: NextRequest) {
       step_buzzer: stepBuzzer || null,
       step_occlusion: stepOcclusion || null,
       step_bottle: stepBottle || null,
-      page_limit: null as number | null, // БЕЗ лимита - получаем ВСЕ
-      page_offset: null as number | null,
+      page_limit: 100000, // Большой лимит для экспорта всех данных
+      page_offset: 0,
     }
 
     console.log('[export] Fetching filtered work logs with params:', rpcParams)
