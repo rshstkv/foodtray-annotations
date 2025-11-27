@@ -68,7 +68,10 @@ export async function GET(request: NextRequest) {
     console.log('[export] ========================================')
 
     // Batch size для обхода лимитов .in()
-    const BATCH_SIZE = 1000
+    // ВАЖНО: Делаем ОЧЕНЬ маленький батч чтобы результат точно влез в лимит 1000 строк Supabase
+    // 10 work_logs × ~4 items/annotations = ~40 rows (гарантированно влезет)
+    // Да, это медленно (286 запросов), но это единственный способ получить ВСЕ данные
+    const BATCH_SIZE = 10
 
     // Получить ВСЕ отфильтрованные work logs через RPC с ПАГИНАЦИЕЙ
     // Supabase имеет лимит, поэтому грузим батчами по 1000
@@ -129,6 +132,7 @@ export async function GET(request: NextRequest) {
         .from('recognitions')
         .select('id, batch_id')
         .in('id', batch)
+        .limit(5000) // Явный большой лимит для батча
 
       if (error) {
         console.error('[export] Error fetching recognitions batch:', error)
@@ -208,6 +212,7 @@ export async function GET(request: NextRequest) {
         `)
         .in('work_log_id', batch)
         .eq('is_deleted', false)
+        .limit(5000) // Явный большой лимит для батча
 
       if (error) {
         console.error('[export] Error fetching work items batch:', error)
@@ -253,6 +258,7 @@ export async function GET(request: NextRequest) {
         `)
         .in('work_log_id', batch)
         .eq('is_deleted', false)
+        .limit(5000) // Явный большой лимит для батча
 
       if (error) {
         console.error('[export] Error fetching work annotations batch:', error)
@@ -278,6 +284,7 @@ export async function GET(request: NextRequest) {
         .in('recognition_id', batch)
         .order('recognition_id')
         .order('camera_number')
+        .limit(5000) // Явный большой лимит для батча
 
       if (error) {
         console.error('[export] Error fetching images batch:', error)
