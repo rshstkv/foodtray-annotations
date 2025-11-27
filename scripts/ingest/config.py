@@ -27,7 +27,7 @@ class IngestConfig:
     
     # Performance tuning
     thread_count: int = 16
-    batch_size: int = 50
+    batch_size: int = 10  # Reduced to avoid transform timeouts in production
     retry_max_attempts: int = 5
     retry_backoff_factor: float = 2.0
     connection_pool_size: int = 10
