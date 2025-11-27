@@ -67,6 +67,9 @@ export async function GET(request: NextRequest) {
 
     console.log('[export] Fetching filtered work logs with params:', rpcParams)
 
+    // Batch size для обхода лимитов .in()
+    const BATCH_SIZE = 1000
+
     // Получить ВСЕ отфильтрованные work logs через RPC
     const { data: workLogs, error: workLogsError } = await supabase.rpc('get_filtered_work_logs', rpcParams)
 
@@ -81,20 +84,32 @@ export async function GET(request: NextRequest) {
 
     console.log('[export] Total work logs fetched:', workLogs.length)
 
-    // Получить recognition IDs и batch_id
+    // Получить recognition IDs и batch_id с батчингом
     const recognitionIds = workLogs.map((log: any) => log.recognition_id)
-    const { data: recognitions, error: recognitionsError } = await supabase
-      .from('recognitions')
-      .select('id, batch_id')
-      .in('id', recognitionIds)
+    const recognitions = []
+    
+    for (let i = 0; i < recognitionIds.length; i += BATCH_SIZE) {
+      const batch = recognitionIds.slice(i, i + BATCH_SIZE)
+      
+      const { data, error } = await supabase
+        .from('recognitions')
+        .select('id, batch_id')
+        .in('id', batch)
 
-    if (recognitionsError) {
-      console.error('[export] Error fetching recognitions:', recognitionsError)
-      return NextResponse.json({ error: recognitionsError.message }, { status: 500 })
+      if (error) {
+        console.error('[export] Error fetching recognitions batch:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      
+      if (data) {
+        recognitions.push(...data)
+      }
     }
 
+    console.log('[export] Recognitions fetched:', recognitions.length)
+
     // Создать Map для быстрого доступа к batch_id
-    const recognitionBatchMap = new Map(recognitions?.map(r => [r.id, r.batch_id]) || [])
+    const recognitionBatchMap = new Map(recognitions.map(r => [r.id, r.batch_id]))
 
     // Создать Map для быстрого доступа (RPC уже вернул последний work_log для каждого recognition)
     const latestWorkLogByRecognition = new Map<number, any>()
@@ -124,70 +139,106 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No completed validations found for selected recognitions' }, { status: 404 })
     }
 
-    // Загрузить work_items с LEFT JOIN к recipe_line_options для получения external_id и name
-    const { data: workItems, error: workItemsError } = await supabase
-      .from('work_items')
-      .select(`
-        id,
-        work_log_id,
-        recognition_id,
-        type,
-        quantity,
-        bottle_orientation,
-        metadata,
-        recipe_line_id,
-        recipe_lines(
-          recipe_line_options(
-            external_id,
-            name,
-            is_selected
+    // Загрузить work_items с батчингом (обход лимита .in())
+    const workItems = []
+    
+    for (let i = 0; i < workLogIds.length; i += BATCH_SIZE) {
+      const batch = workLogIds.slice(i, i + BATCH_SIZE)
+      
+      const { data, error } = await supabase
+        .from('work_items')
+        .select(`
+          id,
+          work_log_id,
+          recognition_id,
+          type,
+          quantity,
+          bottle_orientation,
+          metadata,
+          recipe_line_id,
+          recipe_lines(
+            recipe_line_options(
+              external_id,
+              name,
+              is_selected
+            )
           )
-        )
-      `)
-      .in('work_log_id', workLogIds)
-      .eq('is_deleted', false)
+        `)
+        .in('work_log_id', batch)
+        .eq('is_deleted', false)
 
-    if (workItemsError) {
-      console.error('[export] Error fetching work items:', workItemsError)
-      return NextResponse.json({ error: workItemsError.message }, { status: 500 })
+      if (error) {
+        console.error('[export] Error fetching work items batch:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      
+      if (data) {
+        workItems.push(...data)
+      }
     }
+    
+    console.log('[export] Work items fetched:', workItems.length)
 
-    // Загрузить work_annotations с JOIN к initial_annotations для сравнения bbox
-    const { data: workAnnotations, error: workAnnotationsError } = await supabase
-      .from('work_annotations')
-      .select(`
-        id,
-        work_log_id,
-        work_item_id,
-        image_id,
-        bbox,
-        is_occluded,
-        occlusion_metadata,
-        initial_annotation_id,
-        initial_annotations(
-          bbox
-        )
-      `)
-      .in('work_log_id', workLogIds)
-      .eq('is_deleted', false)
+    // Загрузить work_annotations с батчингом
+    const workAnnotations = []
+    
+    for (let i = 0; i < workLogIds.length; i += BATCH_SIZE) {
+      const batch = workLogIds.slice(i, i + BATCH_SIZE)
+      
+      const { data, error } = await supabase
+        .from('work_annotations')
+        .select(`
+          id,
+          work_log_id,
+          work_item_id,
+          image_id,
+          bbox,
+          is_occluded,
+          occlusion_metadata,
+          initial_annotation_id,
+          initial_annotations(
+            bbox
+          )
+        `)
+        .in('work_log_id', batch)
+        .eq('is_deleted', false)
 
-    if (workAnnotationsError) {
-      console.error('[export] Error fetching work annotations:', workAnnotationsError)
-      return NextResponse.json({ error: workAnnotationsError.message }, { status: 500 })
+      if (error) {
+        console.error('[export] Error fetching work annotations batch:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      
+      if (data) {
+        workAnnotations.push(...data)
+      }
     }
+    
+    console.log('[export] Work annotations fetched:', workAnnotations.length)
 
-    // Загрузить images для всех recognitions
-    const { data: images, error: imagesError } = await supabase
-      .from('images')
-      .select('id, recognition_id, camera_number, storage_path, width, height')
-      .in('recognition_id', recognitionIds)
-      .order('recognition_id')
-      .order('camera_number')
+    // Загрузить images с батчингом
+    const images = []
+    
+    for (let i = 0; i < recognitionIds.length; i += BATCH_SIZE) {
+      const batch = recognitionIds.slice(i, i + BATCH_SIZE)
+      
+      const { data, error } = await supabase
+        .from('images')
+        .select('id, recognition_id, camera_number, storage_path, width, height')
+        .in('recognition_id', batch)
+        .order('recognition_id')
+        .order('camera_number')
 
-    if (imagesError) {
-      console.error('[export] Error fetching images:', imagesError)
-      return NextResponse.json({ error: imagesError.message }, { status: 500 })
+      if (error) {
+        console.error('[export] Error fetching images batch:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      
+      if (data) {
+        images.push(...data)
+      }
     }
+    
+    console.log('[export] Images fetched:', images.length)
 
     // Создать maps для быстрого доступа
     const workItemsByRecognition = new Map<number, any[]>()
