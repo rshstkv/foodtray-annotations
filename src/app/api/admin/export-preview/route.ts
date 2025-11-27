@@ -12,9 +12,9 @@ import type {
  * 
  * Предпросмотр экспорта с детальной статистикой
  * Query params:
- * - recognitionIds: comma-separated список recognition IDs (required)
  * - userIds: comma-separated список user IDs для фильтрации (optional)
- * - validationTypes: comma-separated список типов валидации (optional)
+ * - step_<TYPE>: статус этапа (completed/skipped/any) (optional)
+ * - limit: максимальное кол-во recognitions для preview (default: 500)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -39,66 +39,37 @@ export async function GET(request: NextRequest) {
 
     // Получение параметров
     const searchParams = request.nextUrl.searchParams
-    const recognitionIdsParam = searchParams.get('recognitionIds')
     const userIdsParam = searchParams.get('userIds')
-    const validationTypesParam = searchParams.get('validationTypes')
-
-    if (!recognitionIdsParam) {
-      return NextResponse.json({ error: 'recognitionIds parameter is required' }, { status: 400 })
-    }
-
-    const recognitionIds = recognitionIdsParam.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))
-    const userIds = userIdsParam ? userIdsParam.split(',').map(id => id.trim()) : null
-    const validationTypes = validationTypesParam ? validationTypesParam.split(',') as ValidationType[] : null
-
-    if (recognitionIds.length === 0) {
-      return NextResponse.json({ error: 'No valid recognition IDs provided' }, { status: 400 })
-    }
-
-    console.log('[export-preview] Recognition IDs:', recognitionIds.length)
-    console.log('[export-preview] User filter:', userIds)
-    console.log('[export-preview] Validation types filter:', validationTypes)
-
-    // Получить recognitions
-    const BATCH_SIZE = 1000
-    const recognitions = []
+    const pageParam = searchParams.get('page')
+    const pageSizeParam = searchParams.get('pageSize')
+    const searchQuery = searchParams.get('search')
     
-    for (let i = 0; i < recognitionIds.length; i += BATCH_SIZE) {
-      const batch = recognitionIds.slice(i, i + BATCH_SIZE)
-      
-      const { data, error } = await supabase
-        .from('recognitions')
-        .select('id, batch_id')
-        .in('id', batch)
-        .order('id')
+    const userIds = userIdsParam ? userIdsParam.split(',').map(id => id.trim()) : null
+    const page = pageParam ? parseInt(pageParam) : 1
+    const pageSize = pageSizeParam ? parseInt(pageSizeParam) : 50
 
-      if (error) {
-        console.error('[export-preview] Error fetching recognitions:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
-      }
-      
-      if (data) {
-        recognitions.push(...data)
-      }
-    }
-
-    console.log('[export-preview] Recognitions fetched:', recognitions.length)
-
-    if (recognitions.length === 0) {
-      return NextResponse.json({ error: 'No recognitions found' }, { status: 404 })
-    }
+    console.log('[export-preview] User filter:', userIds)
+    console.log('[export-preview] Page:', page, 'PageSize:', pageSize)
+    console.log('[export-preview] Search:', searchQuery)
 
     // Получить work logs с фильтрацией
     let workLogsQuery = supabase
       .from('validation_work_log')
       .select('id, recognition_id, validation_type, validation_steps, completed_at, assigned_to')
-      .in('recognition_id', recognitionIds)
       .eq('status', 'completed')
-      .order('recognition_id')
+      .order('recognition_id', { ascending: false })
       .order('completed_at', { ascending: false })
 
     if (userIds) {
       workLogsQuery = workLogsQuery.in('assigned_to', userIds)
+    }
+
+    // Добавляем поиск по recognition_id
+    if (searchQuery) {
+      const searchId = parseInt(searchQuery)
+      if (!isNaN(searchId)) {
+        workLogsQuery = workLogsQuery.eq('recognition_id', searchId)
+      }
     }
 
     const { data: workLogs, error: workLogsError } = await workLogsQuery
@@ -155,12 +126,39 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const workLogIds = Array.from(latestWorkLogByRecognition.values()).map(log => log.id)
+    // Общее количество recognitions после фильтрации
+    const totalRecognitions = latestWorkLogByRecognition.size
+    
+    // Применяем пагинацию
+    const allRecognitionIds = Array.from(latestWorkLogByRecognition.keys())
+    const startIndex = (page - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    const paginatedRecognitionIds = allRecognitionIds.slice(startIndex, endIndex)
 
-    if (workLogIds.length === 0) {
+    // Получаем workLogIds только для текущей страницы
+    const workLogIds = paginatedRecognitionIds.map(recId => {
+      const log = latestWorkLogByRecognition.get(recId)
+      return log?.id
+    }).filter(Boolean) as number[]
+
+    console.log('[export-preview] Total recognitions:', totalRecognitions)
+    console.log('[export-preview] Current page recognitions:', workLogIds.length)
+
+    // Загрузить recognitions с batch_id для текущей страницы
+    const { data: recognitions, error: recognitionsError } = await supabase
+      .from('recognitions')
+      .select('id, batch_id')
+      .in('id', paginatedRecognitionIds)
+
+    if (recognitionsError) {
+      console.error('[export-preview] Error fetching recognitions:', recognitionsError)
+      return NextResponse.json({ error: recognitionsError.message }, { status: 500 })
+    }
+
+    if (totalRecognitions === 0 || workLogIds.length === 0) {
       // Возвращаем пустой результат вместо ошибки
       const emptyStats: ExportPreviewStats = {
-        total_recognitions: 0,
+        total_recognitions: totalRecognitions,
         total_items: { FOOD: 0, PLATE: 0, BUZZER: 0, BOTTLE: 0, OTHER: 0 },
         total_annotations: 0,
         modified_annotations: 0,
@@ -178,6 +176,12 @@ export async function GET(request: NextRequest) {
       const emptyData: ExportPreviewData = {
         stats: emptyStats,
         recognitions: [],
+        pagination: {
+          page,
+          pageSize,
+          totalPages: 0,
+          totalItems: totalRecognitions,
+        },
       }
       
       return NextResponse.json(emptyData, { status: 200 })
@@ -389,6 +393,12 @@ export async function GET(request: NextRequest) {
     const previewData: ExportPreviewData = {
       stats,
       recognitions: recognitionsData as any,
+      pagination: {
+        page,
+        pageSize,
+        totalPages: Math.ceil(totalRecognitions / pageSize),
+        totalItems: totalRecognitions,
+      },
     }
 
     return NextResponse.json(previewData, { status: 200 })

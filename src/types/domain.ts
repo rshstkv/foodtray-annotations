@@ -527,6 +527,12 @@ export interface ExportPreviewData {
       email: string
     }>
   }>
+  pagination: {
+    page: number
+    pageSize: number
+    totalPages: number
+    totalItems: number
+  }
 }
 
 // Completed validation list for admin statistics
