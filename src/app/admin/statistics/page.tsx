@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -39,6 +39,8 @@ import { useToast } from '@/hooks/use-toast'
 import { Eye, Check, X, MoreVertical, RotateCcw } from 'lucide-react'
 import Link from 'next/link'
 import type { RecognitionWithValidations, ValidationType, CompletedValidationInfo } from '@/types/domain'
+import { SearchBar } from '@/components/admin/SearchBar'
+import { Pagination } from '@/components/admin/Pagination'
 
 interface User {
   id: string
@@ -73,6 +75,11 @@ export default function AdminStatisticsPage() {
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [recognitionToReset, setRecognitionToReset] = useState<number | null>(null)
   const [resetting, setResetting] = useState(false)
+  
+  // Search & Pagination
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 50
 
   // Инициализируем selectedUserId для обычного пользователя
   useEffect(() => {
@@ -130,23 +137,79 @@ export default function AdminStatisticsPage() {
   }
 
   // Фильтрация recognitions на клиенте
-  const filteredRecognitions = recognitions.filter(recognition => {
-    // Если не выбраны типы валидаций - показываем все
-    if (selectedValidationTypes.size === 0) {
-      return true
+  const filteredRecognitions = useMemo(() => {
+    return recognitions.filter(recognition => {
+      // Если не выбраны типы валидаций - показываем все
+      if (selectedValidationTypes.size === 0) {
+        return true
+      }
+      
+      // Проверяем, что ВСЕ выбранные типы валидаций присутствуют
+      // Это более строгая фильтрация - показываем только те recognitions,
+      // у которых есть ВСЕ выбранные типы валидаций
+      const completedTypes = new Set(
+        recognition.completed_validations.map(v => v.validation_type)
+      )
+      
+      return Array.from(selectedValidationTypes).every(type => 
+        completedTypes.has(type)
+      )
+    })
+  }, [recognitions, selectedValidationTypes])
+
+  // Статистика по пользователям
+  const userValidationStats = useMemo(() => {
+    const stats = new Map<string, {
+      email: string
+      counts: Record<ValidationType, number>
+      total: number
+    }>()
+    
+    for (const rec of recognitions) {
+      for (const val of rec.completed_validations) {
+        if (!stats.has(val.assigned_to)) {
+          stats.set(val.assigned_to, {
+            email: val.assigned_to_email || 'Unknown',
+            counts: {
+              FOOD_VALIDATION: 0,
+              PLATE_VALIDATION: 0,
+              BUZZER_VALIDATION: 0,
+              OCCLUSION_VALIDATION: 0,
+              BOTTLE_ORIENTATION_VALIDATION: 0,
+            },
+            total: 0,
+          })
+        }
+        const userStat = stats.get(val.assigned_to)!
+        userStat.counts[val.validation_type]++
+        userStat.total++
+      }
     }
     
-    // Проверяем, что ВСЕ выбранные типы валидаций присутствуют
-    // Это более строгая фильтрация - показываем только те recognitions,
-    // у которых есть ВСЕ выбранные типы валидаций
-    const completedTypes = new Set(
-      recognition.completed_validations.map(v => v.validation_type)
+    return Array.from(stats.values()).sort((a, b) => b.total - a.total)
+  }, [recognitions])
+
+  // Фильтрация по поиску
+  const searchFiltered = useMemo(() => {
+    if (!searchQuery.trim()) return filteredRecognitions
+    const query = searchQuery.trim().toLowerCase()
+    return filteredRecognitions.filter(r => 
+      r.recognition_id.toString().includes(query)
     )
-    
-    return Array.from(selectedValidationTypes).every(type => 
-      completedTypes.has(type)
-    )
-  })
+  }, [filteredRecognitions, searchQuery])
+
+  // Пагинация
+  const paginatedRecognitions = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return searchFiltered.slice(start, start + pageSize)
+  }, [searchFiltered, currentPage, pageSize])
+
+  const totalPages = Math.ceil(searchFiltered.length / pageSize)
+
+  // Reset to page 1 when search or filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, selectedValidationTypes, selectedUserId])
 
   const toggleValidationType = (type: ValidationType) => {
     setSelectedValidationTypes(prev => {
@@ -280,6 +343,48 @@ export default function AdminStatisticsPage() {
         </div>
       </Card>
 
+      {/* User Statistics */}
+      {isAdmin && userValidationStats.length > 0 && (
+        <Card className="mb-6 rounded-xl shadow-sm overflow-hidden">
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+            <h2 className="text-lg font-semibold text-gray-900">📊 Статистика по пользователям</h2>
+            <p className="text-sm text-gray-600 mt-1">Количество выполненных валидаций каждого типа</p>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  {VALIDATION_TYPES.map((type) => (
+                    <TableHead key={type} className="text-center">
+                      {VALIDATION_TYPE_LABELS[type]}
+                    </TableHead>
+                  ))}
+                  <TableHead className="text-center font-semibold">Всего</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {userValidationStats.map((userStat) => (
+                  <TableRow key={userStat.email}>
+                    <TableCell className="font-medium">{userStat.email}</TableCell>
+                    {VALIDATION_TYPES.map((type) => (
+                      <TableCell key={type} className="text-center">
+                        <span className={userStat.counts[type] > 0 ? 'text-gray-900 font-medium' : 'text-gray-400'}>
+                          {userStat.counts[type]}
+                        </span>
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-center">
+                      <span className="font-bold text-blue-600">{userStat.total}</span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      )}
+
       {/* Info Panel */}
       <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <p className="text-sm text-blue-800">
@@ -291,17 +396,35 @@ export default function AdminStatisticsPage() {
         </p>
       </div>
 
+      {/* Search and Count */}
+      {recognitions.length > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Поиск по Recognition ID..."
+            className="flex-1 max-w-md"
+          />
+          <div className="text-sm text-gray-600">
+            Показано {paginatedRecognitions.length} из {searchFiltered.length} recognitions
+            {searchFiltered.length !== filteredRecognitions.length && ` (всего: ${filteredRecognitions.length})`}
+          </div>
+        </div>
+      )}
+
       {/* Таблица recognitions */}
       {loading ? (
         <Card className="p-12 text-center rounded-xl shadow-sm">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
         </Card>
-      ) : filteredRecognitions.length === 0 ? (
+      ) : searchFiltered.length === 0 ? (
         <Card className="p-12 text-center rounded-xl shadow-sm">
           <p className="text-gray-500">
             {recognitions.length === 0 
               ? 'Нет завершенных валидаций' 
-              : 'Нет валидаций, соответствующих выбранным фильтрам'}
+              : searchQuery.trim() 
+                ? `Нет recognitions с ID "${searchQuery}"`
+                : 'Нет валидаций, соответствующих выбранным фильтрам'}
           </p>
         </Card>
       ) : (
@@ -323,7 +446,7 @@ export default function AdminStatisticsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRecognitions.map((recognition) => (
+                {paginatedRecognitions.map((recognition) => (
                   <TableRow key={recognition.recognition_id}>
                     <TableCell className="font-medium">
                       {recognition.recognition_id}
@@ -383,6 +506,17 @@ export default function AdminStatisticsPage() {
             </Table>
           </div>
         </Card>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          loading={loading}
+          className="mt-6"
+        />
       )}
 
       {/* Диалог подтверждения сброса */}
