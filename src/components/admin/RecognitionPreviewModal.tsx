@@ -281,11 +281,14 @@ export function RecognitionPreviewModal({
               {activeTab === 'changes' && (
                 <div className="space-y-2">
                   <h3 className="text-sm font-semibold mb-3">
-                    Измененные аннотации ({getChangedAnnotations().length})
+                    Измененные и новые аннотации ({getChangedAnnotations().length})
                   </h3>
+                  <p className="text-xs text-gray-600 mb-3">
+                    Аннотации с пометкой "Новая" были добавлены пользователем, их не было в исходных данных от модели.
+                  </p>
                   {getChangedAnnotations().length === 0 ? (
                     <p className="text-center text-gray-500 py-8">
-                      Нет измененных аннотаций
+                      Нет измененных или новых аннотаций
                     </p>
                   ) : (
                     <div className="space-y-3 max-h-96 overflow-y-auto">
@@ -314,7 +317,9 @@ export function RecognitionPreviewModal({
                                   {JSON.stringify(annotation.original_bbox)}
                                 </code>
                               ) : (
-                                <span className="text-gray-400">-</span>
+                                <div className="p-1 bg-blue-50 rounded text-blue-700 text-xs">
+                                  Новая аннотация
+                                </div>
                               )}
                             </div>
                             <div>
