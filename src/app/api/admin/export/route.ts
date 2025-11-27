@@ -65,24 +65,33 @@ export async function GET(request: NextRequest) {
       page_offset: 0,
     }
 
-    console.log('[export] Fetching filtered work logs with params:', rpcParams)
+    console.log('[export] ========================================')
+    console.log('[export] Fetching filtered work logs with params:', JSON.stringify(rpcParams, null, 2))
+    console.log('[export] ========================================')
 
     // Batch size для обхода лимитов .in()
     const BATCH_SIZE = 1000
 
     // Получить ВСЕ отфильтрованные work logs через RPC
-    const { data: workLogs, error: workLogsError } = await supabase.rpc('get_filtered_work_logs', rpcParams)
+    // ВАЖНО: Supabase JS client имеет дефолтный лимит 1000 строк даже для RPC!
+    // Нужно явно указать большой лимит через .limit()
+    const { data: workLogs, error: workLogsError } = await supabase
+      .rpc('get_filtered_work_logs', rpcParams)
+      .limit(100000)  // Явно устанавливаем большой лимит
 
     if (workLogsError) {
-      console.error('[export] Error calling RPC:', workLogsError)
+      console.error('[export] ❌ Error calling RPC:', workLogsError)
       return NextResponse.json({ error: workLogsError.message }, { status: 500 })
     }
 
     if (!workLogs || workLogs.length === 0) {
+      console.log('[export] ⚠️  No work logs found')
       return NextResponse.json({ error: 'No work logs found with given filters' }, { status: 404 })
     }
 
-    console.log('[export] Total work logs fetched:', workLogs.length)
+    console.log('[export] ✅ Total work logs fetched from RPC:', workLogs.length)
+    console.log('[export] First 5 recognition IDs:', workLogs.slice(0, 5).map((l: any) => l.recognition_id))
+    console.log('[export] ========================================')
 
     // Получить recognition IDs и batch_id с батчингом
     const recognitionIds = workLogs.map((log: any) => log.recognition_id)
