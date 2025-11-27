@@ -283,6 +283,64 @@ export default function AdminExportPage() {
 
       {/* Main Content */}
       <div className="space-y-6">
+        {/* Export Actions - Sticky */}
+        {previewData && previewData.recognitions.length > 0 && (
+          <div className="sticky top-0 z-10 bg-gray-50 pb-4">
+            <div className="flex items-center justify-between p-4 bg-white border rounded-xl shadow-lg">
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className="text-sm text-gray-600">Выбрано:</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {selectedRecognitionIds.size}
+                  </p>
+                </div>
+                <div className="h-12 w-px bg-gray-200" />
+                <div>
+                  <p className="text-sm text-gray-600">Items:</p>
+                  <p className="text-xl font-semibold text-blue-600">
+                    {Object.values(previewData.stats.total_items).reduce((a, b) => a + b, 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Annotations:</p>
+                  <p className="text-xl font-semibold text-gray-700">
+                    {previewData.stats.total_annotations}
+                  </p>
+                </div>
+                {previewData.stats.modified_annotations > 0 && (
+                  <>
+                    <div className="h-12 w-px bg-gray-200" />
+                    <div>
+                      <p className="text-sm text-green-600">С правками:</p>
+                      <p className="text-xl font-semibold text-green-600">
+                        {previewData.stats.modified_annotations}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={() => setIntegrityCheckOpen(true)}
+                  disabled={exporting}
+                  variant="outline"
+                >
+                  Проверить целостность
+                </Button>
+                <Button
+                  onClick={handleExport}
+                  disabled={exporting || selectedRecognitionIds.size === 0}
+                  className="bg-green-600 hover:bg-green-700 h-12 px-8 text-base font-semibold"
+                >
+                  <Download className="w-5 h-5 mr-2" />
+                  {exporting ? 'Экспорт...' : `Скачать JSON (${selectedRecognitionIds.size})`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Table */}
         <RecognitionsTable
           data={previewData}
@@ -290,62 +348,6 @@ export default function AdminExportPage() {
           onSelectionChange={setSelectedRecognitionIds}
           onPreview={handlePreview}
         />
-
-        {/* Export Actions */}
-        {previewData && previewData.recognitions.length > 0 && (
-          <div className="flex items-center justify-between p-4 bg-white border rounded-xl shadow-sm">
-            <div className="flex items-center gap-6">
-              <div>
-                <p className="text-sm text-gray-600">Выбрано:</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {selectedRecognitionIds.size}
-                </p>
-              </div>
-              <div className="h-12 w-px bg-gray-200" />
-              <div>
-                <p className="text-sm text-gray-600">Items:</p>
-                <p className="text-xl font-semibold text-blue-600">
-                  {Object.values(previewData.stats.total_items).reduce((a, b) => a + b, 0)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Annotations:</p>
-                <p className="text-xl font-semibold text-gray-700">
-                  {previewData.stats.total_annotations}
-                </p>
-              </div>
-              {previewData.stats.modified_annotations > 0 && (
-                <>
-                  <div className="h-12 w-px bg-gray-200" />
-                  <div>
-                    <p className="text-sm text-green-600">С правками:</p>
-                    <p className="text-xl font-semibold text-green-600">
-                      {previewData.stats.modified_annotations}
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={() => setIntegrityCheckOpen(true)}
-                disabled={exporting}
-                variant="outline"
-              >
-                Проверить целостность
-              </Button>
-              <Button
-                onClick={handleExport}
-                disabled={exporting || selectedRecognitionIds.size === 0}
-                className="bg-green-600 hover:bg-green-700 h-12 px-8 text-base font-semibold"
-              >
-                <Download className="w-5 h-5 mr-2" />
-                {exporting ? 'Экспорт...' : `Скачать JSON (${selectedRecognitionIds.size})`}
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Modals */}
