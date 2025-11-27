@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     console.log('[export-preview] Page:', page, 'PageSize:', pageSize)
     console.log('[export-preview] Search:', searchQuery)
 
-    // Подготовить параметры для RPC функции
+    // Подготовить параметры для RPC функций
     const searchRecognitionId = searchQuery ? parseInt(searchQuery) : null
     const stepFood = searchParams.get('step_FOOD_VALIDATION')
     const stepPlate = searchParams.get('step_PLATE_VALIDATION')
@@ -60,8 +60,7 @@ export async function GET(request: NextRequest) {
     const stepOcclusion = searchParams.get('step_OCCLUSION_VALIDATION')
     const stepBottle = searchParams.get('step_BOTTLE_ORIENTATION_VALIDATION')
 
-    // Вызвать RPC функцию для получения отфильтрованных work logs
-    const { data: workLogs, error: workLogsError } = await supabase.rpc('get_filtered_work_logs', {
+    const rpcParams = {
       user_ids: userIds || null,
       search_recognition_id: searchRecognitionId && !isNaN(searchRecognitionId) ? searchRecognitionId : null,
       step_food: stepFood || null,
@@ -69,6 +68,25 @@ export async function GET(request: NextRequest) {
       step_buzzer: stepBuzzer || null,
       step_occlusion: stepOcclusion || null,
       step_bottle: stepBottle || null,
+    }
+
+    // 1. Получить общее количество (для пагинации)
+    const { data: totalCount, error: countError } = await supabase.rpc('get_filtered_work_logs_count', rpcParams)
+
+    if (countError) {
+      console.error('[export-preview] Error getting count:', countError)
+      return NextResponse.json({ error: countError.message }, { status: 500 })
+    }
+
+    const totalRecognitions = totalCount || 0
+    console.log('[export-preview] Total recognitions after filtering:', totalRecognitions)
+
+    // 2. Получить данные для текущей страницы с пагинацией
+    const pageOffset = (page - 1) * pageSize
+    const { data: workLogs, error: workLogsError } = await supabase.rpc('get_filtered_work_logs', {
+      ...rpcParams,
+      page_limit: pageSize,
+      page_offset: pageOffset,
     })
 
     if (workLogsError) {
@@ -76,7 +94,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: workLogsError.message }, { status: 500 })
     }
 
-    console.log('[export-preview] RPC returned:', workLogs?.length || 0, 'work logs')
+    console.log('[export-preview] RPC returned:', workLogs?.length || 0, 'work logs for page', page)
 
     // Создать Map для быстрого доступа
     const latestWorkLogByRecognition = new Map<number, any>()
@@ -90,22 +108,12 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Общее количество recognitions после фильтрации
-    const totalRecognitions = latestWorkLogByRecognition.size
-    
-    // Применяем пагинацию
-    const allRecognitionIds = Array.from(latestWorkLogByRecognition.keys())
-    const startIndex = (page - 1) * pageSize
-    const endIndex = startIndex + pageSize
-    const paginatedRecognitionIds = allRecognitionIds.slice(startIndex, endIndex)
-
-    // Получаем workLogIds только для текущей страницы
+    const paginatedRecognitionIds = Array.from(latestWorkLogByRecognition.keys())
     const workLogIds = paginatedRecognitionIds.map(recId => {
       const log = latestWorkLogByRecognition.get(recId)
       return log?.id
     }).filter(Boolean) as number[]
 
-    console.log('[export-preview] Total recognitions:', totalRecognitions)
     console.log('[export-preview] Current page recognitions:', workLogIds.length)
 
     // Загрузить recognitions с batch_id для текущей страницы
