@@ -180,25 +180,39 @@ export default function AdminExportPage() {
       }
 
       const url = `/api/admin/export-preview?${params.toString()}`
+      console.log('[export] Loading preview from:', url)
+      
       const response = await fetch(url)
       
       if (!response.ok) {
-        throw new Error('Failed to load preview')
+        const errorText = await response.text()
+        console.error('[export] Preview API error:', response.status, errorText)
+        throw new Error(`Preview failed: ${response.status}`)
       }
 
       const data: ExportPreviewData = await response.json()
+      console.log('[export] Preview loaded:', data.stats.total_recognitions, 'recognitions')
+      
       setPreviewData(data)
       setSelectedRecognitionIds(new Set(data.recognitions.map(r => r.recognition_id)))
 
-      toast({
-        title: 'Фильтры применены',
-        description: `Найдено ${data.recognitions.length} recognitions`,
-      })
+      if (data.recognitions.length === 0) {
+        toast({
+          title: 'Нет данных',
+          description: 'Фильтры не вернули результатов. Попробуйте изменить условия фильтрации.',
+        })
+      } else {
+        toast({
+          title: 'Фильтры применены',
+          description: `Найдено ${data.recognitions.length} recognitions`,
+        })
+      }
     } catch (err) {
-      console.error('Error loading preview:', err)
+      console.error('[export] Error loading preview:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Неизвестная ошибка'
       toast({
-        title: 'Ошибка',
-        description: 'Не удалось загрузить предпросмотр',
+        title: 'Ошибка загрузки данных',
+        description: errorMessage,
         variant: 'destructive',
       })
     } finally {

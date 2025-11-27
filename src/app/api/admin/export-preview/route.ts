@@ -5,7 +5,6 @@ import type {
   ExportPreviewStats,
   ItemType,
   ValidationType,
-  ValidationExportMetadata,
 } from '@/types/domain'
 
 /**
@@ -120,7 +119,29 @@ export async function GET(request: NextRequest) {
     const workLogIds = Array.from(latestWorkLogByRecognition.values()).map(log => log.id)
 
     if (workLogIds.length === 0) {
-      return NextResponse.json({ error: 'No completed validations found for selected recognitions' }, { status: 404 })
+      // Возвращаем пустой результат вместо ошибки
+      const emptyStats: ExportPreviewStats = {
+        total_recognitions: 0,
+        total_items: { FOOD: 0, PLATE: 0, BUZZER: 0, BOTTLE: 0, OTHER: 0 },
+        total_annotations: 0,
+        modified_annotations: 0,
+        unmodified_annotations: 0,
+        users_breakdown: [],
+        validation_steps_breakdown: {
+          FOOD_VALIDATION: { completed: 0, skipped: 0, pending: 0 },
+          PLATE_VALIDATION: { completed: 0, skipped: 0, pending: 0 },
+          BUZZER_VALIDATION: { completed: 0, skipped: 0, pending: 0 },
+          OCCLUSION_VALIDATION: { completed: 0, skipped: 0, pending: 0 },
+          BOTTLE_ORIENTATION_VALIDATION: { completed: 0, skipped: 0, pending: 0 },
+        },
+      }
+      
+      const emptyData: ExportPreviewData = {
+        stats: emptyStats,
+        recognitions: [],
+      }
+      
+      return NextResponse.json(emptyData, { status: 200 })
     }
 
     // Получить profiles для emails
