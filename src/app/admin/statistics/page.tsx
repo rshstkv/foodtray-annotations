@@ -159,17 +159,38 @@ export default function AdminStatisticsPage() {
 
   // Статистика по пользователям
   const userValidationStats = useMemo(() => {
+    // Создаём карту id -> email из списка пользователей
+    const userEmailMap = new Map(users.map(u => [u.id, u.email]))
+    
     const stats = new Map<string, {
       email: string
       counts: Record<ValidationType, number>
       total: number
     }>()
     
+    // Инициализируем всех пользователей из списка
+    for (const user of users) {
+      stats.set(user.id, {
+        email: user.email,
+        counts: {
+          FOOD_VALIDATION: 0,
+          PLATE_VALIDATION: 0,
+          BUZZER_VALIDATION: 0,
+          OCCLUSION_VALIDATION: 0,
+          BOTTLE_ORIENTATION_VALIDATION: 0,
+        },
+        total: 0,
+      })
+    }
+    
+    // Добавляем данные из завершённых валидаций
     for (const rec of recognitions) {
       for (const val of rec.completed_validations) {
         if (!stats.has(val.assigned_to)) {
+          // Пользователь не в списке users (возможно удалён)
+          // Пытаемся взять email из userEmailMap, если нет - из валидации, если нет - Unknown
           stats.set(val.assigned_to, {
-            email: val.assigned_to_email || 'Unknown',
+            email: userEmailMap.get(val.assigned_to) || val.assigned_to_email || 'Unknown',
             counts: {
               FOOD_VALIDATION: 0,
               PLATE_VALIDATION: 0,
@@ -187,7 +208,7 @@ export default function AdminStatisticsPage() {
     }
     
     return Array.from(stats.values()).sort((a, b) => b.total - a.total)
-  }, [recognitions])
+  }, [recognitions, users])
 
   // Фильтрация по поиску
   const searchFiltered = useMemo(() => {
