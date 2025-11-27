@@ -127,7 +127,7 @@ export function RecognitionsTable({
             onCheckedChange={toggleSelectAll}
           />
           <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
-            Выбрать все ({selectedIds.size} из {data.recognitions.length})
+            Выбрать все на странице ({selectedIds.size} из {data.pagination.totalItems} всего)
           </label>
         </div>
       </div>
