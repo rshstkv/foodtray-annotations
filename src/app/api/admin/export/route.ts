@@ -61,35 +61,60 @@ export async function GET(request: NextRequest) {
       step_buzzer: stepBuzzer || null,
       step_occlusion: stepOcclusion || null,
       step_bottle: stepBottle || null,
-      page_limit: 100000, // Большой лимит для экспорта всех данных
-      page_offset: 0,
     }
 
     console.log('[export] ========================================')
-    console.log('[export] Fetching filtered work logs with params:', JSON.stringify(rpcParams, null, 2))
+    console.log('[export] Fetching ALL filtered work logs')
     console.log('[export] ========================================')
 
     // Batch size для обхода лимитов .in()
     const BATCH_SIZE = 1000
 
-    // Получить ВСЕ отфильтрованные work logs через RPC
-    // ВАЖНО: Supabase JS client имеет дефолтный лимит 1000 строк даже для RPC!
-    // Нужно явно указать большой лимит через .limit()
-    const { data: workLogs, error: workLogsError } = await supabase
-      .rpc('get_filtered_work_logs', rpcParams)
-      .limit(100000)  // Явно устанавливаем большой лимит
-
-    if (workLogsError) {
-      console.error('[export] ❌ Error calling RPC:', workLogsError)
-      return NextResponse.json({ error: workLogsError.message }, { status: 500 })
+    // Получить ВСЕ отфильтрованные work logs через RPC с ПАГИНАЦИЕЙ
+    // Supabase имеет лимит, поэтому грузим батчами по 1000
+    const allWorkLogs: any[] = []
+    let currentOffset = 0
+    const FETCH_BATCH_SIZE = 1000
+    
+    while (true) {
+      console.log(`[export] Fetching batch: offset=${currentOffset}, limit=${FETCH_BATCH_SIZE}`)
+      
+      const { data: batch, error: workLogsError } = await supabase.rpc('get_filtered_work_logs', {
+        ...rpcParams,
+        page_limit: FETCH_BATCH_SIZE,
+        page_offset: currentOffset,
+      })
+      
+      if (workLogsError) {
+        console.error('[export] ❌ Error calling RPC:', workLogsError)
+        return NextResponse.json({ error: workLogsError.message }, { status: 500 })
+      }
+      
+      if (!batch || batch.length === 0) {
+        console.log('[export] No more data, stopping pagination')
+        break
+      }
+      
+      console.log(`[export] Batch fetched: ${batch.length} work logs`)
+      allWorkLogs.push(...batch)
+      
+      // Если получили меньше чем запрашивали - это последняя страница
+      if (batch.length < FETCH_BATCH_SIZE) {
+        console.log('[export] Last batch received')
+        break
+      }
+      
+      currentOffset += FETCH_BATCH_SIZE
     }
+    
+    const workLogs = allWorkLogs
 
     if (!workLogs || workLogs.length === 0) {
       console.log('[export] ⚠️  No work logs found')
       return NextResponse.json({ error: 'No work logs found with given filters' }, { status: 404 })
     }
 
-    console.log('[export] ✅ Total work logs fetched from RPC:', workLogs.length)
+    console.log('[export] ✅ Total work logs fetched:', workLogs.length)
     console.log('[export] First 5 recognition IDs:', workLogs.slice(0, 5).map((l: any) => l.recognition_id))
     console.log('[export] ========================================')
 
