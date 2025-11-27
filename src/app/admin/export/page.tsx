@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import { useUser } from '@/hooks/useUser'
 import { useToast } from '@/hooks/use-toast'
 import { apiFetch } from '@/lib/api-response'
+import { Button } from '@/components/ui/button'
+import { Download } from 'lucide-react'
 import { ExportFilters } from '@/components/admin/ExportFilters'
-import { ExportStatsPanel } from '@/components/admin/ExportStatsPanel'
 import { RecognitionsTable } from '@/components/admin/RecognitionsTable'
 import { RecognitionPreviewModal } from '@/components/admin/RecognitionPreviewModal'
 import { IntegrityCheckDialog } from '@/components/admin/IntegrityCheckDialog'
@@ -281,27 +282,70 @@ export default function AdminExportPage() {
       </div>
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Table - 2 columns */}
-        <div className="lg:col-span-2">
-          <RecognitionsTable
-            data={previewData}
-            selectedIds={selectedRecognitionIds}
-            onSelectionChange={setSelectedRecognitionIds}
-            onPreview={handlePreview}
-          />
-        </div>
+      <div className="space-y-6">
+        {/* Table */}
+        <RecognitionsTable
+          data={previewData}
+          selectedIds={selectedRecognitionIds}
+          onSelectionChange={setSelectedRecognitionIds}
+          onPreview={handlePreview}
+        />
 
-        {/* Stats Panel - 1 column */}
-        <div className="lg:col-span-1">
-          <ExportStatsPanel
-            stats={previewData?.stats || null}
-            selectedCount={selectedRecognitionIds.size}
-            onExport={handleExport}
-            onVerifyIntegrity={() => setIntegrityCheckOpen(true)}
-            exporting={exporting}
-          />
-        </div>
+        {/* Export Actions */}
+        {previewData && previewData.recognitions.length > 0 && (
+          <div className="flex items-center justify-between p-4 bg-white border rounded-xl shadow-sm">
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-sm text-gray-600">Выбрано:</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {selectedRecognitionIds.size}
+                </p>
+              </div>
+              <div className="h-12 w-px bg-gray-200" />
+              <div>
+                <p className="text-sm text-gray-600">Items:</p>
+                <p className="text-xl font-semibold text-blue-600">
+                  {Object.values(previewData.stats.total_items).reduce((a, b) => a + b, 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Annotations:</p>
+                <p className="text-xl font-semibold text-gray-700">
+                  {previewData.stats.total_annotations}
+                </p>
+              </div>
+              {previewData.stats.modified_annotations > 0 && (
+                <>
+                  <div className="h-12 w-px bg-gray-200" />
+                  <div>
+                    <p className="text-sm text-green-600">С правками:</p>
+                    <p className="text-xl font-semibold text-green-600">
+                      {previewData.stats.modified_annotations}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setIntegrityCheckOpen(true)}
+                disabled={exporting}
+                variant="outline"
+              >
+                Проверить целостность
+              </Button>
+              <Button
+                onClick={handleExport}
+                disabled={exporting || selectedRecognitionIds.size === 0}
+                className="bg-green-600 hover:bg-green-700 h-12 px-8 text-base font-semibold"
+              >
+                <Download className="w-5 h-5 mr-2" />
+                {exporting ? 'Экспорт...' : `Скачать JSON (${selectedRecognitionIds.size})`}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modals */}
