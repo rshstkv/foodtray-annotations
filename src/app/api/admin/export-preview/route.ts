@@ -116,6 +116,45 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Фильтрация по статусам validation steps
+    const stepFilters = new Map<ValidationType, string>()
+    for (const type of ['FOOD_VALIDATION', 'PLATE_VALIDATION', 'BUZZER_VALIDATION', 'OCCLUSION_VALIDATION', 'BOTTLE_ORIENTATION_VALIDATION'] as ValidationType[]) {
+      const stepStatus = searchParams.get(`step_${type}`)
+      if (stepStatus) {
+        stepFilters.set(type, stepStatus)
+      }
+    }
+
+    // Применяем фильтры к work logs
+    if (stepFilters.size > 0) {
+      const recognitionIdsToKeep = new Set<number>()
+      
+      for (const [recId, log] of latestWorkLogByRecognition.entries()) {
+        const steps = log.validation_steps || []
+        
+        // Проверяем все условия фильтров
+        const matchesAllFilters = Array.from(stepFilters.entries()).every(([type, requiredStatus]) => {
+          const step = steps.find((s: any) => s.type === type)
+          
+          if (!step) return false
+          
+          if (requiredStatus === 'any') return true
+          return step.status === requiredStatus
+        })
+        
+        if (matchesAllFilters) {
+          recognitionIdsToKeep.add(recId)
+        }
+      }
+      
+      // Удаляем recognitions которые не прошли фильтр
+      for (const recId of latestWorkLogByRecognition.keys()) {
+        if (!recognitionIdsToKeep.has(recId)) {
+          latestWorkLogByRecognition.delete(recId)
+        }
+      }
+    }
+
     const workLogIds = Array.from(latestWorkLogByRecognition.values()).map(log => log.id)
 
     if (workLogIds.length === 0) {

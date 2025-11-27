@@ -232,20 +232,6 @@ export default function AdminExportPage() {
     setPreviewModalOpen(true)
   }
 
-  const handleExcludeUser = (userId: string) => {
-    const newSet = new Set(selectedUserIds)
-    if (newSet.has(userId)) {
-      newSet.delete(userId)
-    } else {
-      newSet.add(userId)
-    }
-    setSelectedUserIds(newSet)
-    
-    toast({
-      title: 'Фильтр обновлен',
-      description: 'Примените фильтры заново для обновления данных',
-    })
-  }
 
   if (!user) {
     return <div>Loading...</div>
@@ -314,7 +300,6 @@ export default function AdminExportPage() {
             onExport={handleExport}
             onVerifyIntegrity={() => setIntegrityCheckOpen(true)}
             exporting={exporting}
-            onExcludeUser={handleExcludeUser}
           />
         </div>
       </div>
