@@ -207,10 +207,10 @@ export default function AdminExportPage() {
   }
 
   const handleExport = async () => {
-    if (selectedRecognitionIds.size === 0) {
+    if (!previewData || previewData.pagination.totalItems === 0) {
       toast({
         title: 'Ошибка',
-        description: 'Выберите хотя бы один recognition для экспорта',
+        description: 'Нет данных для экспорта. Примените фильтры.',
         variant: 'destructive',
       })
       return
@@ -218,8 +218,28 @@ export default function AdminExportPage() {
 
     try {
       setExporting(true)
-      const ids = Array.from(selectedRecognitionIds).join(',')
-      const url = `/api/admin/export?recognitionIds=${ids}`
+      
+      // Собираем параметры фильтров (те же что и для preview)
+      const params = new URLSearchParams()
+      
+      if (selectedUserIds.size > 0) {
+        params.append('userIds', Array.from(selectedUserIds).join(','))
+      }
+      
+      // Добавляем статусы этапов
+      for (const [type, filter] of validationStepFilters.entries()) {
+        if (filter.enabled) {
+          params.append(`step_${type}`, filter.status)
+        }
+      }
+      
+      // Поиск (если был)
+      if (searchQuery.trim()) {
+        params.append('search', searchQuery.trim())
+      }
+
+      const url = `/api/admin/export?${params.toString()}`
+      console.log('[export] Exporting with filters:', url)
       
       const response = await fetch(url)
       if (!response.ok) {
@@ -238,7 +258,7 @@ export default function AdminExportPage() {
 
       toast({
         title: 'Успешно',
-        description: `Экспортировано ${selectedRecognitionIds.size} recognitions`,
+        description: `Экспортировано ${previewData.pagination.totalItems} recognitions`,
       })
     } catch (err) {
       console.error('Error exporting:', err)
