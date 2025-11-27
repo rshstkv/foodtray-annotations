@@ -14,8 +14,10 @@ import type {
  * GET /api/admin/export
  * 
  * Экспорт валидированных данных в новом формате для data scientists
- * Query params:
- * - recognitionIds: comma-separated список recognition IDs (required)
+ * Query params (те же что и в export-preview):
+ * - userIds: comma-separated список user IDs (optional)
+ * - step_<TYPE>: статус этапа completed/skipped/any (optional)
+ * - search: recognition_id для поиска (optional)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -38,84 +40,85 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Получение параметров
+    // Получение параметров (те же что в export-preview)
     const searchParams = request.nextUrl.searchParams
-    const recognitionIdsParam = searchParams.get('recognitionIds')
-
-    if (!recognitionIdsParam) {
-      return NextResponse.json({ error: 'recognitionIds parameter is required' }, { status: 400 })
-    }
-
-    const recognitionIds = recognitionIdsParam.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))
-
-    if (recognitionIds.length === 0) {
-      return NextResponse.json({ error: 'No valid recognition IDs provided' }, { status: 400 })
-    }
-
-    console.log('[export] Total recognition IDs to export:', recognitionIds.length)
-
-    // Получить recognitions (батчинг для обхода ограничения .in() на ~1000 элементов)
-    const BATCH_SIZE = 1000
-    const recognitions = []
+    const userIdsParam = searchParams.get('userIds')
+    const searchQuery = searchParams.get('search')
     
-    for (let i = 0; i < recognitionIds.length; i += BATCH_SIZE) {
-      const batch = recognitionIds.slice(i, i + BATCH_SIZE)
-      
-      const { data, error } = await supabase
-        .from('recognitions')
-        .select('id, batch_id')
-        .in('id', batch)
-        .order('id')
+    const userIds = userIdsParam ? userIdsParam.split(',').map(id => id.trim()) : null
+    const searchRecognitionId = searchQuery ? parseInt(searchQuery) : null
+    const stepFood = searchParams.get('step_FOOD_VALIDATION')
+    const stepPlate = searchParams.get('step_PLATE_VALIDATION')
+    const stepBuzzer = searchParams.get('step_BUZZER_VALIDATION')
+    const stepOcclusion = searchParams.get('step_OCCLUSION_VALIDATION')
+    const stepBottle = searchParams.get('step_BOTTLE_ORIENTATION_VALIDATION')
 
-      if (error) {
-        console.error('[export] Error fetching recognitions batch:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
-      }
-      
-      if (data) {
-        recognitions.push(...data)
-      }
+    const rpcParams = {
+      user_ids: userIds || null,
+      search_recognition_id: searchRecognitionId && !isNaN(searchRecognitionId) ? searchRecognitionId : null,
+      step_food: stepFood || null,
+      step_plate: stepPlate || null,
+      step_buzzer: stepBuzzer || null,
+      step_occlusion: stepOcclusion || null,
+      step_bottle: stepBottle || null,
+      page_limit: null as number | null, // БЕЗ лимита - получаем ВСЕ
+      page_offset: null as number | null,
     }
 
-    console.log('[export] Total recognitions fetched:', recognitions.length)
+    console.log('[export] Fetching filtered work logs with params:', rpcParams)
 
-    if (!recognitions || recognitions.length === 0) {
-      return NextResponse.json({ error: 'No recognitions found' }, { status: 404 })
-    }
-
-    // Получить последний completed work log для каждого recognition
-    const { data: workLogs, error: workLogsError } = await supabase
-      .from('validation_work_log')
-      .select('id, recognition_id, completed_at, assigned_to, validation_type, validation_steps')
-      .in('recognition_id', recognitionIds)
-      .eq('status', 'completed')
-      .order('recognition_id')
-      .order('completed_at', { ascending: false })
+    // Получить ВСЕ отфильтрованные work logs через RPC
+    const { data: workLogs, error: workLogsError } = await supabase.rpc('get_filtered_work_logs', rpcParams)
 
     if (workLogsError) {
-      console.error('[export] Error fetching work logs:', workLogsError)
+      console.error('[export] Error calling RPC:', workLogsError)
       return NextResponse.json({ error: workLogsError.message }, { status: 500 })
     }
 
-    // Берем последний work log для каждого recognition
+    if (!workLogs || workLogs.length === 0) {
+      return NextResponse.json({ error: 'No work logs found with given filters' }, { status: 404 })
+    }
+
+    console.log('[export] Total work logs fetched:', workLogs.length)
+
+    // Получить recognition IDs и batch_id
+    const recognitionIds = workLogs.map((log: any) => log.recognition_id)
+    const { data: recognitions, error: recognitionsError } = await supabase
+      .from('recognitions')
+      .select('id, batch_id')
+      .in('id', recognitionIds)
+
+    if (recognitionsError) {
+      console.error('[export] Error fetching recognitions:', recognitionsError)
+      return NextResponse.json({ error: recognitionsError.message }, { status: 500 })
+    }
+
+    // Создать Map для быстрого доступа к batch_id
+    const recognitionBatchMap = new Map(recognitions?.map(r => [r.id, r.batch_id]) || [])
+
+    // Создать Map для быстрого доступа (RPC уже вернул последний work_log для каждого recognition)
     const latestWorkLogByRecognition = new Map<number, any>()
     for (const log of workLogs || []) {
-      if (!latestWorkLogByRecognition.has(log.recognition_id)) {
-        latestWorkLogByRecognition.set(log.recognition_id, log)
-      }
+      latestWorkLogByRecognition.set(log.recognition_id, {
+        id: log.work_log_id,
+        recognition_id: log.recognition_id,
+        validation_steps: log.validation_steps,
+        assigned_to: log.assigned_to,
+        completed_at: log.completed_at,
+      })
     }
 
     // Получить emails пользователей
-    const userIds = [...new Set(Array.from(latestWorkLogByRecognition.values()).map(log => log.assigned_to))]
+    const userIdsSet = new Set(workLogs.map((log: any) => log.assigned_to))
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, email')
-      .in('id', userIds)
+      .in('id', Array.from(userIdsSet))
 
     const userEmailMap = new Map(profiles?.map(p => [p.id, p.email]) || [])
 
     // Получить work_log_ids для загрузки items и annotations
-    const workLogIds = Array.from(latestWorkLogByRecognition.values()).map(log => log.id)
+    const workLogIds = workLogs.map((log: any) => log.work_log_id)
 
     if (workLogIds.length === 0) {
       return NextResponse.json({ error: 'No completed validations found for selected recognitions' }, { status: 404 })
@@ -221,13 +224,9 @@ export async function GET(request: NextRequest) {
     // Собрать данные для каждого recognition
     const exportRecognitions: ValidationExportRecognition[] = []
 
-    for (const recognition of recognitions) {
-      const recId = recognition.id
-      const workLog = latestWorkLogByRecognition.get(recId)
-
-      if (!workLog) {
-        continue // Пропускаем recognitions без completed валидаций
-      }
+    for (const [recId, workLog] of latestWorkLogByRecognition.entries()) {
+      // Получить batch_id для этого recognition
+      const batchId = recognitionBatchMap.get(recId) || null
 
       // Собрать items для recipe (уникальные work_items)
       const recItems = workItemsByRecognition.get(recId) || []
@@ -304,7 +303,7 @@ export async function GET(request: NextRequest) {
 
       exportRecognitions.push({
         recognition_id: recId,
-        batch_id: recognition.batch_id || null,
+        batch_id: batchId,
         validation_metadata: {
           work_log_id: workLog.id,
           assigned_to: workLog.assigned_to,
