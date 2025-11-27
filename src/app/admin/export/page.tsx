@@ -359,9 +359,9 @@ export default function AdminExportPage() {
             <div className="flex items-center justify-between p-4 bg-white border rounded-xl shadow-lg">
               <div className="flex items-center gap-6">
                 <div>
-                  <p className="text-sm text-gray-600">Выбрано:</p>
+                  <p className="text-sm text-gray-600">Всего записей:</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {selectedRecognitionIds.size}
+                    {previewData.pagination.totalItems}
                   </p>
                 </div>
                 <div className="h-12 w-px bg-gray-200" />
@@ -404,7 +404,7 @@ export default function AdminExportPage() {
                   className="bg-green-600 hover:bg-green-700 h-12 px-8 text-base font-semibold"
                 >
                   <Download className="w-5 h-5 mr-2" />
-                  {exporting ? 'Экспорт...' : `Скачать JSON (${selectedRecognitionIds.size})`}
+                  {exporting ? 'Экспорт...' : `Скачать все (${previewData.pagination.totalItems})`}
                 </Button>
               </div>
             </div>
