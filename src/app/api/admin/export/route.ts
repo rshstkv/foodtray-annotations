@@ -176,8 +176,16 @@ export async function GET(request: NextRequest) {
     // Загрузить work_items с батчингом (обход лимита .in())
     const workItems = []
     
+    console.log('[export] === Fetching work_items in batches ===')
+    console.log('[export] Total work_log_ids:', workLogIds.length)
+    console.log('[export] First 10 work_log_ids:', workLogIds.slice(0, 10))
+    console.log('[export] Checking if 3448 is in workLogIds:', workLogIds.includes(3448))
+    
     for (let i = 0; i < workLogIds.length; i += BATCH_SIZE) {
       const batch = workLogIds.slice(i, i + BATCH_SIZE)
+      
+      console.log(`[export] Batch ${i / BATCH_SIZE + 1}: fetching work_items for ${batch.length} work_log_ids`)
+      console.log(`[export] Batch includes work_log_id 3448:`, batch.includes(3448))
       
       const { data, error } = await supabase
         .from('work_items')
@@ -206,12 +214,21 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 })
       }
       
+      console.log(`[export] Batch ${i / BATCH_SIZE + 1} returned:`, data?.length || 0, 'work_items')
+      
       if (data) {
+        // Проверяем есть ли items для work_log 3448
+        const items_3448 = data.filter(item => item.work_log_id === 3448)
+        if (items_3448.length > 0) {
+          console.log(`[export] ✅ Found ${items_3448.length} items for work_log_id 3448`)
+        }
+        
         workItems.push(...data)
       }
     }
     
-    console.log('[export] Work items fetched:', workItems.length)
+    console.log('[export] Total work items fetched:', workItems.length)
+    console.log('[export] Work items for work_log 3448:', workItems.filter(item => item.work_log_id === 3448).length)
 
     // Загрузить work_annotations с батчингом
     const workAnnotations = []
@@ -305,6 +322,24 @@ export async function GET(request: NextRequest) {
       return bbox1.x === bbox2.x && bbox1.y === bbox2.y && 
              bbox1.w === bbox2.w && bbox1.h === bbox2.h
     }
+
+    // DEBUG: Проверяем что загрузилось
+    console.log('[export] === DEBUG: Data loaded ===')
+    console.log('[export] workItems total:', workItems.length)
+    console.log('[export] workAnnotations total:', workAnnotations.length)
+    console.log('[export] images total:', images.length)
+    console.log('[export] recognitions total:', recognitions.length)
+    console.log('[export] Unique recognition_ids in workItemsByRecognition:', workItemsByRecognition.size)
+    console.log('[export] First 5 recognition_ids with items:', Array.from(workItemsByRecognition.keys()).slice(0, 5))
+    
+    // Проверяем recognition 113688 специально
+    const test_recId = 113688
+    const test_workLog = latestWorkLogByRecognition.get(test_recId)
+    console.log(`[export] === DEBUG: Recognition ${test_recId} ===`)
+    console.log(`[export]   work_log:`, test_workLog)
+    console.log(`[export]   items:`, workItemsByRecognition.get(test_recId)?.length || 0)
+    console.log(`[export]   images:`, imagesByRecognition.get(test_recId)?.length || 0)
+    console.log('[export] =========================')
 
     // Собрать данные для каждого recognition
     const exportRecognitions: ValidationExportRecognition[] = []
@@ -402,6 +437,12 @@ export async function GET(request: NextRequest) {
         images: exportImages,
       })
     }
+
+    console.log('[export] ========================================')
+    console.log('[export] ✅ Export complete:')
+    console.log('[export]   Total work logs fetched:', workLogs.length)
+    console.log('[export]   Recognitions exported:', exportRecognitions.length)
+    console.log('[export] ========================================')
 
     // Формирование финального результата
     const exportData: ValidationExportData = {

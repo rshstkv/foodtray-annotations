@@ -320,6 +320,14 @@ export async function GET(request: NextRequest) {
         return null
       }
 
+      const itemsByTypeForRec = itemsByRecognition.get(rec.id) || {
+        FOOD: 0,
+        PLATE: 0,
+        BUZZER: 0,
+        BOTTLE: 0,
+        OTHER: 0,
+      }
+
       const validationSteps = workLog.validation_steps && Array.isArray(workLog.validation_steps)
         ? workLog.validation_steps.map((step: any) => ({
             type: step.type as ValidationType,
@@ -338,13 +346,7 @@ export async function GET(request: NextRequest) {
       return {
         recognition_id: rec.id,
         batch_id: rec.batch_id,
-        items_by_type: itemsByRecognition.get(rec.id) || {
-          FOOD: 0,
-          PLATE: 0,
-          BUZZER: 0,
-          BOTTLE: 0,
-          OTHER: 0,
-        },
+        items_by_type: itemsByTypeForRec,
         annotations_count: annStats.total,
         modified_annotations_count: annStats.modified,
         validation_steps: validationSteps,
