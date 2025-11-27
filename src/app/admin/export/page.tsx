@@ -52,6 +52,11 @@ export default function AdminExportPage() {
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const [previewRecognitionId, setPreviewRecognitionId] = useState<number | null>(null)
   const [integrityCheckOpen, setIntegrityCheckOpen] = useState(false)
+  
+  // Search & Pagination
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 50
 
   useEffect(() => {
     if (isAdmin) {
@@ -60,6 +65,14 @@ export default function AdminExportPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin])
+
+  // Reload data when page changes (but not on initial mount)
+  useEffect(() => {
+    if (previewData && currentPage > 0) {
+      applyFilters()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage])
 
   const loadUsers = async () => {
     try {
@@ -102,7 +115,7 @@ export default function AdminExportPage() {
     })
   }
 
-  const applyFilters = async () => {
+  const applyFilters = async (resetPage = false) => {
     if (recognitions.length === 0) {
       toast({
         title: 'Нет данных',
@@ -110,6 +123,11 @@ export default function AdminExportPage() {
         variant: 'destructive',
       })
       return
+    }
+
+    // Reset to page 1 when applying new filters
+    if (resetPage) {
+      setCurrentPage(1)
     }
 
     // Просто берем все recognitions (фильтрация будет на бэкенде через API preview)
@@ -128,7 +146,6 @@ export default function AdminExportPage() {
     try {
       setLoading(true)
       const params = new URLSearchParams()
-      params.append('recognitionIds', recognitionIds.join(','))
       
       if (selectedUserIds.size > 0) {
         params.append('userIds', Array.from(selectedUserIds).join(','))
@@ -140,6 +157,13 @@ export default function AdminExportPage() {
           params.append(`step_${type}`, filter.status)
         }
       }
+
+      // Добавляем поиск и пагинацию
+      if (searchQuery.trim()) {
+        params.append('search', searchQuery.trim())
+      }
+      params.append('page', currentPage.toString())
+      params.append('pageSize', pageSize.toString())
 
       const url = `/api/admin/export-preview?${params.toString()}`
       console.log('[export] Loading preview from:', url)
@@ -153,12 +177,12 @@ export default function AdminExportPage() {
       }
 
       const data: ExportPreviewData = await response.json()
-      console.log('[export] Preview loaded:', data.stats.total_recognitions, 'recognitions')
+      console.log('[export] Preview loaded:', data.pagination.totalItems, 'recognitions total')
       
       setPreviewData(data)
       setSelectedRecognitionIds(new Set(data.recognitions.map(r => r.recognition_id)))
 
-      if (data.recognitions.length === 0) {
+      if (data.pagination.totalItems === 0) {
         toast({
           title: 'Нет данных',
           description: 'Фильтры не вернули результатов. Попробуйте изменить условия фильтрации.',
@@ -166,7 +190,7 @@ export default function AdminExportPage() {
       } else {
         toast({
           title: 'Фильтры применены',
-          description: `Найдено ${data.recognitions.length} recognitions`,
+          description: `Найдено ${data.pagination.totalItems} recognitions`,
         })
       }
     } catch (err) {
@@ -275,11 +299,37 @@ export default function AdminExportPage() {
           onUserIdsChange={setSelectedUserIds}
           validationStepFilters={validationStepFilters}
           onValidationStepFilterChange={handleValidationStepFilterChange}
-          onApply={applyFilters}
+          onApply={() => applyFilters(true)}
           loading={loading}
-          previewCount={previewData?.stats.total_recognitions}
+          previewCount={previewData?.pagination.totalItems}
         />
       </div>
+
+      {/* Search Bar */}
+      {previewData && (
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="flex-1 max-w-md">
+            <input
+              type="text"
+              placeholder="Поиск по Recognition ID..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setCurrentPage(1) // Reset to first page on search
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  applyFilters()
+                }
+              }}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="text-sm text-gray-600">
+            Показано {previewData.recognitions.length} из {previewData.pagination.totalItems}
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="space-y-6">
@@ -348,6 +398,58 @@ export default function AdminExportPage() {
           onSelectionChange={setSelectedRecognitionIds}
           onPreview={handlePreview}
         />
+
+        {/* Pagination */}
+        {previewData && previewData.pagination.totalPages > 1 && (
+          <div className="flex items-center justify-center gap-4 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1 || loading}
+            >
+              ← Назад
+            </Button>
+            
+            <div className="flex items-center gap-2">
+              {Array.from({ length: Math.min(5, previewData.pagination.totalPages) }, (_, i) => {
+                let pageNum
+                if (previewData.pagination.totalPages <= 5) {
+                  pageNum = i + 1
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1
+                } else if (currentPage >= previewData.pagination.totalPages - 2) {
+                  pageNum = previewData.pagination.totalPages - 4 + i
+                } else {
+                  pageNum = currentPage - 2 + i
+                }
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? 'default' : 'outline'}
+                    onClick={() => setCurrentPage(pageNum)}
+                    disabled={loading}
+                    className="w-10 h-10 p-0"
+                  >
+                    {pageNum}
+                  </Button>
+                )
+              })}
+            </div>
+            
+            <Button
+              variant="outline"
+              onClick={() => setCurrentPage(prev => Math.min(previewData.pagination.totalPages, prev + 1))}
+              disabled={currentPage === previewData.pagination.totalPages || loading}
+            >
+              Вперед →
+            </Button>
+            
+            <span className="text-sm text-gray-600 ml-4">
+              Страница {currentPage} из {previewData.pagination.totalPages}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Modals */}
