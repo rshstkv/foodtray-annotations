@@ -39,7 +39,6 @@ export default function AdminExportPage() {
       ['BOTTLE_ORIENTATION_VALIDATION', { enabled: false, status: 'completed' }],
     ])
   )
-  const [previewCount, setPreviewCount] = useState<number | undefined>(undefined)
 
   // Data
   const [recognitions, setRecognitions] = useState<RecognitionWithValidations[]>([])
@@ -60,13 +59,6 @@ export default function AdminExportPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin])
-
-  useEffect(() => {
-    if (recognitions.length > 0) {
-      updatePreviewCount()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recognitions, validationStepFilters, selectedUserIds])
 
   const loadUsers = async () => {
     try {
@@ -107,37 +99,6 @@ export default function AdminExportPage() {
       newMap.set(type, filter)
       return newMap
     })
-    // Update preview count when filters change
-    updatePreviewCount()
-  }
-
-  const updatePreviewCount = () => {
-    // Простой подсчет: recognitions которые проходят фильтры
-    let filtered = [...recognitions]
-
-    // Filter by enabled steps
-    const enabledSteps = Array.from(validationStepFilters.entries())
-      .filter(([_, filter]) => filter.enabled)
-    
-    if (enabledSteps.length > 0) {
-      filtered = filtered.filter(rec => {
-        return enabledSteps.every(([type, filter]) => {
-          const completedTypes = rec.completed_validations.map(v => v.validation_type)
-          
-          if (filter.status === 'completed') {
-            return completedTypes.includes(type)
-          } else if (filter.status === 'skipped') {
-            // Check if skipped - would need validation_steps info
-            return false // Пока упрощенно
-          } else {
-            // any
-            return true
-          }
-        })
-      })
-    }
-
-    setPreviewCount(filtered.length)
   }
 
   const applyFilters = async () => {
@@ -329,7 +290,7 @@ export default function AdminExportPage() {
           onValidationStepFilterChange={handleValidationStepFilterChange}
           onApply={applyFilters}
           loading={loading}
-          previewCount={previewCount}
+          previewCount={previewData?.stats.total_recognitions}
         />
       </div>
 
