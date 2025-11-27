@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -33,6 +33,8 @@ import { useToast } from '@/hooks/use-toast'
 import { Eye, Check, X, MoreVertical, RotateCcw } from 'lucide-react'
 import Link from 'next/link'
 import type { RecognitionWithValidations, ValidationType, CompletedValidationInfo } from '@/types/domain'
+import { SearchBar } from '@/components/admin/SearchBar'
+import { Pagination } from '@/components/admin/Pagination'
 
 const VALIDATION_TYPES: ValidationType[] = [
   'FOOD_VALIDATION',
@@ -59,6 +61,11 @@ export default function MyValidationsPage() {
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [recognitionToReset, setRecognitionToReset] = useState<number | null>(null)
   const [resetting, setResetting] = useState(false)
+  
+  // Search & Pagination
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 50
 
   useEffect(() => {
     if (user) {
@@ -85,21 +92,45 @@ export default function MyValidationsPage() {
   }
 
   // Фильтрация recognitions на клиенте
-  const filteredRecognitions = recognitions.filter(recognition => {
-    // Если не выбраны типы валидаций - показываем все
-    if (selectedValidationTypes.size === 0) {
-      return true
-    }
-    
-    // Проверяем, что ВСЕ выбранные типы валидаций присутствуют
-    const completedTypes = new Set(
-      recognition.completed_validations.map(v => v.validation_type)
+  const filteredRecognitions = useMemo(() => {
+    return recognitions.filter(recognition => {
+      // Если не выбраны типы валидаций - показываем все
+      if (selectedValidationTypes.size === 0) {
+        return true
+      }
+      
+      // Проверяем, что ВСЕ выбранные типы валидаций присутствуют
+      const completedTypes = new Set(
+        recognition.completed_validations.map(v => v.validation_type)
+      )
+      
+      return Array.from(selectedValidationTypes).every(type => 
+        completedTypes.has(type)
+      )
+    })
+  }, [recognitions, selectedValidationTypes])
+
+  // Фильтрация по поиску
+  const searchFiltered = useMemo(() => {
+    if (!searchQuery.trim()) return filteredRecognitions
+    const query = searchQuery.trim().toLowerCase()
+    return filteredRecognitions.filter(r => 
+      r.recognition_id.toString().includes(query)
     )
-    
-    return Array.from(selectedValidationTypes).every(type => 
-      completedTypes.has(type)
-    )
-  })
+  }, [filteredRecognitions, searchQuery])
+
+  // Пагинация
+  const paginatedRecognitions = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return searchFiltered.slice(start, start + pageSize)
+  }, [searchFiltered, currentPage, pageSize])
+
+  const totalPages = Math.ceil(searchFiltered.length / pageSize)
+
+  // Reset to page 1 when search or filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, selectedValidationTypes])
 
   const toggleValidationType = (type: ValidationType) => {
     setSelectedValidationTypes(prev => {
@@ -221,17 +252,35 @@ export default function MyValidationsPage() {
         </div>
       </Card>
 
+      {/* Search and Count */}
+      {recognitions.length > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Поиск по Recognition ID..."
+            className="flex-1 max-w-md"
+          />
+          <div className="text-sm text-gray-600">
+            Показано {paginatedRecognitions.length} из {searchFiltered.length} recognitions
+            {searchFiltered.length !== filteredRecognitions.length && ` (всего: ${filteredRecognitions.length})`}
+          </div>
+        </div>
+      )}
+
       {/* Таблица recognitions */}
       {loading ? (
         <Card className="p-12 text-center rounded-xl shadow-sm">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
         </Card>
-      ) : filteredRecognitions.length === 0 ? (
+      ) : searchFiltered.length === 0 ? (
         <Card className="p-12 text-center rounded-xl shadow-sm">
           <p className="text-gray-500">
             {recognitions.length === 0 
               ? 'Нет завершенных валидаций' 
-              : 'Нет валидаций, соответствующих выбранным фильтрам'}
+              : searchQuery.trim() 
+                ? `Нет recognitions с ID "${searchQuery}"`
+                : 'Нет валидаций, соответствующих выбранным фильтрам'}
           </p>
         </Card>
       ) : (
@@ -253,7 +302,7 @@ export default function MyValidationsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRecognitions.map((recognition) => (
+                {paginatedRecognitions.map((recognition) => (
                   <TableRow key={recognition.recognition_id}>
                     <TableCell className="font-medium">
                       {recognition.recognition_id}
@@ -313,6 +362,17 @@ export default function MyValidationsPage() {
             </Table>
           </div>
         </Card>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          loading={loading}
+          className="mt-6"
+        />
       )}
 
       {/* Диалог подтверждения сброса */}
