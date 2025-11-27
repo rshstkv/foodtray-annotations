@@ -144,6 +144,17 @@ export async function GET(request: NextRequest) {
     console.log('[export-preview] Total recognitions:', totalRecognitions)
     console.log('[export-preview] Current page recognitions:', workLogIds.length)
 
+    // Загрузить recognitions с batch_id для текущей страницы
+    const { data: recognitions, error: recognitionsError } = await supabase
+      .from('recognitions')
+      .select('id, batch_id')
+      .in('id', paginatedRecognitionIds)
+
+    if (recognitionsError) {
+      console.error('[export-preview] Error fetching recognitions:', recognitionsError)
+      return NextResponse.json({ error: recognitionsError.message }, { status: 500 })
+    }
+
     if (totalRecognitions === 0 || workLogIds.length === 0) {
       // Возвращаем пустой результат вместо ошибки
       const emptyStats: ExportPreviewStats = {
