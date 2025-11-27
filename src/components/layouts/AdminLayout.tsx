@@ -3,7 +3,7 @@
 import { ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, ListOrdered, BarChart3 } from 'lucide-react'
+import { Users, ListOrdered, BarChart3, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface AdminLayoutProps {
@@ -31,6 +31,11 @@ const adminNav = [
     href: '/admin/statistics',
     label: 'Статистика',
     icon: BarChart3,
+  },
+  {
+    href: '/admin/export',
+    label: 'Экспорт данных',
+    icon: Download,
   },
 ]
 

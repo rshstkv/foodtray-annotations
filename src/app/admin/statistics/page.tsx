@@ -36,7 +36,7 @@ import {
 import { useUser } from '@/hooks/useUser'
 import { apiFetch } from '@/lib/api-response'
 import { useToast } from '@/hooks/use-toast'
-import { Download, Eye, Check, X, MoreVertical, RotateCcw } from 'lucide-react'
+import { Eye, Check, X, MoreVertical, RotateCcw } from 'lucide-react'
 import Link from 'next/link'
 import type { RecognitionWithValidations, ValidationType, CompletedValidationInfo } from '@/types/domain'
 
@@ -69,9 +69,7 @@ export default function AdminStatisticsPage() {
   const [selectedUserId, setSelectedUserId] = useState<string>('all')
   const [selectedValidationTypes, setSelectedValidationTypes] = useState<Set<ValidationType>>(new Set())
   const [recognitions, setRecognitions] = useState<RecognitionWithValidations[]>([])
-  const [selectedRecognitionIds, setSelectedRecognitionIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(false)
-  const [exporting, setExporting] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [recognitionToReset, setRecognitionToReset] = useState<number | null>(null)
   const [resetting, setResetting] = useState(false)
@@ -123,8 +121,6 @@ export default function AdminStatisticsPage() {
       
       if (response.success && response.data) {
         setRecognitions(response.data.recognitions || [])
-        // Сбросить выбор при изменении фильтров
-        setSelectedRecognitionIds(new Set())
       }
     } catch (err) {
       console.error('Error loading recognitions:', err)
@@ -162,58 +158,6 @@ export default function AdminStatisticsPage() {
       }
       return newSet
     })
-  }
-
-  const toggleRecognitionSelection = (recognitionId: number) => {
-    const newSelected = new Set(selectedRecognitionIds)
-    if (newSelected.has(recognitionId)) {
-      newSelected.delete(recognitionId)
-    } else {
-      newSelected.add(recognitionId)
-    }
-    setSelectedRecognitionIds(newSelected)
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedRecognitionIds.size === filteredRecognitions.length) {
-      setSelectedRecognitionIds(new Set())
-    } else {
-      setSelectedRecognitionIds(new Set(filteredRecognitions.map(r => r.recognition_id)))
-    }
-  }
-
-  const handleExport = async () => {
-    if (selectedRecognitionIds.size === 0) {
-      alert('Выберите хотя бы один recognition для экспорта')
-      return
-    }
-
-    try {
-      setExporting(true)
-      const ids = Array.from(selectedRecognitionIds).join(',')
-      const url = `/api/admin/export?recognitionIds=${ids}`
-      
-      // Загрузка файла
-      const response = await fetch(url)
-      if (!response.ok) {
-        throw new Error('Export failed')
-      }
-      
-      const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = downloadUrl
-      a.download = `annotations_export_${Date.now()}.json`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(downloadUrl)
-      document.body.removeChild(a)
-    } catch (err) {
-      console.error('Error exporting:', err)
-      alert('Ошибка при экспорте данных')
-    } finally {
-      setExporting(false)
-    }
   }
 
   const hasValidation = (validations: CompletedValidationInfo[], type: ValidationType): CompletedValidationInfo | null => {
@@ -336,27 +280,15 @@ export default function AdminStatisticsPage() {
         </div>
       </Card>
 
-      {/* Панель действий */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
-          <Checkbox
-            id="select-all"
-            checked={filteredRecognitions.length > 0 && selectedRecognitionIds.size === filteredRecognitions.length}
-            onCheckedChange={toggleSelectAll}
-          />
-          <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
-            Выбрать все ({selectedRecognitionIds.size} из {filteredRecognitions.length})
-          </label>
-        </div>
-
-        <Button
-          onClick={handleExport}
-          disabled={selectedRecognitionIds.size === 0 || exporting}
-          className="bg-green-600 hover:bg-green-700"
-        >
-          <Download className="w-4 h-4 mr-2" />
-          {exporting ? 'Экспорт...' : `Экспортировать JSON (${selectedRecognitionIds.size})`}
-        </Button>
+      {/* Info Panel */}
+      <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-800">
+          💡 Для экспорта данных используйте специальную страницу{' '}
+          <Link href="/admin/export" className="font-semibold underline hover:text-blue-900">
+            Экспорт данных
+          </Link>
+          {' '}с расширенными фильтрами и контролем целостности.
+        </p>
       </div>
 
       {/* Таблица recognitions */}
@@ -378,12 +310,6 @@ export default function AdminStatisticsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={filteredRecognitions.length > 0 && selectedRecognitionIds.size === filteredRecognitions.length}
-                      onCheckedChange={toggleSelectAll}
-                    />
-                  </TableHead>
                   <TableHead>Recognition ID</TableHead>
                   {VALIDATION_TYPES.map((type) => (
                     <TableHead 
@@ -399,12 +325,6 @@ export default function AdminStatisticsPage() {
               <TableBody>
                 {filteredRecognitions.map((recognition) => (
                   <TableRow key={recognition.recognition_id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedRecognitionIds.has(recognition.recognition_id)}
-                        onCheckedChange={() => toggleRecognitionSelection(recognition.recognition_id)}
-                      />
-                    </TableCell>
                     <TableCell className="font-medium">
                       {recognition.recognition_id}
                     </TableCell>

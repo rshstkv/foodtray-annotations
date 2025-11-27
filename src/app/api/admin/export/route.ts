@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       
       const { data, error } = await supabase
         .from('recognitions')
-        .select('id')
+        .select('id, batch_id')
         .in('id', batch)
         .order('id')
 
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
     // Получить последний completed work log для каждого recognition
     const { data: workLogs, error: workLogsError } = await supabase
       .from('validation_work_log')
-      .select('id, recognition_id, completed_at')
+      .select('id, recognition_id, completed_at, assigned_to, validation_type, validation_steps')
       .in('recognition_id', recognitionIds)
       .eq('status', 'completed')
       .order('recognition_id')
@@ -104,6 +104,15 @@ export async function GET(request: NextRequest) {
         latestWorkLogByRecognition.set(log.recognition_id, log)
       }
     }
+
+    // Получить emails пользователей
+    const userIds = [...new Set(Array.from(latestWorkLogByRecognition.values()).map(log => log.assigned_to))]
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, email')
+      .in('id', userIds)
+
+    const userEmailMap = new Map(profiles?.map(p => [p.id, p.email]) || [])
 
     // Получить work_log_ids для загрузки items и annotations
     const workLogIds = Array.from(latestWorkLogByRecognition.values()).map(log => log.id)
@@ -284,8 +293,25 @@ export async function GET(request: NextRequest) {
         }
       })
 
+      // Собрать validation_metadata
+      const validationSteps = workLog.validation_steps && Array.isArray(workLog.validation_steps)
+        ? workLog.validation_steps.map((step: any) => ({
+            type: step.type,
+            status: step.status,
+            order: step.order,
+          }))
+        : []
+
       exportRecognitions.push({
         recognition_id: recId,
+        batch_id: recognition.batch_id || null,
+        validation_metadata: {
+          work_log_id: workLog.id,
+          assigned_to: workLog.assigned_to,
+          assigned_to_email: userEmailMap.get(workLog.assigned_to) || 'unknown',
+          completed_at: workLog.completed_at || '',
+          validation_steps: validationSteps,
+        },
         recipe: {
           items: exportItems,
         },
