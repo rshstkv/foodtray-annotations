@@ -52,78 +52,42 @@ export async function GET(request: NextRequest) {
     console.log('[export-preview] Page:', page, 'PageSize:', pageSize)
     console.log('[export-preview] Search:', searchQuery)
 
-    // Получить work logs с фильтрацией
-    let workLogsQuery = supabase
-      .from('validation_work_log')
-      .select('id, recognition_id, validation_type, validation_steps, completed_at, assigned_to')
-      .eq('status', 'completed')
-      .order('recognition_id', { ascending: false })
-      .order('completed_at', { ascending: false })
+    // Подготовить параметры для RPC функции
+    const searchRecognitionId = searchQuery ? parseInt(searchQuery) : null
+    const stepFood = searchParams.get('step_FOOD_VALIDATION')
+    const stepPlate = searchParams.get('step_PLATE_VALIDATION')
+    const stepBuzzer = searchParams.get('step_BUZZER_VALIDATION')
+    const stepOcclusion = searchParams.get('step_OCCLUSION_VALIDATION')
+    const stepBottle = searchParams.get('step_BOTTLE_ORIENTATION_VALIDATION')
 
-    if (userIds) {
-      workLogsQuery = workLogsQuery.in('assigned_to', userIds)
-    }
-
-    // Добавляем поиск по recognition_id
-    if (searchQuery) {
-      const searchId = parseInt(searchQuery)
-      if (!isNaN(searchId)) {
-        workLogsQuery = workLogsQuery.eq('recognition_id', searchId)
-      }
-    }
-
-    const { data: workLogs, error: workLogsError } = await workLogsQuery
+    // Вызвать RPC функцию для получения отфильтрованных work logs
+    const { data: workLogs, error: workLogsError } = await supabase.rpc('get_filtered_work_logs', {
+      user_ids: userIds || null,
+      search_recognition_id: searchRecognitionId && !isNaN(searchRecognitionId) ? searchRecognitionId : null,
+      step_food: stepFood || null,
+      step_plate: stepPlate || null,
+      step_buzzer: stepBuzzer || null,
+      step_occlusion: stepOcclusion || null,
+      step_bottle: stepBottle || null,
+    })
 
     if (workLogsError) {
-      console.error('[export-preview] Error fetching work logs:', workLogsError)
+      console.error('[export-preview] Error calling RPC:', workLogsError)
       return NextResponse.json({ error: workLogsError.message }, { status: 500 })
     }
 
-    // Берем последний work log для каждого recognition
+    console.log('[export-preview] RPC returned:', workLogs?.length || 0, 'work logs')
+
+    // Создать Map для быстрого доступа
     const latestWorkLogByRecognition = new Map<number, any>()
     for (const log of workLogs || []) {
-      if (!latestWorkLogByRecognition.has(log.recognition_id)) {
-        latestWorkLogByRecognition.set(log.recognition_id, log)
-      }
-    }
-
-    // Фильтрация по статусам validation steps
-    const stepFilters = new Map<ValidationType, string>()
-    for (const type of ['FOOD_VALIDATION', 'PLATE_VALIDATION', 'BUZZER_VALIDATION', 'OCCLUSION_VALIDATION', 'BOTTLE_ORIENTATION_VALIDATION'] as ValidationType[]) {
-      const stepStatus = searchParams.get(`step_${type}`)
-      if (stepStatus) {
-        stepFilters.set(type, stepStatus)
-      }
-    }
-
-    // Применяем фильтры к work logs
-    if (stepFilters.size > 0) {
-      const recognitionIdsToKeep = new Set<number>()
-      
-      for (const [recId, log] of latestWorkLogByRecognition.entries()) {
-        const steps = log.validation_steps || []
-        
-        // Проверяем все условия фильтров
-        const matchesAllFilters = Array.from(stepFilters.entries()).every(([type, requiredStatus]) => {
-          const step = steps.find((s: any) => s.type === type)
-          
-          if (!step) return false
-          
-          if (requiredStatus === 'any') return true
-          return step.status === requiredStatus
-        })
-        
-        if (matchesAllFilters) {
-          recognitionIdsToKeep.add(recId)
-        }
-      }
-      
-      // Удаляем recognitions которые не прошли фильтр
-      for (const recId of latestWorkLogByRecognition.keys()) {
-        if (!recognitionIdsToKeep.has(recId)) {
-          latestWorkLogByRecognition.delete(recId)
-        }
-      }
+      latestWorkLogByRecognition.set(log.recognition_id, {
+        id: log.work_log_id,
+        recognition_id: log.recognition_id,
+        validation_steps: log.validation_steps,
+        assigned_to: log.assigned_to,
+        completed_at: log.completed_at,
+      })
     }
 
     // Общее количество recognitions после фильтрации
