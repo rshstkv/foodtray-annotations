@@ -12,7 +12,7 @@ import type { CompleteValidationRequest } from '@/types/domain'
 export async function POST(request: Request) {
   try {
     const body: CompleteValidationRequest = await request.json()
-    const { work_log_id } = body
+    const { work_log_id, step_index } = body
 
     if (!work_log_id) {
       return apiError('Missing work_log_id', 400, ApiErrorCode.VALIDATION_ERROR)
@@ -51,11 +51,12 @@ export async function POST(request: Request) {
 
     // 2. Пометить текущий шаг как completed
     if (workLog.validation_steps) {
-      const currentStepIndex = workLog.current_step_index ?? 0
+      // Если передан step_index - используем его, иначе берем current_step_index
+      const targetStepIndex = step_index !== undefined ? step_index : (workLog.current_step_index ?? 0)
       const steps = workLog.validation_steps as any[]
       
-      if (steps[currentStepIndex] && steps[currentStepIndex].status !== 'completed') {
-        steps[currentStepIndex].status = 'completed'
+      if (steps[targetStepIndex] && steps[targetStepIndex].status !== 'completed') {
+        steps[targetStepIndex].status = 'completed'
         
         await supabase
           .from('validation_work_log')
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
         })
       } else {
         // Еще есть незавершенные этапы
-        console.log(`[validation/complete] Step ${currentStepIndex} completed, more steps remaining`)
+        console.log(`[validation/complete] Step ${targetStepIndex} completed, more steps remaining`)
 
         return apiSuccess({ 
           success: true,
