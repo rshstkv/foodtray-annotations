@@ -69,7 +69,8 @@ function RecognitionViewContent({
     deleteAnnotation, 
     setSelectedAnnotationId,
     resetToInitial,
-    validationStatus
+    validationStatus,
+    completeCurrentStep
   } = useValidationSession()
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
   const [selectedAnnotationId, setSelectedAnnotationIdLocal] = useState<number | string | null>(null)
@@ -77,9 +78,8 @@ function RecognitionViewContent({
   // Всегда в режиме редактирования
   const mode = 'edit' as const
 
-  // Берем первый (последний по времени) work_log
-  const currentSession = data.sessions[0]
-  const currentWorkLog = currentSession.workLog
+  // Берем workLog из контекста (он обновляется в реальном времени)
+  const currentWorkLog = session.workLog
   
   // Для multi-step: показываем выбранный шаг
   const hasSteps = currentWorkLog.validation_steps && currentWorkLog.validation_steps.length > 0
@@ -92,11 +92,12 @@ function RecognitionViewContent({
 
   const canGoPrevStep = selectedStepIndex > 0
   const canGoNextStep = hasSteps && selectedStepIndex < currentWorkLog.validation_steps.length - 1
+  
+  // Проверить, является ли текущий просматриваемый этап заскипанным
+  const isCurrentStepSkipped = hasSteps && currentWorkLog.validation_steps[selectedStepIndex]?.status === 'skipped'
 
-  // Обработчик сохранения
+  // Обработчик сохранения/завершения этапа
   const handleSave = async () => {
-    if (!hasUnsavedChanges) return
-    
     // Проверяем валидацию перед сохранением
     if (!validationStatus.canComplete) {
       toast({
@@ -108,15 +109,25 @@ function RecognitionViewContent({
     }
     
     try {
-      await saveAllChanges()
-      toast({
-        title: 'Успешно',
-        description: 'Изменения сохранены',
-      })
+      // Если этап заскипан, завершаем его (что также сохранит изменения если они есть)
+      if (isCurrentStepSkipped) {
+        await completeCurrentStep(selectedStepIndex)
+        toast({
+          title: 'Успешно',
+          description: 'Этап завершен',
+        })
+      } else if (hasUnsavedChanges) {
+        // Иначе просто сохраняем изменения
+        await saveAllChanges()
+        toast({
+          title: 'Успешно',
+          description: 'Изменения сохранены',
+        })
+      }
     } catch (error) {
       toast({
         title: 'Ошибка',
-        description: 'Не удалось сохранить изменения',
+        description: isCurrentStepSkipped ? 'Не удалось завершить этап' : 'Не удалось сохранить изменения',
         variant: 'destructive',
       })
     }
@@ -341,14 +352,14 @@ function RecognitionViewContent({
         }
         actions={
           <div className="flex items-center justify-end gap-3">
-            {hasUnsavedChanges && (
+            {(hasUnsavedChanges || isCurrentStepSkipped) && (
               <Button 
                 onClick={handleSave}
                 disabled={!validationStatus.canComplete}
                 title={!validationStatus.canComplete ? 'Исправьте ошибки валидации перед сохранением' : undefined}
               >
                 <Save className="w-4 h-4 mr-2" />
-                Сохранить изменения
+                {isCurrentStepSkipped && !hasUnsavedChanges ? 'Завершить этап' : 'Сохранить изменения'}
               </Button>
             )}
             <Button variant="outline" onClick={() => router.back()}>

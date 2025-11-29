@@ -59,6 +59,7 @@ interface ValidationSessionContextValue {
   completeValidation: () => Promise<void>
   abandonValidation: () => Promise<void>
   finishStep: (markAs: 'completed' | 'skipped') => Promise<void>
+  completeCurrentStep: (stepIndex: number) => Promise<void>
 }
 
 const ValidationSessionContext = createContext<ValidationSessionContextValue | null>(null)
@@ -815,6 +816,50 @@ export function ValidationSessionProvider({
     }
   }, [session.workLog.id, readOnly])
 
+  // Complete specific step (used in view mode for skipped steps)
+  const completeCurrentStep = useCallback(async (stepIndex: number) => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // Сохранить все несохраненные изменения перед завершением этапа
+      if (hasUnsavedChanges) {
+        console.log('[ValidationSession] Saving changes before completing step')
+        await saveAllChanges()
+      }
+
+      // Завершить конкретный этап
+      const response = await apiFetch<{ all_completed: boolean; recognition_id: number }>('/api/validation/complete', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          work_log_id: session.workLog.id,
+          step_index: stepIndex 
+        }),
+      })
+
+      if (response.success && response.data) {
+        // Обновить локальный state с новым статусом этапа
+        setSession((prev) => ({
+          ...prev,
+          workLog: {
+            ...prev.workLog,
+            validation_steps: prev.workLog.validation_steps?.map((s, i) => 
+              i === stepIndex ? { ...s, status: 'completed' as const } : s
+            ),
+          },
+        }))
+        
+        console.log(`[ValidationSession] Step ${stepIndex} marked as completed`)
+      }
+    } catch (err) {
+      setError('Failed to complete step')
+      console.error(err)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [session.workLog.id, hasUnsavedChanges, saveAllChanges])
+
   // Next step (multi-step validation)
   // Универсальная функция для завершения этапа
   const finishStep = useCallback(async (markAs: 'completed' | 'skipped') => {
@@ -944,6 +989,7 @@ export function ValidationSessionProvider({
     completeValidation,
     abandonValidation,
     finishStep,
+    completeCurrentStep,
   }
 
   return (
