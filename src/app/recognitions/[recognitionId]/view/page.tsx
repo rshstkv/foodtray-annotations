@@ -78,9 +78,8 @@ function RecognitionViewContent({
   // Всегда в режиме редактирования
   const mode = 'edit' as const
 
-  // Берем первый (последний по времени) work_log
-  const currentSession = data.sessions[0]
-  const currentWorkLog = currentSession.workLog
+  // Берем workLog из контекста (он обновляется в реальном времени)
+  const currentWorkLog = session.workLog
   
   // Для multi-step: показываем выбранный шаг
   const hasSteps = currentWorkLog.validation_steps && currentWorkLog.validation_steps.length > 0
