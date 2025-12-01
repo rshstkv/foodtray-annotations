@@ -295,6 +295,7 @@ export interface BatchSaveAnnotationsRequest {
 
 export interface CompleteValidationRequest {
   work_log_id: number
+  step_index?: number // Опциональный параметр для завершения конкретного этапа (по умолчанию используется current_step_index)
 }
 
 export interface AbandonValidationRequest {
