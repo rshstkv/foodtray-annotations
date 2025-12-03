@@ -173,8 +173,25 @@ export async function GET(request: NextRequest) {
       completed_validations: recognitionMap.get(rec.id) || [],
     }))
 
-    // Отсортировать по recognition_id
-    result.sort((a, b) => a.recognition_id - b.recognition_id)
+    // Отсортировать по максимальному completed_at (от новых к старым)
+    result.sort((a, b) => {
+      const aValidations = a.completed_validations
+      const bValidations = b.completed_validations
+      
+      // Если нет валидаций, ставим в конец
+      if (aValidations.length === 0 && bValidations.length === 0) {
+        return b.recognition_id - a.recognition_id
+      }
+      if (aValidations.length === 0) return 1
+      if (bValidations.length === 0) return -1
+      
+      // Найти максимальную дату завершения для каждого recognition
+      const aMaxDate = Math.max(...aValidations.map(v => new Date(v.completed_at).getTime()))
+      const bMaxDate = Math.max(...bValidations.map(v => new Date(v.completed_at).getTime()))
+      
+      // Сортировка по убыванию (новые сверху)
+      return bMaxDate - aMaxDate
+    })
 
     return apiSuccess({ recognitions: result })
   } catch (error) {
