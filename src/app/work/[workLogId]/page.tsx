@@ -23,6 +23,7 @@ import { CheckCircle, XCircle, SkipForward } from 'lucide-react'
 
 function ValidationSessionContent() {
   const router = useRouter()
+  const { user, isAdmin } = useUser()
   const {
     session,
     loading,
@@ -486,7 +487,11 @@ function ValidationSessionContent() {
   ])
 
   return (
-    <>
+    <RootLayout
+      userName={user?.full_name || undefined}
+      userEmail={user?.email}
+      isAdmin={isAdmin}
+    >
       <WorkLayout
         header={
           <ValidationSessionHeader
@@ -622,7 +627,7 @@ function ValidationSessionContent() {
           </div>
         </div>
       )}
-    </>
+    </RootLayout>
   )
 }
 

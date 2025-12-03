@@ -110,7 +110,7 @@ export function RootLayout({ children, userName, userEmail, isAdmin }: RootLayou
       </header>
 
       {/* Content */}
-      <main>{children}</main>
+      <main className="min-h-[calc(100vh-73px)]">{children}</main>
     </div>
   )
 }
