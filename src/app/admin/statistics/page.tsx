@@ -36,7 +36,7 @@ import {
 import { useUser } from '@/hooks/useUser'
 import { apiFetch } from '@/lib/api-response'
 import { useToast } from '@/hooks/use-toast'
-import { Eye, Check, X, MoreVertical, RotateCcw } from 'lucide-react'
+import { Eye, Check, X, MoreVertical, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import Link from 'next/link'
 import type { RecognitionWithValidations, ValidationType, CompletedValidationInfo } from '@/types/domain'
 import { SearchBar } from '@/components/admin/SearchBar'
@@ -80,6 +80,12 @@ export default function AdminStatisticsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 50
+  
+  // Sorting
+  const [sortConfig, setSortConfig] = useState<{
+    field: 'completed_at' | 'recognition_id'
+    direction: 'asc' | 'desc'
+  }>({ field: 'completed_at', direction: 'desc' })
 
   // Инициализируем selectedUserId для обычного пользователя
   useEffect(() => {
@@ -198,18 +204,84 @@ export default function AdminStatisticsPage() {
     )
   }, [filteredRecognitions, searchQuery])
 
+  // Сортировка
+  const sortedRecognitions = useMemo(() => {
+    const sorted = [...searchFiltered]
+    
+    sorted.sort((a, b) => {
+      if (sortConfig.field === 'completed_at') {
+        const aValidations = a.completed_validations
+        const bValidations = b.completed_validations
+        
+        // Если нет валидаций, ставим в конец
+        if (aValidations.length === 0 && bValidations.length === 0) {
+          return sortConfig.direction === 'desc' 
+            ? b.recognition_id - a.recognition_id 
+            : a.recognition_id - b.recognition_id
+        }
+        if (aValidations.length === 0) return 1
+        if (bValidations.length === 0) return -1
+        
+        // Найти максимальную дату завершения для каждого recognition
+        const aMaxDate = Math.max(...aValidations.map(v => new Date(v.completed_at).getTime()))
+        const bMaxDate = Math.max(...bValidations.map(v => new Date(v.completed_at).getTime()))
+        
+        return sortConfig.direction === 'desc' 
+          ? bMaxDate - aMaxDate 
+          : aMaxDate - bMaxDate
+      } else {
+        // Сортировка по recognition_id
+        return sortConfig.direction === 'desc' 
+          ? b.recognition_id - a.recognition_id 
+          : a.recognition_id - b.recognition_id
+      }
+    })
+    
+    return sorted
+  }, [searchFiltered, sortConfig])
+
   // Пагинация
   const paginatedRecognitions = useMemo(() => {
     const start = (currentPage - 1) * pageSize
-    return searchFiltered.slice(start, start + pageSize)
-  }, [searchFiltered, currentPage, pageSize])
+    return sortedRecognitions.slice(start, start + pageSize)
+  }, [sortedRecognitions, currentPage, pageSize])
 
-  const totalPages = Math.ceil(searchFiltered.length / pageSize)
+  const totalPages = Math.ceil(sortedRecognitions.length / pageSize)
 
   // Reset to page 1 when search or filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, selectedValidationTypes, selectedUserId])
+  }, [searchQuery, selectedValidationTypes, selectedUserId, sortConfig])
+
+  const handleSort = (field: 'completed_at' | 'recognition_id') => {
+    setSortConfig(prev => {
+      if (prev.field === field) {
+        // Переключить направление сортировки
+        return { field, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+      } else {
+        // Новая колонка - начинаем с убывания для completed_at, возрастания для recognition_id
+        return { field, direction: field === 'completed_at' ? 'desc' : 'asc' }
+      }
+    })
+  }
+
+  const getMaxCompletedAt = (validations: CompletedValidationInfo[]): Date | null => {
+    if (validations.length === 0) return null
+    const dates = validations.map(v => new Date(v.completed_at)).filter(d => !isNaN(d.getTime()))
+    if (dates.length === 0) return null
+    return new Date(Math.max(...dates.map(d => d.getTime())))
+  }
+
+  const formatDate = (date: Date | null): string => {
+    if (!date) return '-'
+    return new Intl.DateTimeFormat('ru-RU', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date)
+  }
 
   const toggleValidationType = (type: ValidationType) => {
     setSelectedValidationTypes(prev => {
@@ -406,8 +478,8 @@ export default function AdminStatisticsPage() {
             className="flex-1 max-w-md"
           />
           <div className="text-sm text-gray-600">
-            Показано {paginatedRecognitions.length} из {searchFiltered.length} recognitions
-            {searchFiltered.length !== filteredRecognitions.length && ` (всего: ${filteredRecognitions.length})`}
+            Показано {paginatedRecognitions.length} из {sortedRecognitions.length} recognitions
+            {sortedRecognitions.length !== filteredRecognitions.length && ` (всего: ${filteredRecognitions.length})`}
           </div>
         </div>
       )}
@@ -417,7 +489,7 @@ export default function AdminStatisticsPage() {
         <Card className="p-12 text-center rounded-xl shadow-sm">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
         </Card>
-      ) : searchFiltered.length === 0 ? (
+      ) : sortedRecognitions.length === 0 ? (
         <Card className="p-12 text-center rounded-xl shadow-sm">
           <p className="text-gray-500">
             {recognitions.length === 0 
@@ -433,7 +505,40 @@ export default function AdminStatisticsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Recognition ID</TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort('recognition_id')}
+                      className="flex items-center gap-2 hover:text-gray-900 transition-colors"
+                    >
+                      Recognition ID
+                      {sortConfig.field === 'recognition_id' ? (
+                        sortConfig.direction === 'asc' ? (
+                          <ArrowUp className="w-4 h-4" />
+                        ) : (
+                          <ArrowDown className="w-4 h-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-4 h-4 text-gray-400" />
+                      )}
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort('completed_at')}
+                      className="flex items-center gap-2 hover:text-gray-900 transition-colors"
+                    >
+                      Дата завершения
+                      {sortConfig.field === 'completed_at' ? (
+                        sortConfig.direction === 'asc' ? (
+                          <ArrowUp className="w-4 h-4" />
+                        ) : (
+                          <ArrowDown className="w-4 h-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-4 h-4 text-gray-400" />
+                      )}
+                    </button>
+                  </TableHead>
                   {VALIDATION_TYPES.map((type) => (
                     <TableHead 
                       key={type} 
@@ -446,10 +551,15 @@ export default function AdminStatisticsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedRecognitions.map((recognition) => (
+                {paginatedRecognitions.map((recognition) => {
+                  const maxCompletedAt = getMaxCompletedAt(recognition.completed_validations)
+                  return (
                   <TableRow key={recognition.recognition_id}>
                     <TableCell className="font-medium">
                       {recognition.recognition_id}
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-600">
+                      {formatDate(maxCompletedAt)}
                     </TableCell>
                     {VALIDATION_TYPES.map((type) => {
                       const validation = hasValidation(recognition.completed_validations, type)
@@ -501,7 +611,8 @@ export default function AdminStatisticsPage() {
                       )}
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
