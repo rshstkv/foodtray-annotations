@@ -70,9 +70,13 @@ export default function WorkPage() {
       )
       if (response.success && response.data) {
         setStats(response.data.stats || [])
+      } else {
+        console.error('Error loading stats:', 'error' in response ? response.error : 'Unknown error')
+        setStats([])
       }
     } catch (error) {
       console.error('Error loading stats:', error)
+      setStats([])
     } finally {
       setLoadingStats(false)
     }
@@ -102,9 +106,23 @@ export default function WorkPage() {
       )
       if (response.success && response.data) {
         setProblemStats(response.data)
+      } else {
+        console.error('Error loading problem stats:', 'error' in response ? response.error : 'Unknown error')
+        setProblemStats({
+          unresolved_ambiguity: 0,
+          food_annotation_mismatch: 0,
+          plate_annotation_mismatch: 0,
+          total_with_issues: 0
+        })
       }
     } catch (error) {
       console.error('Error loading problem stats:', error)
+      setProblemStats({
+        unresolved_ambiguity: 0,
+        food_annotation_mismatch: 0,
+        plate_annotation_mismatch: 0,
+        total_with_issues: 0
+      })
     } finally {
       setLoadingProblemStats(false)
     }
