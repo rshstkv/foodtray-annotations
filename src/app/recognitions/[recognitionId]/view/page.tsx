@@ -68,17 +68,18 @@ function RecognitionViewContent({
     createAnnotation, 
     updateAnnotation, 
     deleteAnnotation, 
+    selectedItemId,
+    setSelectedItemId,
+    selectedAnnotationId,
     setSelectedAnnotationId,
     resetToInitial,
     validationStatus,
     completeCurrentStep
   } = useValidationSession()
-  const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
-  const [selectedAnnotationId, setSelectedAnnotationIdLocal] = useState<number | string | null>(null)
   
   // Берем workLog из контекста (он обновляется в реальном времени)
   const currentWorkLog = session.workLog
-  
+
   // Проверяем, может ли пользователь редактировать этот work_log
   const canEdit = currentWorkLog.assigned_to === user?.id || isAdmin
   
@@ -103,9 +104,8 @@ function RecognitionViewContent({
   // Сбросить выбранный item при переключении шага
   useEffect(() => {
     setSelectedItemId(null)
-    setSelectedAnnotationIdLocal(null)
     setSelectedAnnotationId(null)
-  }, [selectedStepIndex, setSelectedAnnotationId])
+  }, [selectedStepIndex, setSelectedItemId, setSelectedAnnotationId])
 
   // Обработчик сохранения/завершения этапа
   const handleSave = async () => {
@@ -167,7 +167,6 @@ function RecognitionViewContent({
     if (validationStatus.itemErrors.size > 0) {
       const firstErrorItemId = Array.from(validationStatus.itemErrors.keys())[0]
       setSelectedItemId(firstErrorItemId)
-      setSelectedAnnotationIdLocal(null)
       setSelectedAnnotationId(null)
     }
   }
@@ -175,17 +174,14 @@ function RecognitionViewContent({
   const handleItemSelect = useCallback((id: number) => {
     if (selectedItemId === id) {
       setSelectedItemId(null)
-      setSelectedAnnotationIdLocal(null)
       setSelectedAnnotationId(null)
     } else {
       setSelectedItemId(id)
-      setSelectedAnnotationIdLocal(null)
       setSelectedAnnotationId(null)
     }
-  }, [selectedItemId, setSelectedAnnotationId])
+  }, [selectedItemId, setSelectedItemId, setSelectedAnnotationId])
 
   const handleAnnotationSelect = (annotationId: number | string | null, itemId?: number) => {
-    setSelectedAnnotationIdLocal(annotationId)
     setSelectedAnnotationId(annotationId)
     if (annotationId && itemId) {
       setSelectedItemId(itemId)
@@ -211,7 +207,6 @@ function RecognitionViewContent({
     // Автоматически выбираем новую аннотацию для возможности сразу подправить
     if (newAnnotationId !== null) {
       setSelectedAnnotationId(newAnnotationId)
-      setSelectedAnnotationIdLocal(newAnnotationId)
     }
   }
 
@@ -328,14 +323,13 @@ function RecognitionViewContent({
       if (e.key === 'Escape') {
         e.preventDefault()
         setSelectedItemId(null)
-        setSelectedAnnotationIdLocal(null)
         setSelectedAnnotationId(null)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedStepIndex, canGoPrevStep, canGoNextStep, setSelectedStepIndex, items, handleItemSelect, setSelectedAnnotationId, currentValidationType, capabilities.showAllItemTypes])
+  }, [selectedStepIndex, canGoPrevStep, canGoNextStep, setSelectedStepIndex, items, handleItemSelect, setSelectedItemId, setSelectedAnnotationId, currentValidationType, capabilities.showAllItemTypes])
 
   return (
     <RootLayout
@@ -385,7 +379,6 @@ function RecognitionViewContent({
             selectedAnnotationId={selectedAnnotationId}
             validationType={currentValidationType}
             mode={mode}
-            displayMode={mode}
             onAnnotationCreate={handleAnnotationCreate}
             onAnnotationUpdate={handleAnnotationUpdate}
             onAnnotationSelect={handleAnnotationSelect}
@@ -396,14 +389,14 @@ function RecognitionViewContent({
         actions={
           <div className="flex items-center justify-end gap-3">
             {canEdit && (hasUnsavedChanges || isCurrentStepSkipped) && (
-              <Button 
+            <Button
                 onClick={handleSave}
                 disabled={!validationStatus.canComplete}
                 title={!validationStatus.canComplete ? 'Исправьте ошибки валидации перед сохранением' : undefined}
-              >
+            >
                 <Save className="w-4 h-4 mr-2" />
                 {isCurrentStepSkipped && !hasUnsavedChanges ? 'Завершить этап' : 'Сохранить изменения'}
-              </Button>
+            </Button>
             )}
             <Button variant="outline" onClick={() => router.back()}>
               Назад

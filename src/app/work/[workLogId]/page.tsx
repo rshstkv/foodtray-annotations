@@ -533,7 +533,6 @@ function ValidationSessionContent() {
             selectedAnnotationId={selectedAnnotationId}
             validationType={session.workLog.validation_type}
             mode={mode}
-            displayMode={mode}
             onAnnotationCreate={handleAnnotationCreate}
             onAnnotationUpdate={handleAnnotationUpdate}
             onAnnotationSelect={handleAnnotationSelect}
@@ -693,7 +692,11 @@ export default function WorkSessionPage({
   }
 
   return (
-    <ValidationSessionProvider initialSession={session} readOnly={readOnly}>
+    <ValidationSessionProvider 
+      key={workLogId}
+      initialSession={session} 
+      readOnly={readOnly}
+    >
       <ValidationSessionContent />
     </ValidationSessionProvider>
   )
