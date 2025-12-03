@@ -23,6 +23,7 @@ import { CheckCircle, XCircle, SkipForward } from 'lucide-react'
 
 function ValidationSessionContent() {
   const router = useRouter()
+  const { user, isAdmin } = useUser()
   const {
     session,
     loading,
@@ -486,7 +487,11 @@ function ValidationSessionContent() {
   ])
 
   return (
-    <>
+    <RootLayout
+      userName={user?.full_name || undefined}
+      userEmail={user?.email}
+      isAdmin={isAdmin}
+    >
       <WorkLayout
         header={
           <ValidationSessionHeader
@@ -528,7 +533,6 @@ function ValidationSessionContent() {
             selectedAnnotationId={selectedAnnotationId}
             validationType={session.workLog.validation_type}
             mode={mode}
-            displayMode={mode}
             onAnnotationCreate={handleAnnotationCreate}
             onAnnotationUpdate={handleAnnotationUpdate}
             onAnnotationSelect={handleAnnotationSelect}
@@ -622,7 +626,7 @@ function ValidationSessionContent() {
           </div>
         </div>
       )}
-    </>
+    </RootLayout>
   )
 }
 
@@ -688,7 +692,11 @@ export default function WorkSessionPage({
   }
 
   return (
-    <ValidationSessionProvider initialSession={session} readOnly={readOnly}>
+    <ValidationSessionProvider 
+      key={workLogId}
+      initialSession={session} 
+      readOnly={readOnly}
+    >
       <ValidationSessionContent />
     </ValidationSessionProvider>
   )

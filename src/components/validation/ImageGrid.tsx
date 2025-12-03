@@ -19,7 +19,6 @@ interface ImageGridProps {
   selectedAnnotationId: number | string | null
   validationType: ValidationType
   mode: 'view' | 'draw' | 'edit'
-  displayMode?: 'edit' | 'view'  // Режим отображения для фильтрации (edit=все объекты, view=только с окклюзиями)
   onAnnotationCreate: (imageId: number, bbox: BBox) => void
   onAnnotationUpdate: (id: number | string, data: { bbox: BBox }) => void
   onAnnotationSelect: (id: number | string | null, itemId?: number) => void
@@ -36,7 +35,6 @@ export function ImageGrid({
   selectedAnnotationId,
   validationType,
   mode,
-  displayMode = 'view',
   onAnnotationCreate,
   onAnnotationUpdate,
   onAnnotationSelect,
@@ -79,19 +77,9 @@ export function ImageGrid({
   }
 
   // Фильтрация annotations по типу валидации
+  // Единая логика для всех типов валидации
   const getRelevantAnnotations = (annotations: AnnotationView[]) => {
-    // Для OCCLUSION_VALIDATION фильтрация зависит от displayMode
-    if (validationType === 'OCCLUSION_VALIDATION') {
-      if (displayMode === 'edit') {
-        // В режиме edit показываем ВСЕ аннотации (можно пометить окклюзию на любой)
-        return annotations
-      } else {
-        // В режиме view показываем только аннотации с is_occluded=true
-        return annotations.filter(ann => ann.is_occluded === true)
-      }
-    }
-    
-    // Если показываем все типы (например для других случаев)
+    // Если показываем все типы (OCCLUSION_VALIDATION или другие случаи)
     if (capabilities.showAllItemTypes) {
       return annotations
     }
@@ -100,9 +88,12 @@ export function ImageGrid({
     const allowedType = getItemTypeFromValidationType(validationType)
     if (!allowedType) return annotations
     
+    // Фильтруем аннотации по типу item
     return annotations.filter(ann => {
       const item = items.find(i => i.id === ann.work_item_id)
-      return item?.type === allowedType
+      // Если item не найден - не показываем (аннотация без item невалидна)
+      if (!item) return false
+      return item.type === allowedType
     })
   }
 
@@ -135,14 +126,13 @@ export function ImageGrid({
         .map((image) => {
           const allImageAnnotations = getAnnotationsForImage(image.id)
           
-          // Если выбран объект - показываем только его аннотации
-          // Если не выбран:
-          //   - В режиме view - показываем все аннотации
-          //   - Для OCCLUSION_VALIDATION - показываем все
-          //   - Для остальных типов валидации в режиме редактирования - пустой список
+          // Логика отображения аннотаций:
+          // - Если выбран объект (selectedItemId !== null) - показываем только его аннотации (подсвечиваем)
+          // - Если ничего не выбрано (selectedItemId === null) - показываем ВСЕ релевантные аннотации
+          //   Это позволяет видеть всю картину при первичной загрузке и после нажатия Escape
           const imageAnnotations = selectedItemId 
             ? allImageAnnotations.filter(ann => ann.itemId === selectedItemId)
-            : (mode === 'view' || capabilities.showAllItemTypes ? allImageAnnotations : [])
+            : allImageAnnotations
           
           return (
             <div key={image.id} className="flex flex-col h-full min-h-0">

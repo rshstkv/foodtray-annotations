@@ -20,7 +20,7 @@ export function WorkLayout({
   actions,
 }: WorkLayoutProps) {
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-[calc(100vh-73px)] flex flex-col">
       {/* Header */}
       {header && (
         <div className="flex-none bg-white border-b border-gray-200">
@@ -29,14 +29,14 @@ export function WorkLayout({
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Sidebar - Items List */}
         <div className="w-80 flex-none bg-white border-r border-gray-200 overflow-y-auto">
           {sidebar}
         </div>
 
         {/* Images - Main work area */}
-        <div className="flex-1 bg-gray-100 overflow-auto p-4">
+        <div className="flex-1 bg-gray-100 overflow-auto p-4 min-h-0">
           {images}
         </div>
       </div>
