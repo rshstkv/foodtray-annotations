@@ -206,8 +206,13 @@ export function BBoxCanvas({
     }
 
     updateSize()
+    const resizeObserver = new ResizeObserver(updateSize)
+    resizeObserver.observe(containerRef.current)
     window.addEventListener('resize', updateSize)
-    return () => window.removeEventListener('resize', updateSize)
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', updateSize)
+    }
   }, [])
 
   // Update displayed image size when dimensions change
@@ -262,18 +267,6 @@ export function BBoxCanvas({
         h: h / getScale().y,
       }
       
-      if (ann.itemId === highlightedItemId) {
-        const scale = getScale()
-        const displayedSize = displayedImageSize
-        console.log('[BBoxCanvas] Drawing bbox for item', ann.itemId, { 
-          original: { x, y, w, h },
-          canvas: { x: canvasPos.x, y: canvasPos.y, w: canvasSize.w, h: canvasSize.h },
-          imageDimensions,
-          displayedSize,
-          scale,
-          containerSize
-        })
-      }
 
       const color = ann.itemColor || ITEM_TYPE_COLORS[ann.itemType] || '#6B7280'
       const isSelected = ann.id === selectedAnnotationId
