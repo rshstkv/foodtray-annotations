@@ -43,7 +43,7 @@ interface ValidationSessionContextValue {
   annotations: AnnotationView[]
   selectedAnnotationId: number | string | null
   setSelectedAnnotationId: (id: number | string | null) => void
-  createAnnotation: (data: Omit<CreateAnnotationRequest, 'work_log_id'> & { image_id: number }) => void
+  createAnnotation: (data: Omit<CreateAnnotationRequest, 'work_log_id'> & { image_id: number }) => number | string | null
   updateAnnotation: (id: number | string, data: UpdateAnnotationRequest) => void
   deleteAnnotation: (id: number | string) => void
 
@@ -373,10 +373,10 @@ export function ValidationSessionProvider({
 
   // Create annotation (локально, без API)
   const createAnnotation = useCallback(
-    (data: Omit<CreateAnnotationRequest, 'work_log_id'> & { image_id: number }) => {
+    (data: Omit<CreateAnnotationRequest, 'work_log_id'> & { image_id: number }): number | string | null => {
       if (readOnly) {
         console.warn('[ValidationSession] Cannot create annotation in read-only mode')
-        return
+        return null
       }
       
       // Создаем временный number ID (отрицательный для отличия от реальных)
@@ -413,6 +413,8 @@ export function ValidationSessionProvider({
           createdAnnotations: newCreatedAnnotations,
         }
       })
+      
+      return tempId
     },
     [session.workLog.id, readOnly]
   )

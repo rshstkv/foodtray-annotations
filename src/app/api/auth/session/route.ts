@@ -29,7 +29,10 @@ export async function GET() {
       .eq('id', user.id)
       .single()
 
-    console.log('[Auth] Profile loaded:', profile, 'Error:', profileError?.message)
+    if (profileError && profileError.code !== 'PGRST116') {
+      // PGRST116 = no rows returned - это нормально для новых пользователей
+      console.warn('[Auth] Profile error:', profileError.message || profileError.code)
+    }
 
     // Fallback: используем данные из auth если профиля нет
     return NextResponse.json({

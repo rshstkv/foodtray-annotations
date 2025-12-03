@@ -141,11 +141,15 @@ function ValidationSessionContent() {
       alert('Сначала выберите item')
       return
     }
-    await createAnnotation({
+    const newAnnotationId = createAnnotation({
       image_id: imageId,
       work_item_id: selectedItemId,
       bbox,
     })
+    // Автоматически выбираем новую аннотацию для возможности сразу подправить
+    if (newAnnotationId !== null) {
+      setSelectedAnnotationId(newAnnotationId)
+    }
   }
 
   const handleAnnotationSelect = (annotationId: number | string | null, itemId?: number) => {

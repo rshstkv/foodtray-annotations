@@ -1,7 +1,8 @@
 'use client'
 
 import { use, useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
+import { RootLayout } from '@/components/layouts/RootLayout'
 import { WorkLayout } from '@/components/layouts/WorkLayout'
 import { ValidationSessionProvider, useValidationSession } from '@/contexts/ValidationSessionContext'
 import { ValidationSessionHeader } from '@/components/validation/ValidationSessionHeader'
@@ -10,10 +11,7 @@ import { ImageGrid } from '@/components/validation/ImageGrid'
 import { Button } from '@/components/ui/button'
 import { useUser } from '@/hooks/useUser'
 import { apiFetch } from '@/lib/api-response'
-import { Save } from 'lucide-react'
-import { useToast } from '@/hooks/use-toast'
-import { getValidationCapabilities } from '@/lib/validation-capabilities'
-import { getItemTypeFromValidationType } from '@/types/domain'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { 
   Recognition, 
   Image as RecognitionImage, 
@@ -23,8 +21,7 @@ import type {
   ValidationWorkLog,
   WorkItem,
   WorkAnnotation,
-  ValidationType,
-  ValidationSession
+  ValidationType
 } from '@/types/domain'
 
 interface SessionData {
@@ -54,32 +51,15 @@ function RecognitionViewContent({
 }) {
   const router = useRouter()
   const { user, isAdmin } = useUser()
-  const { toast } = useToast()
-  const { 
-    session,
-    items, 
-    annotations, 
-    hasUnsavedChanges, 
-    saveAllChanges, 
-    createItem, 
-    updateItem, 
-    deleteItem, 
-    createAnnotation, 
-    updateAnnotation, 
-    deleteAnnotation, 
-    setSelectedAnnotationId,
-    resetToInitial,
-    validationStatus,
-    completeCurrentStep
-  } = useValidationSession()
+  const { items, annotations } = useValidationSession()
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
-  const [selectedAnnotationId, setSelectedAnnotationIdLocal] = useState<number | string | null>(null)
   
-  // Всегда в режиме редактирования
-  const mode = 'edit' as const
+  // Режим просмотра (не редактирования)
+  const mode = 'view' as const
 
-  // Берем workLog из контекста (он обновляется в реальном времени)
-  const currentWorkLog = session.workLog
+  // Берем первый (последний по времени) work_log
+  const currentSession = data.sessions[0]
+  const currentWorkLog = currentSession.workLog
   
   // Для multi-step: показываем выбранный шаг
   const hasSteps = currentWorkLog.validation_steps && currentWorkLog.validation_steps.length > 0
@@ -87,171 +67,13 @@ function RecognitionViewContent({
     ? currentWorkLog.validation_steps[selectedStepIndex]?.type 
     : currentWorkLog.validation_type
 
-  // Получаем capabilities для текущего типа валидации
-  const capabilities = getValidationCapabilities(currentValidationType)
-
   const canGoPrevStep = selectedStepIndex > 0
   const canGoNextStep = hasSteps && selectedStepIndex < currentWorkLog.validation_steps.length - 1
-  
-  // Проверить, является ли текущий просматриваемый этап заскипанным
-  const isCurrentStepSkipped = hasSteps && currentWorkLog.validation_steps[selectedStepIndex]?.status === 'skipped'
-
-  // Обработчик сохранения/завершения этапа
-  const handleSave = async () => {
-    // Проверяем валидацию перед сохранением
-    if (!validationStatus.canComplete) {
-      toast({
-        title: 'Невозможно сохранить',
-        description: 'Исправьте ошибки валидации перед сохранением',
-        variant: 'destructive',
-      })
-      return
-    }
-    
-    try {
-      // Если этап заскипан, завершаем его (что также сохранит изменения если они есть)
-      if (isCurrentStepSkipped) {
-        await completeCurrentStep(selectedStepIndex)
-        toast({
-          title: 'Успешно',
-          description: 'Этап завершен',
-        })
-      } else if (hasUnsavedChanges) {
-        // Иначе просто сохраняем изменения
-        await saveAllChanges()
-        toast({
-          title: 'Успешно',
-          description: 'Изменения сохранены',
-        })
-      }
-    } catch (error) {
-      toast({
-        title: 'Ошибка',
-        description: isCurrentStepSkipped ? 'Не удалось завершить этап' : 'Не удалось сохранить изменения',
-        variant: 'destructive',
-      })
-    }
-  }
-
-  const handleReset = async () => {
-    if (confirm('Вы уверены, что хотите откатить все изменения к исходному состоянию?')) {
-      try {
-        await resetToInitial()
-      } catch (err) {
-        console.error('Failed to reset:', err)
-        toast({
-          title: 'Ошибка',
-          description: 'Ошибка при откате изменений',
-          variant: 'destructive',
-        })
-      }
-    }
-  }
-
-  const handleSelectFirstError = () => {
-    if (validationStatus.itemErrors.size > 0) {
-      const firstErrorItemId = Array.from(validationStatus.itemErrors.keys())[0]
-      setSelectedItemId(firstErrorItemId)
-      setSelectedAnnotationIdLocal(null)
-      setSelectedAnnotationId(null)
-    }
-  }
-
-  const handleItemSelect = (id: number) => {
-    if (selectedItemId === id) {
-      setSelectedItemId(null)
-      setSelectedAnnotationIdLocal(null)
-      setSelectedAnnotationId(null)
-    } else {
-      setSelectedItemId(id)
-      setSelectedAnnotationIdLocal(null)
-      setSelectedAnnotationId(null)
-    }
-  }
-
-  const handleAnnotationSelect = (annotationId: number | string | null, itemId?: number) => {
-    setSelectedAnnotationIdLocal(annotationId)
-    setSelectedAnnotationId(annotationId)
-    if (annotationId && itemId) {
-      setSelectedItemId(itemId)
-    }
-  }
-
-  const handleAnnotationCreate = async (imageId: number, bbox: any) => {
-    if (!capabilities.canCreateAnnotations) {
-      alert('В данном режиме валидации нельзя создавать новые аннотации')
-      return
-    }
-    if (!selectedItemId) {
-      alert('Сначала выберите item')
-      return
-    }
-    await createAnnotation({
-      image_id: imageId,
-      work_item_id: selectedItemId,
-      bbox,
-    })
-  }
-
-  const handleAnnotationUpdate = (id: number | string, data: any) => {
-    if (!capabilities.canEditAnnotationsBBox) {
-      alert('В данном режиме валидации нельзя редактировать границы аннотаций')
-      return
-    }
-    updateAnnotation(id, data)
-  }
-
-  const handleAnnotationDelete = (id: number | string) => {
-    if (!capabilities.canDeleteAnnotations) {
-      alert('В данном режиме валидации нельзя удалять аннотации')
-      return
-    }
-    deleteAnnotation(id)
-  }
-
-  const handleAnnotationToggleOcclusion = (id: number | string) => {
-    if (!capabilities.canToggleOcclusion) {
-      alert('В данном режиме валидации нельзя изменять статус окклюзии')
-      return
-    }
-    const ann = annotations.find(a => a.id === id)
-    if (ann) {
-      updateAnnotation(id, { 
-        is_occluded: !ann.is_occluded 
-      })
-    }
-  }
-
-  const handleItemDelete = (id: number) => {
-    if (!capabilities.canDeleteItems) {
-      alert('В данном режиме валидации нельзя удалять объекты')
-      return
-    }
-    deleteItem(id)
-  }
-
-  const handleItemUpdate = (id: number, data: any) => {
-    if (!capabilities.canUpdateItems) {
-      alert('В данном режиме валидации нельзя обновлять объекты')
-      return
-    }
-    updateItem(id, data)
-  }
-
-  const handleItemCreate = () => {
-    if (!capabilities.canCreateItems) {
-      alert('В данном режиме валидации нельзя создавать новые объекты')
-      return
-    }
-    createItem({ type: getItemTypeFromValidationType(currentValidationType) })
-  }
 
   // Сбросить выбранный item при переключении шага
   useEffect(() => {
     setSelectedItemId(null)
-    setSelectedAnnotationIdLocal(null)
-    setSelectedAnnotationId(null)
-  }, [selectedStepIndex, setSelectedAnnotationId])
+  }, [selectedStepIndex])
 
   // Горячие клавиши для навигации между шагами и выбора items
   useEffect(() => {
@@ -271,19 +93,13 @@ function RecognitionViewContent({
         setSelectedStepIndex(selectedStepIndex + 1)
       }
       
-      // Получаем текущий список items (фильтруем по типу валидации)
-      const currentItemType = getItemTypeFromValidationType(currentValidationType)
-      const filteredItems = (currentItemType && !capabilities.showAllItemTypes)
-        ? items.filter((item) => item.type === currentItemType)
-        : items
-      
       // Цифры 1-9 для выбора items
       const num = parseInt(e.key)
       if (num >= 1 && num <= 9) {
         const itemIndex = num - 1
-        if (itemIndex < filteredItems.length) {
+        if (itemIndex < items.length) {
           e.preventDefault()
-          handleItemSelect(filteredItems[itemIndex].id)
+          setSelectedItemId(items[itemIndex].id)
         }
       }
       
@@ -291,30 +107,53 @@ function RecognitionViewContent({
       if (e.key === 'Escape') {
         e.preventDefault()
         setSelectedItemId(null)
-        setSelectedAnnotationIdLocal(null)
-        setSelectedAnnotationId(null)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedStepIndex, canGoPrevStep, canGoNextStep, setSelectedStepIndex, items, handleItemSelect, setSelectedAnnotationId, currentValidationType, capabilities.showAllItemTypes])
+  }, [selectedStepIndex, canGoPrevStep, canGoNextStep, setSelectedStepIndex, items])
 
   return (
-    <WorkLayout
+    <RootLayout
+      userName={user?.full_name || undefined}
+      userEmail={user?.email}
+      isAdmin={isAdmin}
+    >
+      <WorkLayout
         header={
-          <ValidationSessionHeader
-            recognitionId={data.recognition.id}
-            validationType={currentValidationType}
-            hasUnsavedChanges={hasUnsavedChanges}
-            validationStatus={validationStatus}
-            onReset={handleReset}
-            onSelectFirstError={handleSelectFirstError}
-            readOnly={false}
-            validationSteps={hasSteps ? currentWorkLog.validation_steps : null}
-            currentStepIndex={selectedStepIndex}
-            onStepClick={setSelectedStepIndex}
-          />
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">
+                  Recognition #{data.recognition.id} (Просмотр)
+                </h1>
+                {hasSteps && (
+                  <div className="flex items-center gap-2 mt-2">
+                    {currentWorkLog.validation_steps.map((step, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedStepIndex(idx)}
+                        className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                          idx === selectedStepIndex
+                            ? 'bg-blue-500 text-white'
+                            : step.status === 'completed'
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {getValidationTypeLabel(step.type)}
+                        {step.status === 'completed' && ' ✓'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <Button variant="outline" onClick={() => router.back()}>
+                Назад
+              </Button>
+            </div>
+          </div>
         }
         sidebar={
           <ItemsList
@@ -325,10 +164,11 @@ function RecognitionViewContent({
             recipeLines={data.recipeLines}
             recipeLineOptions={data.recipeLineOptions}
             activeMenu={data.activeMenu}
-            onItemSelect={handleItemSelect}
-            onItemCreate={handleItemCreate}
-            onItemDelete={handleItemDelete}
-            onItemUpdate={handleItemUpdate}
+            onItemSelect={setSelectedItemId}
+            onItemCreate={() => {}}
+            onItemDelete={() => {}}
+            onItemUpdate={() => {}}
+            readOnly={true}
             mode={mode}
           />
         }
@@ -339,35 +179,48 @@ function RecognitionViewContent({
             items={items}
             recipeLineOptions={data.recipeLineOptions}
             selectedItemId={selectedItemId}
-            selectedAnnotationId={selectedAnnotationId}
+            selectedAnnotationId={null}
             validationType={currentValidationType}
-            mode={mode}
+            mode="view"
             displayMode={mode}
-            onAnnotationCreate={handleAnnotationCreate}
-            onAnnotationUpdate={handleAnnotationUpdate}
-            onAnnotationSelect={handleAnnotationSelect}
-            onAnnotationDelete={handleAnnotationDelete}
-            onAnnotationToggleOcclusion={handleAnnotationToggleOcclusion}
+            onAnnotationCreate={() => {}}
+            onAnnotationUpdate={() => {}}
+            onAnnotationSelect={() => {}}
+            onAnnotationDelete={() => {}}
+            onAnnotationToggleOcclusion={() => {}}
           />
         }
         actions={
-          <div className="flex items-center justify-end gap-3">
-            {(hasUnsavedChanges || isCurrentStepSkipped) && (
-              <Button 
-                onClick={handleSave}
-                disabled={!validationStatus.canComplete}
-                title={!validationStatus.canComplete ? 'Исправьте ошибки валидации перед сохранением' : undefined}
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {isCurrentStepSkipped && !hasUnsavedChanges ? 'Завершить этап' : 'Сохранить изменения'}
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => router.back()}>
-              Назад
+          <div className="flex items-center justify-between gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setSelectedStepIndex(Math.max(0, selectedStepIndex - 1))}
+              disabled={!canGoPrevStep}
+            >
+              <ChevronLeft className="w-4 h-4 mr-2" />
+              Предыдущий шаг
+              <kbd className="ml-2 px-1.5 py-0.5 text-xs font-semibold bg-gray-200 rounded border border-gray-300">
+                ←
+              </kbd>
+            </Button>
+            <div className="text-sm text-gray-600">
+              {hasSteps && `Шаг ${selectedStepIndex + 1} из ${currentWorkLog.validation_steps.length}`}
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setSelectedStepIndex(Math.min(currentWorkLog.validation_steps.length - 1, selectedStepIndex + 1))}
+              disabled={!canGoNextStep}
+            >
+              Следующий шаг
+              <kbd className="ml-2 px-1.5 py-0.5 text-xs font-semibold bg-gray-200 rounded border border-gray-300">
+                →
+              </kbd>
+              <ChevronRight className="w-4 h-4 ml-2" />
             </Button>
           </div>
         }
       />
+    </RootLayout>
   )
 }
 
@@ -377,92 +230,113 @@ export default function RecognitionViewPage({
   params: Promise<{ recognitionId: string }>
 }) {
   const { recognitionId } = use(params)
-  const router = useRouter()
   const { user, isAdmin } = useUser()
-  const [session, setSession] = useState<ValidationSession | null>(null)
+  const [data, setData] = useState<RecognitionViewData | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedStepIndex, setSelectedStepIndex] = useState(0)
 
-  // Загрузка реальной session
   useEffect(() => {
-    const loadSession = async () => {
+    const loadData = async () => {
       try {
         setLoading(true)
-        // Сначала получаем данные для определения work_log_id
-        const viewResponse = await apiFetch<RecognitionViewData>(
+        const response = await apiFetch<RecognitionViewData>(
           `/api/recognition/${recognitionId}/view`
         )
-        
-        if (viewResponse.success && viewResponse.data) {
-          const workLogId = viewResponse.data.sessions[0].workLog.id
-          
-          // Загружаем полную session
-          const sessionResponse = await apiFetch<{ session: ValidationSession }>(
-            `/api/validation/session/${workLogId}`
-          )
-          
-          if (sessionResponse.success && sessionResponse.data) {
-            setSession(sessionResponse.data.session)
-          }
+        if (response.success && response.data) {
+          setData(response.data)
         }
       } catch (error) {
-        console.error('Failed to load session:', error)
+        console.error('Failed to load recognition data:', error)
       } finally {
         setLoading(false)
       }
     }
 
     if (user) {
-      loadSession()
+      loadData()
     }
   }, [recognitionId, user])
 
-  if (!user || loading || !session) {
+  if (!user || loading || !data) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Загрузка...</p>
+      <RootLayout>
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Загрузка...</p>
+          </div>
         </div>
-      </div>
+      </RootLayout>
     )
   }
 
-  // Для multi-step валидации: обновляем validation_type в зависимости от текущего шага
-  const hasSteps = session.workLog.validation_steps && session.workLog.validation_steps.length > 0
-  const currentValidationType: ValidationType = hasSteps 
-    ? session.workLog.validation_steps[selectedStepIndex]?.type 
-    : session.workLog.validation_type
+  // Берем первый (последний по времени) work_log
+  const currentSession = data.sessions[0]
+  const currentWorkLog = currentSession.workLog
   
-  // Создаем копию session с правильным validation_type для текущего шага
-  const sessionForCurrentStep: ValidationSession = {
-    ...session,
-    workLog: {
-      ...session.workLog,
-      validation_type: currentValidationType
-    }
+  // Для multi-step: показываем выбранный шаг
+  const hasSteps = currentWorkLog.validation_steps && currentWorkLog.validation_steps.length > 0
+  const currentValidationType: ValidationType = hasSteps 
+    ? currentWorkLog.validation_steps[selectedStepIndex]?.type 
+    : currentWorkLog.validation_type
+
+  // Обновляем validation_type в work_log для текущего шага
+  const displayWorkLog = {
+    ...currentWorkLog,
+    validation_type: currentValidationType
+  }
+
+  // Собираем items из всех сессий (может быть несколько work_logs для разных типов валидации)
+  const allItems = data.sessions.flatMap(session => session.workItems)
+  const allAnnotations = data.sessions.flatMap(session => session.workAnnotations)
+  
+  // Для OCCLUSION_VALIDATION передаем ВСЕ items и annotations (фильтрация будет в компонентах)
+  // Для остальных типов - фильтруем по типу item
+  let filteredItems: any[]
+  let filteredAnnotations: any[]
+  
+  if (currentValidationType === 'OCCLUSION_VALIDATION') {
+    // Для окклюзий - передаем все (не удаленные)
+    filteredItems = allItems.filter(item => !item.is_deleted)
+    filteredAnnotations = allAnnotations.filter(ann => !ann.is_deleted)
+  } else {
+    // Для остальных типов - фильтруем по типу валидации
+    const currentItemType = getItemTypeFromValidationType(currentValidationType)
+    filteredItems = allItems.filter(
+      item => !item.is_deleted && item.type === currentItemType
+    )
+    
+    // Фильтруем annotations по items текущего типа
+    const filteredItemIds = new Set(filteredItems.map(item => item.id))
+    filteredAnnotations = allAnnotations.filter(
+      ann => !ann.is_deleted && filteredItemIds.has(ann.work_item_id)
+    )
   }
   
-  // Извлекаем данные для передачи в RecognitionViewContent
-  const data: RecognitionViewData = {
-    recognition: session.recognition,
-    images: session.images,
-    recipe: session.recipe,
-    recipeLines: session.recipeLines,
-    recipeLineOptions: session.recipeLineOptions,
-    activeMenu: session.activeMenu,
-    sessions: [{
-      workLog: session.workLog,
-      workItems: session.items,
-      workAnnotations: session.annotations
-    }]
+  // Помечаем items которые были добавлены пользователем (не из initial)
+  const itemsWithChangeStatus = filteredItems.map(item => ({
+    ...item,
+    isNewItem: item.initial_item_id === null, // Новый item добавлен пользователем
+  }))
+
+  // Преобразуем в формат ValidationSession
+  const mockSession: any = {
+    workLog: displayWorkLog,
+    recognition: data.recognition,
+    images: data.images,
+    recipe: data.recipe,
+    recipeLines: data.recipeLines,
+    recipeLineOptions: data.recipeLineOptions,
+    activeMenu: data.activeMenu,
+    items: itemsWithChangeStatus,
+    annotations: filteredAnnotations
   }
 
   return (
     <ValidationSessionProvider 
       key={`${recognitionId}-${selectedStepIndex}`}
-      initialSession={sessionForCurrentStep} 
-      readOnly={false}
+      initialSession={mockSession} 
+      readOnly={true}
     >
       <RecognitionViewContent 
         data={data}
@@ -473,4 +347,25 @@ export default function RecognitionViewPage({
   )
 }
 
+function getItemTypeFromValidationType(validationType: ValidationType) {
+  const map: Record<ValidationType, string> = {
+    FOOD_VALIDATION: 'FOOD',
+    PLATE_VALIDATION: 'PLATE',
+    BUZZER_VALIDATION: 'BUZZER',
+    OCCLUSION_VALIDATION: 'FOOD',
+    BOTTLE_ORIENTATION_VALIDATION: 'FOOD' // Бутылки это FOOD items с bottle_orientation
+  }
+  return map[validationType]
+}
+
+function getValidationTypeLabel(validationType: ValidationType): string {
+  const labels: Record<ValidationType, string> = {
+    FOOD_VALIDATION: 'Блюда',
+    PLATE_VALIDATION: 'Тарелки',
+    BUZZER_VALIDATION: 'Пейджеры',
+    OCCLUSION_VALIDATION: 'Окклюзии',
+    BOTTLE_ORIENTATION_VALIDATION: 'Ориентация'
+  }
+  return labels[validationType]
+}
 
