@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase'
 import { apiSuccess, apiError, ApiErrorCode } from '@/lib/api-response'
 import type { RecognitionWithValidations, CompletedValidationInfo, ValidationType } from '@/types/domain'
 
@@ -115,11 +116,15 @@ export async function GET(request: NextRequest) {
     console.log('[completed-validations] Total recognitions fetched:', recognitions.length)
 
     // Получить emails пользователей для отображения
+    // Используем adminClient для обхода RLS политик
     const userIds = [...new Set(workLogs.map(log => log.assigned_to))]
-    const { data: profiles } = await supabase
+    const adminClient = createAdminClient()
+    const { data: profiles } = await adminClient
       .from('profiles')
       .select('id, email')
       .in('id', userIds)
+
+    console.log('[completed-validations] Fetched profiles:', profiles?.length, 'out of', userIds.length, 'unique users')
 
     const userEmailMap = new Map(profiles?.map(p => [p.id, p.email]) || [])
 
