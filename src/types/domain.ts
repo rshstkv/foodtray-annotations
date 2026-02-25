@@ -136,11 +136,29 @@ export interface WorkItem {
   is_deleted: boolean
   created_at: string
   updated_at: string
+  // Test split specific fields (optional — absent in regular validation)
+  name?: string
+  ean?: string
+  product_type?: string
+  up?: boolean | null
+  label_visible?: boolean | null
+  flagged?: boolean
+  flag_comment?: string | null
 }
 
 // Alias для UI (используем WorkItem напрямую)
 export type TrayItem = WorkItem & {
   is_modified: boolean // всегда true для work_items (все отредактированные)
+}
+
+// Product catalog entry
+export interface ProductCatalogItem {
+  id: number
+  name: string
+  ean: string | null
+  product_type: string
+  item_type: ItemType
+  is_dummy: boolean
 }
 
 // ============================================================================
@@ -261,11 +279,19 @@ export interface CreateItemRequest {
 export interface UpdateItemRequest {
   type?: ItemType
   recipe_line_id?: number | null
-  selected_option_id?: number // Для разрешения неопределенности (помечает option как is_selected)
+  selected_option_id?: number
   quantity?: number
   bottle_orientation?: BottleOrientation | null
   metadata?: Record<string, any> | null
   is_deleted?: boolean
+  // Test split specific
+  name?: string
+  ean?: string | null
+  product_type?: string
+  up?: boolean | null
+  label_visible?: boolean | null
+  flagged?: boolean
+  flag_comment?: string | null
 }
 
 export interface CreateAnnotationRequest {

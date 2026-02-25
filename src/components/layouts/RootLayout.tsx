@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { User, Settings, LogOut, ClipboardList } from 'lucide-react'
+import { User, Settings, LogOut, ClipboardList, FlaskConical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface RootLayoutProps {
@@ -64,6 +64,19 @@ export function RootLayout({ children, userName, userEmail, isAdmin }: RootLayou
                   >
                     <ClipboardList className="w-4 h-4 mr-2" />
                     Мои валидации
+                  </Button>
+                </Link>
+
+                <Link href="/test-split">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className={cn(
+                      pathname?.startsWith('/test-split') && 'bg-purple-50 text-purple-600 hover:bg-purple-100 hover:text-purple-700'
+                    )}
+                  >
+                    <FlaskConical className="w-4 h-4 mr-2" />
+                    Тестовый сплит
                   </Button>
                 </Link>
 
