@@ -27,6 +27,9 @@
     "ingest:status:production": "python3 scripts/ingest/cli.py --production status",
     "ingest:all": "npm run ingest:load -- --limit 100 && npm run ingest:load-qwen",
     "db:load-staging": "bash scripts/load-dump-to-staging.sh",
+    "detection:load": ".venv/bin/python scripts/ingest_detection/cli.py load",
+    "detection:load:staging": ".venv/bin/python scripts/ingest_detection/cli.py --staging load",
+    "detection:load:production": ".venv/bin/python scripts/ingest_detection/cli.py --production load",
     "prepare": "husky"
   },
   "dependencies": {
