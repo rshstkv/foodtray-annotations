@@ -26,25 +26,41 @@ export async function GET(
     const statusFilter = searchParams.get('status') || 'all'
     const isSummary = searchParams.get('summary') === 'true'
 
-    let query = supabase
-      .from('detection_image_tasks')
-      .select('*', { count: 'exact' })
-      .eq('task_id', parseInt(taskId))
-      .order('id', { ascending: true })
+    const PAGE_SIZE = 1000
+    const allImages: Record<string, unknown>[] = []
+    let totalCount = 0
+    let from = 0
 
-    if (statusFilter === 'pending' || statusFilter === 'done') {
-      query = query.eq('status', statusFilter)
-    }
+    // Supabase caps results at 1000 per request; paginate to fetch all rows
+    while (true) {
+      let query = supabase
+        .from('detection_image_tasks')
+        .select('*', { count: 'exact' })
+        .eq('task_id', parseInt(taskId))
+        .order('id', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1)
 
-    const { data: images, error, count } = await query
+      if (statusFilter === 'pending' || statusFilter === 'done') {
+        query = query.eq('status', statusFilter)
+      }
 
-    if (error) {
-      return apiError(error.message, 500)
+      const { data, error, count } = await query
+
+      if (error) {
+        return apiError(error.message, 500)
+      }
+
+      if (count !== null) totalCount = count
+      if (!data || data.length === 0) break
+
+      allImages.push(...data)
+      if (data.length < PAGE_SIZE) break
+      from += PAGE_SIZE
     }
 
     if (isSummary) {
-      const summaryRows = (images ?? []).map((img) => {
-        const orig = (img.original_annotations ?? []) as Array<{ class: number }>
+      const summaryRows = allImages.map((img) => {
+        const orig = ((img.original_annotations ?? []) as Array<{ class: number }>)
         const edited = img.edited_annotations as Array<{ class: number }> | null
         const anns = edited ?? orig
         return {
@@ -57,10 +73,10 @@ export async function GET(
           plate_count: anns.filter((a) => a.class === 1).length,
         }
       })
-      return apiSuccess({ images: summaryRows, total: count ?? 0 })
+      return apiSuccess({ images: summaryRows, total: totalCount })
     }
 
-    return apiSuccess({ images: images ?? [], total: count ?? 0 })
+    return apiSuccess({ images: allImages, total: totalCount })
   } catch (err) {
     console.error('[detection/tasks/[taskId]/images] Error:', err)
     return apiError('Internal server error', 500)
