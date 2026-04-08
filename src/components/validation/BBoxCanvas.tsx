@@ -13,6 +13,7 @@ interface BBoxData {
   itemLabel?: string
   itemColor?: string
   isOccluded?: boolean
+  opacity?: number
 }
 
 interface BBoxCanvasProps {
@@ -258,6 +259,8 @@ export function BBoxCanvas({
         return
       }
 
+      ctx.globalAlpha = ann.opacity ?? 1
+
       // Используем tempBBox если он есть для этой аннотации
       const bbox = tempBBox?.id === ann.id ? tempBBox.bbox : ann.bbox
       const { x, y, w, h } = bbox
@@ -311,6 +314,7 @@ export function BBoxCanvas({
       }
 
       ctx.setLineDash([])
+      ctx.globalAlpha = 1
     })
 
     // Рисуем ручки для выбранной аннотации - увеличенные и яркие
