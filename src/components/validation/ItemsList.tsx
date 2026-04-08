@@ -1,15 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Plus, Trash2, Pencil, AlertCircle } from 'lucide-react'
-import type { TrayItem, ItemType, ValidationType, RecipeLineOption, RecipeLine, BuzzerColor, UpdateItemRequest, AnnotationView } from '@/types/domain'
+import { Plus, Trash2, Pencil, AlertCircle, ArrowUp, Eye, EyeOff, Flag, MessageSquare } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import type { TrayItem, ItemType, ValidationType, RecipeLineOption, RecipeLine, BuzzerColor, UpdateItemRequest, AnnotationView, ProductCatalogItem, ActiveMenuItem } from '@/types/domain'
 import { ITEM_TYPE_LABELS, ITEM_TYPE_COLORS, BUZZER_COLOR_LABELS, getItemTypeFromValidationType, getItemColor } from '@/types/domain'
 import { getValidationCapabilities } from '@/lib/validation-capabilities'
 import { hasUnresolvedAmbiguity, hasMultipleOptions } from '@/lib/validation-rules'
+import { getTestSplitWarnings, type TestSplitWarning } from '@/lib/test-split-validation-rules'
 import { cn } from '@/lib/utils'
 import { EditItemDialog } from './EditItemDialog'
+import { ProductSelector } from './ProductSelector'
 import { useValidationSession } from '@/contexts/ValidationSessionContext'
 
 interface ItemsListProps {
@@ -19,13 +27,14 @@ interface ItemsListProps {
   selectedItemId: number | null
   recipeLines?: RecipeLine[]
   recipeLineOptions: RecipeLineOption[]
-  activeMenu?: any[]
+  activeMenu?: ActiveMenuItem[]
   onItemSelect: (id: number) => void
   onItemCreate: () => void
   onItemDelete: (id: number) => void
   onItemUpdate?: (id: number, data: UpdateItemRequest) => void
   readOnly?: boolean
   mode?: 'edit' | 'view'
+  isTestSplit?: boolean
 }
 
 export function ItemsList({
@@ -42,9 +51,12 @@ export function ItemsList({
   onItemUpdate,
   readOnly = false,
   mode = 'view',
+  isTestSplit = false,
 }: ItemsListProps) {
-  // State для редактирования
   const [editingItem, setEditingItem] = useState<TrayItem | null>(null)
+  const [classChangeItem, setClassChangeItem] = useState<TrayItem | null>(null)
+  const [flagCommentItemId, setFlagCommentItemId] = useState<number | null>(null)
+  const [flagCommentDraft, setFlagCommentDraft] = useState('')
 
   // Получаем validationStatus из контекста (может быть undefined в read-only режиме)
   const context = useValidationSession()
@@ -81,64 +93,59 @@ export function ItemsList({
     filteredItems = items
   }
 
-  // Get item label - showing names from recipe_line (from check)
+  const handleProductSelect = useCallback((item: TrayItem, product: ProductCatalogItem) => {
+    if (!onItemUpdate) return
+    onItemUpdate(item.id, {
+      name: product.name,
+      ean: product.ean,
+      product_type: product.product_type,
+    })
+  }, [onItemUpdate])
+
+  const handleFlagSave = useCallback((itemId: number, flagged: boolean, comment: string) => {
+    if (!onItemUpdate) return
+    onItemUpdate(itemId, { flagged, flag_comment: comment })
+    setFlagCommentItemId(null)
+  }, [onItemUpdate])
+
   const getItemLabel = (item: TrayItem): string => {
     let label = ''
-    
-    // Для FOOD: название блюда
+
     if (item.type === 'FOOD') {
-      // Сначала проверяем metadata.name (для блюд из активного меню)
-      if (item.metadata?.name) {
+      if (item.name) {
+        label = item.name
+      } else if (item.metadata?.name) {
         label = item.metadata.name
-      }
-      // Потом проверяем recipe_line_id (для блюд из чека)
-      else if (item.recipe_line_id) {
+      } else if (item.recipe_line_id) {
         const recipeLine = recipeLines.find(rl => rl.id === item.recipe_line_id)
         const allOptions = recipeLineOptions.filter((opt) => opt.recipe_line_id === item.recipe_line_id)
         const selectedOption = allOptions.find(opt => opt.is_selected)
-        
-        // Если есть несколько вариантов и ни один не выбран - это неопределенность
+
         if (allOptions.length > 1 && !selectedOption) {
           label = 'Выберите вариант блюда'
-        }
-        // Если есть выбранный вариант - показываем его название
-        else if (selectedOption?.name) {
+        } else if (selectedOption?.name) {
           label = selectedOption.name
-        } 
-        // Если только один вариант - показываем его
-        else if (allOptions.length === 1 && allOptions[0]?.name) {
+        } else if (allOptions.length === 1 && allOptions[0]?.name) {
           label = allOptions[0].name
-        }
-        // Fallback на raw_name из recipe_line
-        else if (recipeLine?.raw_name) {
+        } else if (recipeLine?.raw_name) {
           label = recipeLine.raw_name
-        } 
-        else {
-          // DEBUG: Логируем почему не нашли название
-          console.warn(`[ItemsList] No name found for item ${item.id}, recipe_line_id=${item.recipe_line_id}. RecipeLine:`, recipeLine, 'Options:', recipeLineOptions.length)
+        } else {
           label = ITEM_TYPE_LABELS[item.type]
         }
-      }
-      else {
-        console.warn(`[ItemsList] FOOD item ${item.id} has no recipe_line_id and no metadata.name`)
+      } else {
         label = ITEM_TYPE_LABELS[item.type]
       }
-    }
-    // Для BUZZER: цвет
-    else if (item.type === 'BUZZER' && item.metadata?.color) {
+    } else if (item.type === 'BUZZER' && item.metadata?.color) {
       const colorLabel = BUZZER_COLOR_LABELS[item.metadata.color as BuzzerColor] || item.metadata.color
       label = `${ITEM_TYPE_LABELS[item.type]} (${colorLabel})`
-    }
-    // Остальные типы
-    else {
+    } else {
       label = ITEM_TYPE_LABELS[item.type]
     }
-    
-    // Добавить quantity если > 1
+
     if (item.quantity > 1) {
       label = `${item.quantity}x ${label}`
     }
-    
+
     return label
   }
 
@@ -195,7 +202,8 @@ export function ItemsList({
                   'p-3 cursor-pointer transition-all hover:shadow-md relative',
                   isSelected && 'ring-2 ring-blue-500 bg-blue-50',
                   hasErrors && 'border-2 border-red-400 bg-red-50 shadow-sm',
-                  isNewItem && !hasErrors && 'border-2 border-green-400 bg-green-50/50'
+                  isNewItem && !hasErrors && 'border-2 border-green-400 bg-green-50/50',
+                  isTestSplit && item.flagged && !isSelected && 'border-2 border-orange-300 bg-orange-50/50'
                 )}
                 onClick={() => onItemSelect(item.id)}
               >
@@ -239,11 +247,23 @@ export function ItemsList({
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                    <div className="flex flex-wrap gap-1.5 text-xs text-gray-500">
                       <span>{ITEM_TYPE_LABELS[item.type]}</span>
+                      {/* Test split badges */}
+                      {isTestSplit && item.up === true && (
+                        <span className="px-1 py-0.5 rounded bg-blue-100 text-blue-700 font-semibold text-[10px]">UP</span>
+                      )}
+                      {isTestSplit && item.label_visible === true && (
+                        <span className="px-1 py-0.5 rounded bg-green-100 text-green-700 font-semibold text-[10px]">VISIBLE</span>
+                      )}
+                      {isTestSplit && item.label_visible === false && item.up !== true && (
+                        <span className="px-1 py-0.5 rounded bg-gray-100 text-gray-600 font-semibold text-[10px]">NOT VISIBLE</span>
+                      )}
+                      {isTestSplit && item.flagged && (
+                        <span className="px-1 py-0.5 rounded bg-orange-100 text-orange-700 font-semibold text-[10px]">?</span>
+                      )}
                     </div>
-                    
-                    {/* Показываем ошибки валидации */}
+
                     {hasErrors && (
                       <div className="mt-2 space-y-1">
                         {itemErrors.map((error: string, idx: number) => (
@@ -253,11 +273,74 @@ export function ItemsList({
                         ))}
                       </div>
                     )}
-                    
-                    {/* UI для ориентации бутылки */}
-                    {capabilities.canSetBottleOrientation && item.type === 'FOOD' && (
+
+                    {/* Test split: two independent toggle rows for Bebida (always visible, no need to select) */}
+                    {isTestSplit && !readOnly && onItemUpdate && (item.product_type || '').toLowerCase() === 'bebida' && (
+                      <div className="mt-2 border-t border-gray-200 pt-2 space-y-1.5">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500 w-[4.5rem] flex-shrink-0">Полож.:</span>
+                          <Button
+                            size="sm"
+                            variant={item.up === true ? 'default' : 'outline'}
+                            className={cn('h-6 text-[11px] px-2', item.up === true && 'bg-blue-600 hover:bg-blue-700')}
+                            onClick={(e) => { e.stopPropagation(); onItemUpdate(item.id, { up: item.up === true ? null : true }) }}
+                          >
+                            <ArrowUp className="w-3 h-3 mr-0.5" /> Верт.
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={item.up === false ? 'default' : 'outline'}
+                            className={cn('h-6 text-[11px] px-2', item.up === false && 'bg-blue-600 hover:bg-blue-700')}
+                            onClick={(e) => { e.stopPropagation(); onItemUpdate(item.id, { up: item.up === false ? null : false }) }}
+                          >
+                            — Гориз.
+                          </Button>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500 w-[4.5rem] flex-shrink-0">Этикетка:</span>
+                          <Button
+                            size="sm"
+                            variant={item.label_visible === true ? 'default' : 'outline'}
+                            className={cn('h-6 text-[11px] px-2', item.label_visible === true && 'bg-green-600 hover:bg-green-700')}
+                            onClick={(e) => { e.stopPropagation(); onItemUpdate(item.id, { label_visible: item.label_visible === true ? null : true }) }}
+                          >
+                            <Eye className="w-3 h-3 mr-0.5" /> Видна
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={item.label_visible === false ? 'default' : 'outline'}
+                            className={cn('h-6 text-[11px] px-2', item.label_visible === false && 'bg-gray-600 hover:bg-gray-700')}
+                            onClick={(e) => { e.stopPropagation(); onItemUpdate(item.id, { label_visible: item.label_visible === false ? null : false }) }}
+                          >
+                            <EyeOff className="w-3 h-3 mr-0.5" /> Не видна
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Test split: Validation warnings */}
+                    {isTestSplit && (() => {
+                      const warnings = getTestSplitWarnings(item)
+                      if (warnings.length === 0) return null
+                      return (
+                        <div className="mt-1.5 space-y-0.5">
+                          {warnings.map((w: TestSplitWarning, idx: number) => (
+                            <div key={idx} className={cn(
+                              'text-[11px] px-1.5 py-0.5 rounded',
+                              w.type === 'error' && 'bg-red-100 text-red-700',
+                              w.type === 'warning' && 'bg-yellow-100 text-yellow-700',
+                              w.type === 'info' && 'bg-blue-50 text-blue-600',
+                            )}>
+                              {w.message}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
+
+                    {/* Non-test-split: bottle orientation UI */}
+                    {!isTestSplit && capabilities.canSetBottleOrientation && item.type === 'FOOD' && (
                       <div>
-                        {/* Режим редактирования: кнопки для изменения */}
                         {!readOnly && isSelected && onItemUpdate && (
                           <div className="mt-2 flex gap-1 border-t border-gray-200 pt-2">
                             <span className="text-xs text-gray-600 self-center mr-1">Ориентация:</span>
@@ -299,14 +382,13 @@ export function ItemsList({
                             </Button>
                           </div>
                         )}
-                        
-                        {/* Режим просмотра: показываем текстом */}
+
                         {readOnly && validationType === 'BOTTLE_ORIENTATION_VALIDATION' && (
                           <div className="mt-2 border-t border-gray-200 pt-2">
                             <span className="text-xs text-gray-600">Ориентация: </span>
                             <span className={`text-xs font-medium ${item.bottle_orientation ? 'text-gray-900' : 'text-orange-600'}`}>
-                              {item.bottle_orientation === 'horizontal' 
-                                ? 'Горизонтально' 
+                              {item.bottle_orientation === 'horizontal'
+                                ? 'Горизонтально'
                                 : item.bottle_orientation === 'vertical'
                                 ? 'Вертикально'
                                 : 'Не выбрана'}
@@ -317,11 +399,95 @@ export function ItemsList({
                     )}
                   </div>
                   
-                  {/* Кнопки действий - только если не read-only */}
                   {!readOnly && (
-                    <div className="flex-none flex gap-1">
-                      {/* Кнопка редактирования */}
-                      {capabilities.canUpdateItems && onItemUpdate && (
+                    <div className="flex-none flex flex-col gap-0.5">
+                      {/* Test split: class change button */}
+                      {isTestSplit && onItemUpdate && item.type === 'FOOD' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setClassChangeItem(item)
+                          }}
+                          title="Сменить класс"
+                        >
+                          <Pencil className="w-3.5 h-3.5 text-gray-400 hover:text-blue-600" />
+                        </Button>
+                      )}
+                      {/* Test split: flag button */}
+                      {isTestSplit && onItemUpdate && (
+                        <Popover
+                          open={flagCommentItemId === item.id}
+                          onOpenChange={(open) => {
+                            if (open) {
+                              setFlagCommentItemId(item.id)
+                              setFlagCommentDraft(item.flag_comment || '')
+                            } else {
+                              setFlagCommentItemId(null)
+                            }
+                          }}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className={cn(
+                                'h-7 w-7 p-0',
+                                item.flagged && 'text-orange-500'
+                              )}
+                              onClick={(e) => e.stopPropagation()}
+                              title="Под вопросом"
+                            >
+                              <Flag className="w-3.5 h-3.5" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-64 p-3"
+                            side="left"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium">Пометить под вопросом</p>
+                              <Input
+                                placeholder="Комментарий (необязательно)..."
+                                value={flagCommentDraft}
+                                onChange={(e) => setFlagCommentDraft(e.target.value)}
+                                className="h-8 text-xs"
+                              />
+                              <div className="flex gap-1.5">
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs flex-1"
+                                  onClick={() => {
+                                    onItemUpdate(item.id, { flagged: true, flag_comment: flagCommentDraft || null })
+                                    setFlagCommentItemId(null)
+                                  }}
+                                >
+                                  <Flag className="w-3 h-3 mr-1" />
+                                  Пометить
+                                </Button>
+                                {item.flagged && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs"
+                                    onClick={() => {
+                                      onItemUpdate(item.id, { flagged: false, flag_comment: null })
+                                      setFlagCommentItemId(null)
+                                    }}
+                                  >
+                                    Снять
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                      {/* Standard edit button (non-test-split) */}
+                      {!isTestSplit && capabilities.canUpdateItems && onItemUpdate && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -334,19 +500,17 @@ export function ItemsList({
                           <Pencil className="w-4 h-4 text-gray-400 hover:text-blue-600" />
                         </Button>
                       )}
-                      
-                      {/* Кнопка удаления */}
                       {capabilities.canDeleteItems && (
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-8 w-8 p-0"
+                          className="h-7 w-7 p-0"
                           onClick={(e) => {
                             e.stopPropagation()
                             onItemDelete(item.id)
                           }}
                         >
-                          <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-600" />
+                          <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-600" />
                         </Button>
                       )}
                     </div>
@@ -358,7 +522,21 @@ export function ItemsList({
         )}
       </div>
 
-      {/* Диалог редактирования/создания */}
+      {/* Test split: Product selector dialog */}
+      {classChangeItem && onItemUpdate && (
+        <ProductSelector
+          open={Boolean(classChangeItem)}
+          onClose={() => setClassChangeItem(null)}
+          onSelect={(product) => {
+            handleProductSelect(classChangeItem, product)
+            setClassChangeItem(null)
+          }}
+          currentName={classChangeItem.name || classChangeItem.metadata?.name}
+          currentProductType={classChangeItem.product_type}
+          activeMenu={activeMenu}
+        />
+      )}
+
       {editingItem && onItemUpdate && (
         <EditItemDialog
           open={Boolean(editingItem)}

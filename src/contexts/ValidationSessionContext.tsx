@@ -62,7 +62,9 @@ interface ValidationSessionContextValue {
   completeCurrentStep: (stepIndex: number) => Promise<void>
 }
 
-const ValidationSessionContext = createContext<ValidationSessionContextValue | null>(null)
+export const ValidationSessionContext = createContext<ValidationSessionContextValue | null>(null)
+
+export type { ValidationSessionContextValue }
 
 export function useValidationSession() {
   const context = useContext(ValidationSessionContext)
