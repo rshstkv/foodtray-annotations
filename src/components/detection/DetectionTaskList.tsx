@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Download } from 'lucide-react'
 import { apiFetch } from '@/lib/api-response'
 import type { DetectionTaskWithStats } from '@/types/detection'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
@@ -15,6 +16,7 @@ interface DetectionTaskListProps {
 export function DetectionTaskList({ onSelectTask }: DetectionTaskListProps) {
   const [tasks, setTasks] = useState<DetectionTaskWithStats[]>([])
   const [loading, setLoading] = useState(true)
+  const [exportingTaskId, setExportingTaskId] = useState<number | null>(null)
 
   useEffect(() => {
     loadTasks()
@@ -28,6 +30,22 @@ export function DetectionTaskList({ onSelectTask }: DetectionTaskListProps) {
     }
     setLoading(false)
   }
+
+  const handleExport = useCallback(async (e: React.MouseEvent, task: DetectionTaskWithStats) => {
+    e.stopPropagation()
+    setExportingTaskId(task.id)
+    const res = await fetch(`/api/detection/tasks/${task.id}/export`)
+    if (res.ok) {
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `detection_${task.bucket_name}_${Date.now()}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+    setExportingTaskId(null)
+  }, [])
 
   if (loading) {
     return (
@@ -70,9 +88,20 @@ export function DetectionTaskList({ onSelectTask }: DetectionTaskListProps) {
                   <span className="font-medium text-gray-700">{task.percent_completed}%</span>
                 </div>
               </div>
-              <Button onClick={() => onSelectTask(task)} size="sm">
-                Open
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => handleExport(e, task)}
+                  disabled={exportingTaskId === task.id}
+                >
+                  <Download className="w-4 h-4 mr-1" />
+                  {exportingTaskId === task.id ? '...' : 'Export'}
+                </Button>
+                <Button onClick={() => onSelectTask(task)} size="sm">
+                  Open
+                </Button>
+              </div>
             </div>
             <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div

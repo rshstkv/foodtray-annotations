@@ -3,14 +3,20 @@
 import { useState } from 'react'
 import { RootLayout } from '@/components/layouts/RootLayout'
 import { DetectionTaskList } from '@/components/detection/DetectionTaskList'
+import { DetectionImageTable } from '@/components/detection/DetectionImageTable'
 import { DetectionWorkspace } from '@/components/detection/DetectionWorkspace'
 import { useUser } from '@/hooks/useUser'
 import type { DetectionTaskWithStats } from '@/types/detection'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
+type Screen =
+  | { type: 'tasks' }
+  | { type: 'table'; task: DetectionTaskWithStats }
+  | { type: 'editor'; task: DetectionTaskWithStats; imageId: number; allImageIds: number[] }
+
 export default function DetectionFoodPlatePage() {
   const { user, loading, isAdmin } = useUser()
-  const [selectedTask, setSelectedTask] = useState<DetectionTaskWithStats | null>(null)
+  const [screen, setScreen] = useState<Screen>({ type: 'tasks' })
 
   if (loading) {
     return (
@@ -20,12 +26,32 @@ export default function DetectionFoodPlatePage() {
     )
   }
 
-  if (selectedTask) {
+  if (screen.type === 'editor') {
     return (
       <DetectionWorkspace
-        task={selectedTask}
-        onBack={() => setSelectedTask(null)}
+        task={screen.task}
+        initialImageId={screen.imageId}
+        allImageIds={screen.allImageIds}
+        onBack={() => setScreen({ type: 'table', task: screen.task })}
       />
+    )
+  }
+
+  if (screen.type === 'table') {
+    return (
+      <RootLayout
+        userName={user?.full_name ?? undefined}
+        userEmail={user?.email}
+        isAdmin={isAdmin}
+      >
+        <DetectionImageTable
+          task={screen.task}
+          onBack={() => setScreen({ type: 'tasks' })}
+          onOpenImage={(imageId, allImageIds) =>
+            setScreen({ type: 'editor', task: screen.task, imageId, allImageIds })
+          }
+        />
+      </RootLayout>
     )
   }
 
@@ -35,7 +61,9 @@ export default function DetectionFoodPlatePage() {
       userEmail={user?.email}
       isAdmin={isAdmin}
     >
-      <DetectionTaskList onSelectTask={setSelectedTask} />
+      <DetectionTaskList
+        onSelectTask={(task) => setScreen({ type: 'table', task })}
+      />
     </RootLayout>
   )
 }

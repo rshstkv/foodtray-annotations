@@ -66,6 +66,16 @@ export interface DetectionExportData {
   images: DetectionExportImage[]
 }
 
+export interface DetectionImageSummary {
+  id: number
+  task_id: number
+  image_filename: string
+  status: DetectionImageStatus
+  is_modified: boolean
+  food_count: number
+  plate_count: number
+}
+
 export interface DetectionTaskStats {
   total_images: number
   done_images: number
