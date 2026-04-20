@@ -28,20 +28,33 @@ export async function GET(
       return apiError('Task not found', 404)
     }
 
-    const { data: images, error: imagesError } = await supabase
-      .from('detection_image_tasks')
-      .select('*')
-      .eq('task_id', parseInt(taskId))
-      .order('id', { ascending: true })
+    const PAGE_SIZE = 1000
+    const allImages: Record<string, unknown>[] = []
+    let from = 0
 
-    if (imagesError) {
-      return apiError(imagesError.message, 500)
+    // Supabase caps results at 1000 per request; paginate to fetch all rows
+    while (true) {
+      const { data, error: imagesError } = await supabase
+        .from('detection_image_tasks')
+        .select('*')
+        .eq('task_id', parseInt(taskId))
+        .order('id', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1)
+
+      if (imagesError) {
+        return apiError(imagesError.message, 500)
+      }
+
+      if (!data || data.length === 0) break
+      allImages.push(...data)
+      if (data.length < PAGE_SIZE) break
+      from += PAGE_SIZE
     }
 
     const exportData = {
       bucket_name: task.bucket_name,
       exported_at: new Date().toISOString(),
-      images: (images ?? []).map((img: Record<string, unknown>) => ({
+      images: allImages.map((img: Record<string, unknown>) => ({
         image: img.image_filename,
         original: img.original_annotations ?? [],
         edited: img.edited_annotations ?? img.original_annotations ?? [],
